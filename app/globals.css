@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400..800;1,400..800&family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+@theme {
+  --font-serif: 'Libre Baskerville', 'Playfair Display', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  --color-leaf: #2D4D3D;
+  --color-leaf-dark: #1F3D2B;
+  --color-leaf-deeper: #14281C;
+
+  --color-wheat: #E6B34D;
+  --color-wheat-gold: #D9A441;
+  --color-wheat-dark: #B8852B;
+
+  --color-earth-dark: #4D3D2D;
+  --color-earth-border: rgba(77, 61, 45, 0.15);
+
+  --color-cream: #FAF7F0;
+  --color-cream-light: #FDFCF8;
+  --color-cream-card: #FFFFFF;
+  --color-cream-dark: #F0E8D8;
+  --color-cream-border: #E4D9C4;
+
+  --color-soil: #5C4033;
+  --color-soil-light: #8C684B;
+}
+
+:root {
+  --font-serif: 'Libre Baskerville', 'Playfair Display', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #FAF7F0;
+  color: #1A281E;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-serif {
+  font-family: 'Libre Baskerville', 'Playfair Display', Georgia, serif !important;
+}
+
+.font-sans {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif !important;
+}
+
+/* Custom scrollbar for natural feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F0E8D8;
+}
+::-webkit-scrollbar-thumb {
+  background: #D9A441;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B8852B;
+}
