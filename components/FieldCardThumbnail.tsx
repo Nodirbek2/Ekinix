@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { getSafeLeaflet, safeDestroyMap } from '@/lib/leafletHelper';
 
 interface FieldCardThumbnailProps {
   coordinates?: [number, number][];
@@ -16,21 +17,23 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
 
   useEffect(() => {
     let isMounted = true;
+    const container = containerRef.current;
 
     async function initThumbnail() {
-      if (typeof window === 'undefined' || !containerRef.current) return;
+      if (typeof window === 'undefined' || !container) return;
 
-      const L = (await import('leaflet')).default;
-      if (!isMounted || !containerRef.current) return;
+      const L = await getSafeLeaflet();
+      if (!isMounted || !container || !L) return;
 
       if (mapRef.current) {
-        mapRef.current.remove();
+        safeDestroyMap(mapRef.current, container);
+        mapRef.current = null;
       }
 
       const defaultCenter: [number, number] =
         coordinates && coordinates.length > 0 ? coordinates[0] : [41.2995, 69.2401];
 
-      const map = L.map(containerRef.current, {
+      const map = L.map(container, {
         center: defaultCenter,
         zoom: 14,
         zoomControl: false,
@@ -44,8 +47,13 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
       });
 
       L.tileLayer(
-        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        { maxZoom: 18 }
+        'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        {
+          attribution: '&copy; Google Maps',
+          maxNativeZoom: 20,
+          maxZoom: 22,
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        }
       ).addTo(map);
 
       if (coordinates && coordinates.length >= 3) {
@@ -56,7 +64,11 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
           fillOpacity: 0.5,
         }).addTo(map);
 
-        map.fitBounds(polygon.getBounds(), { padding: [15, 15] });
+        try {
+          map.fitBounds(polygon.getBounds(), { padding: [15, 15], animate: false });
+        } catch {
+          // ignore
+        }
       }
 
       mapRef.current = map;
@@ -67,7 +79,7 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
     return () => {
       isMounted = false;
       if (mapRef.current) {
-        mapRef.current.remove();
+        safeDestroyMap(mapRef.current, container);
         mapRef.current = null;
       }
     };

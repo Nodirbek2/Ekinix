@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Language } from '@/lib/i18n';
+import { Language, translations } from '@/lib/i18n';
 import { Header } from '@/components/Header';
+import { Sidebar, NavTabId } from '@/components/Sidebar';
 import { Hero } from '@/components/Hero';
 import { HowItWorks } from '@/components/HowItWorks';
 import { InteractiveDemo } from '@/components/InteractiveDemo';
-import { MyFieldsSection } from '@/components/MyFieldsSection';
-import { CropGuideSection } from '@/components/CropGuideSection';
-import { MarketplaceSection } from '@/components/MarketplaceSection';
 import { FarmerDashboardSection } from '@/components/FarmerDashboardSection';
+import { MyFieldsSection } from '@/components/MyFieldsSection';
+import { WeatherIrrigationSection } from '@/components/WeatherIrrigationSection';
+import { MarketplaceSection } from '@/components/MarketplaceSection';
+import { CropGuideSection } from '@/components/CropGuideSection';
 import { AuthModal } from '@/components/AuthModal';
 import { FarmerOnboardingModal } from '@/components/FarmerOnboardingModal';
 import { SettingsModal } from '@/components/SettingsModal';
@@ -19,13 +21,28 @@ import { FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export default function Home() {
   const [currentLang, setCurrentLang] = useState<Language>('uz');
-  const [activeNavSection, setActiveNavSection] = useState<string>('home');
+  const [activeTab, setActiveTab] = useState<NavTabId>('overview');
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [dbModalOpen, setDbModalOpen] = useState<boolean>(false);
   const [onboardingOpen, setOnboardingOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [userProfile, setUserProfile] = useState<FarmerProfile | null>(null);
+
+  const t = translations[currentLang];
+
+  // Invalidate Leaflet maps when navigating to map-dependent tabs
+  useEffect(() => {
+    if (activeTab === 'fields' || activeTab === 'dashboard') {
+      const timer = setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('resize'));
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab]);
 
   // Load profile from localStorage & Supabase session after mount
   useEffect(() => {
@@ -55,7 +72,6 @@ export default function Home() {
             primary_crops: userMeta.primary_crops || ['cotton', 'wheat'],
           };
 
-          // Try fetching from public.farmers table
           client
             .from('farmers')
             .select('*')
@@ -85,6 +101,21 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Listen for custom tab switch events from inner components
+  useEffect(() => {
+    const handleSwitchTabEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const targetTab = customEvent.detail;
+      if (['overview', 'dashboard', 'fields', 'weather', 'marketplace', 'guides'].includes(targetTab)) {
+        setActiveTab(targetTab as NavTabId);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+
+    window.addEventListener('ekinix-switch-tab', handleSwitchTabEvent);
+    return () => window.removeEventListener('ekinix-switch-tab', handleSwitchTabEvent);
+  }, []);
+
   const handleOpenAuth = (mode: 'login' | 'register') => {
     setAuthMode(mode);
     setAuthModalOpen(true);
@@ -104,7 +135,6 @@ export default function Home() {
     setUserProfile(fullProf);
     localStorage.setItem('ekinix_farmer_profile', JSON.stringify(fullProf));
 
-    // Open onboarding flow for new users or if requested
     if (isNewUser) {
       setTimeout(() => {
         setOnboardingOpen(true);
@@ -126,91 +156,126 @@ export default function Home() {
     }
   };
 
-  const handleExploreClick = () => {
-    setActiveNavSection('fields');
-    const el = document.getElementById('section-[#interactive-demo]') || document.querySelector('section[id*="interactive"]');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    } else {
-      window.scrollTo({ top: 800, behavior: 'smooth' });
-    }
+  const handleTabSelect = (tab: NavTabId) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F0] text-[#1A281E]">
       
-      {/* Header with Nav, Language Toggle & Auth */}
+      {/* 1. MINIMAL GOOGLE WORKSPACE / AI STUDIO HEADER */}
       <Header
         currentLang={currentLang}
         onLanguageChange={setCurrentLang}
+        activeTab={activeTab}
+        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        userProfile={userProfile}
         onOpenAuth={handleOpenAuth}
         onOpenDbModal={() => setDbModalOpen(true)}
-        activeNavSection={activeNavSection}
-        setActiveNavSection={setActiveNavSection}
-        userProfile={userProfile}
-        onOpenOnboarding={() => setOnboardingOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+      />
+
+      {/* 2. COLLAPSIBLE SLIDE-OUT SIDEBAR DRAWER */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        currentLang={currentLang}
+        onLanguageChange={setCurrentLang}
+        activeTab={activeTab}
+        onTabChange={handleTabSelect}
+        userProfile={userProfile}
+        onOpenAuth={handleOpenAuth}
+        onOpenDbModal={() => setDbModalOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenOnboarding={() => setOnboardingOpen(true)}
         onLogout={handleLogout}
       />
 
-      {/* Main Content */}
-      <main className="flex-1">
-        {/* Hero Section */}
-        <Hero
-          currentLang={currentLang}
-          onOpenRegister={() => handleOpenAuth('register')}
-          onExploreClick={handleExploreClick}
-        />
+      {/* 3. MAIN WORKSPACE CONTAINER (Active Tool / Page Only) */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
+        
+        {/* TAB 1: OVERVIEW / PLATFORM INTRODUCTION */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            <Hero
+              currentLang={currentLang}
+              onOpenRegister={() => handleOpenAuth('register')}
+              onExploreClick={() => handleTabSelect('fields')}
+            />
+            <HowItWorks
+              currentLang={currentLang}
+              onOpenRegister={() => handleOpenAuth('register')}
+            />
+            <InteractiveDemo
+              currentLang={currentLang}
+              onOpenAuth={handleOpenAuth}
+            />
+          </div>
+        )}
 
-        {/* 3-Step "How It Works" Section */}
-        <HowItWorks
-          currentLang={currentLang}
-          onOpenRegister={() => handleOpenAuth('register')}
-        />
+        {/* TAB 2: FARMER DASHBOARD (NDVI TELEMETRY & FIELD SENSORS) */}
+        {activeTab === 'dashboard' && (
+          <div className="animate-in fade-in duration-200">
+            <FarmerDashboardSection
+              currentLang={currentLang}
+              userProfile={userProfile}
+              onOpenAuth={handleOpenAuth}
+              onNavigateToFields={() => handleTabSelect('fields')}
+            />
+          </div>
+        )}
 
-        {/* Farmer Dashboard Page/Section */}
-        <FarmerDashboardSection
-          currentLang={currentLang}
-          userProfile={userProfile}
-          onOpenAuth={handleOpenAuth}
-          onNavigateToFields={() => {
-            const el = document.getElementById('my-fields');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
-          }}
-        />
+        {/* TAB 3: MY FIELDS (LEAFLET INTERACTIVE POLYGON DRAWER & REGISTRATION) */}
+        {activeTab === 'fields' && (
+          <div className="animate-in fade-in duration-200">
+            <MyFieldsSection
+              currentLang={currentLang}
+              userProfile={userProfile}
+              onOpenAuth={handleOpenAuth}
+            />
+          </div>
+        )}
 
-        {/* My Fields Section with Leaflet Map Drawing & Supabase Storage */}
-        <MyFieldsSection
-          currentLang={currentLang}
-          userProfile={userProfile}
-          onOpenAuth={handleOpenAuth}
-        />
+        {/* TAB 4: WEATHER & PRECISION IRRIGATION (OPEN-METEO 7-DAY FORECAST & MODEL) */}
+        {activeTab === 'weather' && (
+          <div className="animate-in fade-in duration-200">
+            <WeatherIrrigationSection
+              currentLang={currentLang}
+            />
+          </div>
+        )}
 
-        {/* Structured Crop Guides & Growth Stages Section */}
-        <CropGuideSection
-          currentLang={currentLang}
-        />
+        {/* TAB 5: CROP MARKETPLACE (DIRECT FARMER HARVEST LISTINGS) */}
+        {activeTab === 'marketplace' && (
+          <div className="animate-in fade-in duration-200">
+            <MarketplaceSection
+              currentLang={currentLang}
+              userProfile={userProfile}
+            />
+          </div>
+        )}
 
-        {/* Ekinix Agricultural Produce Marketplace Section */}
-        <MarketplaceSection
-          currentLang={currentLang}
-          userProfile={userProfile}
-        />
+        {/* TAB 6: CROP AGRONOMY GUIDES (GROWTH STAGES & BEST PRACTICES) */}
+        {activeTab === 'guides' && (
+          <div className="animate-in fade-in duration-200">
+            <CropGuideSection
+              currentLang={currentLang}
+            />
+          </div>
+        )}
 
-        {/* Live Interactive Feature Demo (Satellite, Weather/Irrigation, Marketplace, Guides) */}
-        <InteractiveDemo
-          currentLang={currentLang}
-          onOpenAuth={handleOpenAuth}
-        />
       </main>
 
-      {/* Footer */}
+      {/* 4. GLOBAL FOOTER */}
       <Footer
         currentLang={currentLang}
         onLanguageChange={setCurrentLang}
         onOpenDbModal={() => setDbModalOpen(true)}
       />
 
+      {/* MODALS */}
       {/* Auth Modal (Login / Register) */}
       <AuthModal
         isOpen={authModalOpen}
@@ -221,7 +286,7 @@ export default function Home() {
         onAuthSuccess={handleAuthSuccess}
       />
 
-      {/* Farmer Onboarding 3-Step Wizard Modal */}
+      {/* Farmer Onboarding 3-Step Wizard */}
       <FarmerOnboardingModal
         isOpen={onboardingOpen}
         onClose={() => setOnboardingOpen(false)}
@@ -232,7 +297,7 @@ export default function Home() {
         userPhone={userProfile?.phone}
       />
 
-      {/* Settings & Notification Preferences Modal */}
+      {/* Farmer Profile & Preferences Settings */}
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -255,7 +320,7 @@ export default function Home() {
         }}
       />
 
-      {/* Supabase Database Setup & SQL Modal */}
+      {/* Supabase Database Schema & Setup Modal */}
       <SupabaseSetupModal
         isOpen={dbModalOpen}
         onClose={() => setDbModalOpen(false)}
@@ -264,4 +329,3 @@ export default function Home() {
     </div>
   );
 }
-

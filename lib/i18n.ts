@@ -127,6 +127,9 @@ export interface Translations {
   cropTypeLabel: string;
   plantingDateLabel: string;
   drawBoundaryInstruction: string;
+  closeBoundaryBtn: string;
+  boundaryClosed: string;
+  reopenBoundary: string;
   calculatedArea: string;
   resetMapPoints: string;
   saveFieldBtn: string;
@@ -284,7 +287,10 @@ export const translations: Record<Language, Translations> = {
     fieldNameLabel: "Maydon Nomi",
     cropTypeLabel: "Ekin Turi",
     plantingDateLabel: "Ekilgan / Ekiladigan Sana",
-    drawBoundaryInstruction: "Xaritaga bosib, maydoningiz burchak nuqtalarini belgilang (kamida 3 ta burchak)",
+    drawBoundaryInstruction: "Xaritaga bosib, maydoningizning burchak nuqtalarini belgilang (kamida 4 ta burchak nuqtasi talab qilinadi).",
+    closeBoundaryBtn: "Chegarani yakunlash (Maydonni yopish)",
+    boundaryClosed: "Maydon chegaralari muvaffaqiyatli yopildi! Quyidagi formani to'ldirib saqlang.",
+    reopenBoundary: "Chegarani qayta ochish (tahrirlash)",
     calculatedArea: "Hisoblangan Maydon",
     resetMapPoints: "Nuqtalarni Tozalash",
     saveFieldBtn: "Maydonni Saqlash",
@@ -438,7 +444,10 @@ export const translations: Record<Language, Translations> = {
     fieldNameLabel: "Название Поля",
     cropTypeLabel: "Тип Культуры",
     plantingDateLabel: "Дата Посадки",
-    drawBoundaryInstruction: "Нажимайте на карту, чтобы отметить угловые точки поля (минимум 3 точки)",
+    drawBoundaryInstruction: "Отметьте угловые точки поля на карте (требуется минимум 4 точки).",
+    closeBoundaryBtn: "Завершить контур (Закрыть)",
+    boundaryClosed: "Контур поля успешно замкнут! Заполните форму ниже для сохранения.",
+    reopenBoundary: "Открыть контур (редактировать)",
     calculatedArea: "Рассчитанная Площадь",
     resetMapPoints: "Очистить Точки",
     saveFieldBtn: "Сохранить Поле",
@@ -592,7 +601,10 @@ export const translations: Record<Language, Translations> = {
     fieldNameLabel: "Field Name",
     cropTypeLabel: "Crop Type",
     plantingDateLabel: "Planting Date",
-    drawBoundaryInstruction: "Click on the map to place corner boundary points (at least 3 points required)",
+    drawBoundaryInstruction: "Click on the map to place corner boundary points (at least 4 points required).",
+    closeBoundaryBtn: "Finish Boundary (Close Polygon)",
+    boundaryClosed: "Field boundary successfully closed! Fill in the form details below to save.",
+    reopenBoundary: "Reopen boundary (edit points)",
     calculatedArea: "Calculated Area",
     resetMapPoints: "Clear Points",
     saveFieldBtn: "Save Field",

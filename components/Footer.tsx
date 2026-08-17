@@ -92,10 +92,6 @@ export const Footer: React.FC<FooterProps> = ({
         {/* Bottom Copyright */}
         <div className="pt-8 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#E4D9C4]">
           <p>© {new Date().getFullYear()} Ekinix. {t.allRightsReserved}</p>
-          <p className="flex items-center gap-1">
-            <span>O&apos;zbekiston agro sohasi uchun mehr bilan yaratildi</span>
-            <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-          </p>
         </div>
 
       </div>

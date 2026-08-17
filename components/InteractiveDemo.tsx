@@ -1,16 +1,27 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Language, translations } from '@/lib/i18n';
 import { fetchAndStoreFieldNdvi, NdviResult } from '@/lib/ndviService';
-import { FieldMonitoringMap } from '@/components/FieldMonitoringMap';
-import { calculateGrowthStage } from '@/lib/cropGuidesData';
-import { CropGuideSection } from '@/components/CropGuideSection';
+import { calculateGrowthStage, CROP_GUIDES_DATA } from '@/lib/cropGuidesData';
 import { 
   Satellite, Sun, ShoppingBag, BookOpen, Droplets, Wind, Thermometer, 
-  MapPin, CheckCircle, AlertTriangle, Phone, Plus, RefreshCw, CloudOff,
-  TrendingUp, TrendingDown, Minus, ShieldAlert, Bug, Sprout
+  MapPin, CheckCircle, AlertTriangle, AlertCircle, Phone, Plus, RefreshCw, CloudOff,
+  TrendingUp, TrendingDown, Minus, ShieldAlert, Bug, Sprout, ArrowRight, Calendar
 } from 'lucide-react';
+
+const FieldMonitoringMap = dynamic(
+  () => import('@/components/FieldMonitoringMap').then((mod) => mod.FieldMonitoringMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-[380px] bg-[#F0E8D8] rounded-2xl animate-pulse flex items-center justify-center text-sm font-semibold text-[#1F3D2B]/60">
+        Xarita yuklanmoqda...
+      </div>
+    ),
+  }
+);
 
 interface InteractiveDemoProps {
   currentLang: Language;
@@ -155,6 +166,21 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
   // Tab State
   const [activeTab, setActiveTab] = useState<'satellite' | 'weather' | 'market' | 'guides'>('satellite');
 
+  // Listen for tab switch events from Header or other navigation triggers
+  useEffect(() => {
+    const handleSwitchTab = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const tab = customEvent.detail;
+      if (tab === 'satellite' || tab === 'weather' || tab === 'market' || tab === 'guides') {
+        setActiveTab(tab);
+      }
+    };
+    window.addEventListener('ekinix-switch-tab', handleSwitchTab);
+    return () => {
+      window.removeEventListener('ekinix-switch-tab', handleSwitchTab);
+    };
+  }, []);
+
   // Satellite State
   const [selectedFieldId, setSelectedFieldId] = useState<string>('f1');
   const selectedField = sampleFields.find(f => f.id === selectedFieldId) || sampleFields[0];
@@ -197,12 +223,16 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
     wind: number;
     precip: number;
     loading: boolean;
+    isOffline: boolean;
+    isError: boolean;
   }>({
     temp: 29,
     humidity: 45,
     wind: 12,
     precip: 5,
-    loading: false
+    loading: false,
+    isOffline: false,
+    isError: false,
   });
 
   // Marketplace State
@@ -211,45 +241,67 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [contactModalItem, setContactModalItem] = useState<typeof initialListings[0] | null>(null);
 
-  // New Listing Form State
+  // New Listing Form State with formatted price support
   const [newListing, setNewListing] = useState({
     farmer: '',
     crop: '',
     category: 'sabzavot',
-    price: '',
+    price: '', // Raw numeric string e.g. "8500"
     unit: 'kg',
     quantity: '',
     location: '',
     phone: ''
   });
 
-  // Fetch Weather Data from Open-Meteo
+  // Growth Stage Simulator State for Tab 4
+  const [demoGuideCrop, setDemoGuideCrop] = useState<string>('cotton');
+  const [demoPlantingDate, setDemoPlantingDate] = useState<string>('2026-04-10');
+  const [demoSelectedStageIdx, setDemoSelectedStageIdx] = useState<number>(0);
+
+  // Numeric Price Display Formatter Helper
+  const formatNumberWithSpaces = (val: string | number) => {
+    if (!val) return '';
+    const num = typeof val === 'number' ? val : parseInt(val.toString().replace(/\D/g, ''), 10);
+    return isNaN(num) ? '' : num.toLocaleString('ru-RU').replace(/,/g, ' ');
+  };
+
+  // Fetch Weather Data from Open-Meteo with Resilient Error State
   useEffect(() => {
     let ignore = false;
     const region = UZ_REGIONS[selectedRegionIndex];
 
     const fetchWeather = async () => {
-      if (!ignore) setWeatherData(prev => ({ ...prev, loading: true }));
+      if (!ignore) {
+        setWeatherData(prev => ({ ...prev, loading: true, isError: false }));
+      }
       try {
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${region.lat}&longitude=${region.lon}&current_weather=true&hourly=relative_humidity_2m`);
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${region.lat}&longitude=${region.lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,precipitation_probability,weather_code`
+        );
+        if (!res.ok) throw new Error('Open-Meteo weather response not ok');
         const data = await res.json();
-        if (!ignore && data.current_weather) {
+        if (!ignore && data.current) {
           setWeatherData({
-            temp: Math.round(data.current_weather.temperature),
-            humidity: data.hourly?.relative_humidity_2m?.[0] || 48,
-            wind: Math.round(data.current_weather.windspeed),
-            precip: data.current_weather.weathercode > 50 ? 60 : 10,
-            loading: false
+            temp: Math.round(data.current.temperature_2m),
+            humidity: Math.round(data.current.relative_humidity_2m),
+            wind: Math.round(data.current.wind_speed_10m),
+            precip: data.current.precipitation_probability ?? (data.current.weather_code > 50 ? 65 : 5),
+            loading: false,
+            isOffline: false,
+            isError: false,
           });
         }
-      } catch {
+      } catch (err) {
+        console.warn('Weather API connection failed; using cached regional baseline:', err);
         if (!ignore) {
           setWeatherData({
             temp: 31,
             humidity: 42,
             wind: 14,
             precip: 5,
-            loading: false
+            loading: false,
+            isOffline: true,
+            isError: true,
           });
         }
       }
@@ -299,7 +351,7 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
     : marketListings.filter(item => item.category === marketFilter);
 
   return (
-    <section id="section-[#interactive-demo]" className="py-16 lg:py-24 bg-[#FAF7F0] border-t border-[#E4D9C4]">
+    <section id="interactive-demo" className="py-16 lg:py-24 bg-[#FAF7F0] border-t border-[#E4D9C4]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Header */}
@@ -601,7 +653,7 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
         {activeTab === 'weather' && (
           <div className="bg-[#FAF7F0] rounded-3xl border-2 border-[#E4D9C4] p-6 sm:p-8 shadow-lg space-y-8 animate-in fade-in duration-300">
             
-            {/* Region Selector */}
+            {/* Region Selector & Status */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#F0E8D8] p-4 rounded-2xl border border-[#E4D9C4]">
               <div>
                 <label className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider block mb-1">
@@ -620,11 +672,31 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#1F3D2B] bg-[#FAF7F0] px-3.5 py-2 rounded-xl border border-[#E4D9C4]">
+              <div className="flex items-center gap-2 text-xs font-semibold bg-[#FAF7F0] px-3.5 py-2 rounded-xl border border-[#E4D9C4]">
                 <MapPin className="w-4 h-4 text-[#D9A441]" />
-                <span>Open-Meteo API (Jonli uzatish)</span>
+                <span className={weatherData.isOffline ? 'text-amber-800' : 'text-[#1F3D2B]'}>
+                  {weatherData.isOffline
+                    ? "Open-Meteo (Zaxira ma'lumotlari)"
+                    : "Open-Meteo API (Jonli uzatish)"}
+                </span>
               </div>
             </div>
+
+            {/* Offline / Connection Error Resilient Alert Banner */}
+            {weatherData.isOffline && (
+              <div className="bg-amber-50 border-2 border-amber-300 p-4 rounded-2xl flex items-center gap-3 text-amber-950 text-xs sm:text-sm font-medium shadow-xs animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-amber-700 shrink-0" />
+                <div className="flex-1">
+                  <p className="font-bold text-amber-900">
+                    {currentLang === 'ru'
+                      ? "⚠️ Не удалось подключиться к серверу погоды. Отображаются последние сохранённые данные."
+                      : currentLang === 'en'
+                      ? "⚠️ Live weather server unreachable. Displaying cached regional readings."
+                      : "⚠️ Jonli ob-havo serveriga ulanib bo'lmadi. Oxirgi ma'lumotlar ko'rsatilmoqda."}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Current Weather Cards Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -826,12 +898,177 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
           </div>
         )}
 
-        {/* TAB 4: CROP GUIDES */}
-        {activeTab === 'guides' && (
-          <div className="animate-in fade-in duration-300">
-            <CropGuideSection currentLang={currentLang} />
-          </div>
-        )}
+        {/* TAB 4: CROP GUIDES & AGRO-CALENDAR SIMULATOR */}
+        {activeTab === 'guides' && (() => {
+          const selectedGuide = CROP_GUIDES_DATA.find(g => g.crop_name === demoGuideCrop) || CROP_GUIDES_DATA[0];
+          const calculatedStageInfo = calculateGrowthStage(demoGuideCrop, demoPlantingDate);
+          const activeStage = selectedGuide.stages[demoSelectedStageIdx] || selectedGuide.stages[0];
+
+          return (
+            <div className="bg-[#FAF7F0] rounded-3xl border-2 border-[#E4D9C4] p-6 sm:p-8 shadow-lg space-y-8 animate-in fade-in duration-300">
+              
+              {/* Header with Switcher and Quick CTA */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#1F3D2B] text-[#FAF7F0] p-6 rounded-2xl border-2 border-[#D9A441] shadow-md">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9A441]/20 text-[#D9A441] rounded-full text-xs font-bold uppercase tracking-wider">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>Aqlli Agrotexnika Simulyatori</span>
+                  </div>
+                  <h3 className="font-serif text-2xl font-bold text-[#FAF7F0]">
+                    Ekin Rivojlanish Bosqichlari & Sug&apos;orish Rejasi
+                  </h3>
+                  <p className="text-xs sm:text-sm text-white/80 max-w-xl">
+                    Ekilgan sanani kiriting — tizim joriy o&apos;sish davrini, sug&apos;orish normalari va zararkunandalarga qarshi chora-tadbirlarni avtomatik hisoblaydi.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('crop-guides');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="inline-flex items-center justify-center gap-2 bg-[#D9A441] hover:bg-[#B8852B] text-[#1F3D2B] font-bold text-xs sm:text-sm px-5 py-3 rounded-xl transition-all shadow-md shrink-0"
+                >
+                  <span>To&apos;liq Katalog</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Crop Selector & Planting Date Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-[#F0E8D8] p-5 rounded-2xl border border-[#E4D9C4]">
+                <div>
+                  <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1.5">
+                    Ekin Turi (Crop)
+                  </label>
+                  <select
+                    value={demoGuideCrop}
+                    onChange={(e) => {
+                      setDemoGuideCrop(e.target.value);
+                      setDemoSelectedStageIdx(0);
+                    }}
+                    className="w-full bg-[#FAF7F0] text-[#1F3D2B] font-bold text-sm px-4 py-2.5 rounded-xl border border-[#E4D9C4] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  >
+                    {CROP_GUIDES_DATA.map((c) => (
+                      <option key={c.id} value={c.crop_name}>
+                        {c.icon_emoji} {c.crop_title_uz}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1.5">
+                    Ekilgan Sana (Planting Date)
+                  </label>
+                  <div className="relative">
+                    <Calendar className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="date"
+                      value={demoPlantingDate}
+                      onChange={(e) => setDemoPlantingDate(e.target.value)}
+                      className="w-full bg-[#FAF7F0] text-[#1F3D2B] font-bold text-sm pl-10 pr-4 py-2.5 rounded-xl border border-[#E4D9C4] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                    />
+                  </div>
+                </div>
+
+                <div className="sm:col-span-2 lg:col-span-1 flex flex-col justify-center bg-white p-3.5 rounded-xl border border-[#E4D9C4]">
+                  <span className="text-xs text-[#6C7C6F] font-bold uppercase tracking-wider">Hisoblangan Yosh:</span>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-xl font-extrabold text-[#1F3D2B]">
+                      {calculatedStageInfo.daysElapsed} kun
+                    </span>
+                    <span className="text-xs font-semibold text-[#D9A441] truncate">
+                      ({calculatedStageInfo.currentStage.stage_name_uz.split('(')[0]})
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Interactive Stage Stepper */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider">
+                  Rivojlanish Bosqichlari (Bosqichni tanlang):
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                  {selectedGuide.stages.map((stage, idx) => {
+                    const isCurrent = calculatedStageInfo.stageIndex === idx;
+                    const isSelected = demoSelectedStageIdx === idx;
+
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setDemoSelectedStageIdx(idx)}
+                        className={`p-3.5 rounded-xl text-left border transition-all text-xs flex flex-col justify-between gap-2 ${
+                          isSelected
+                            ? 'bg-[#1F3D2B] text-[#FAF7F0] border-[#1F3D2B] shadow-md scale-[1.02]'
+                            : 'bg-white hover:bg-[#F0E8D8] text-[#1F3D2B] border-[#E4D9C4]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-[#F0E8D8] text-[#1F3D2B]'
+                          }`}>
+                            {idx + 1}-bosqich
+                          </span>
+                          {isCurrent && (
+                            <span className="text-[10px] font-extrabold bg-[#D9A441] text-[#1F3D2B] px-1.5 py-0.5 rounded shadow-xs">
+                              Hozir
+                            </span>
+                          )}
+                        </div>
+                        <p className="font-bold line-clamp-2 leading-snug">
+                          {stage.stage_name_uz}
+                        </p>
+                        <span className={`text-[10px] ${isSelected ? 'text-white/80' : 'text-[#6C7C6F]'}`}>
+                          {stage.days_min}-{stage.days_max} kunlar
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Stage Advice Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                
+                {/* 1. Irrigation Rule */}
+                <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] space-y-2.5 shadow-xs">
+                  <div className="flex items-center gap-2 text-[#2A75D3] font-bold text-sm">
+                    <Droplets className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span>Sug&apos;orish Rejimi</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-[#4A5D4E] leading-relaxed">
+                    {activeStage.irrigation_notes_uz}
+                  </p>
+                </div>
+
+                {/* 2. Pest & Disease Protection */}
+                <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] space-y-2.5 shadow-xs">
+                  <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
+                    <Bug className="w-5 h-5 text-rose-600 shrink-0" />
+                    <span>Zararkunanda & Kasallik</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-[#4A5D4E] leading-relaxed">
+                    {activeStage.pest_notes_uz || "Ushbu davrda profilaktik ko'rik va begona o'tlar tozaligi yetarli."}
+                  </p>
+                </div>
+
+                {/* 3. Agrotechnical Harvest Care */}
+                <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] space-y-2.5 shadow-xs">
+                  <div className="flex items-center gap-2 text-[#B8852B] font-bold text-sm">
+                    <Sprout className="w-5 h-5 text-[#D9A441] shrink-0" />
+                    <span>Agrotexnik Tavsiya</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-[#4A5D4E] leading-relaxed">
+                    {activeStage.harvest_notes_uz || "O'simlikning ildiz tizimini mustahkamlash uchun qator oralariga ishlov berish tavsiya etiladi."}
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+          );
+        })()}
 
       </div>
 
@@ -931,13 +1168,22 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
                     Narxi (UZS) *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     required
-                    placeholder="Masalan: 8500"
-                    value={newListing.price}
-                    onChange={(e) => setNewListing({ ...newListing, price: e.target.value })}
-                    className="w-full bg-white border border-[#E4D9C4] rounded-xl px-3 py-2.5 font-medium"
+                    placeholder="Masalan: 8 500"
+                    value={formatNumberWithSpaces(newListing.price)}
+                    onChange={(e) => {
+                      const cleanNumber = e.target.value.replace(/\D/g, '');
+                      setNewListing({ ...newListing, price: cleanNumber });
+                    }}
+                    className="w-full bg-white border border-[#E4D9C4] rounded-xl px-3 py-2.5 font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
                   />
+                  {newListing.price && (
+                    <span className="text-[11px] text-[#1F3D2B] font-semibold mt-1 block">
+                      Jami: {formatNumberWithSpaces(newListing.price)} so&apos;m /{newListing.unit}
+                    </span>
+                  )}
                 </div>
               </div>
 

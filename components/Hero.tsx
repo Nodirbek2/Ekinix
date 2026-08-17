@@ -25,19 +25,12 @@ export const Hero: React.FC<HeroProps> = ({ currentLang, onOpenRegister, onExplo
           {/* Hero Left Text Area */}
           <div className="lg:col-span-7 space-y-6 text-left">
             
-            {/* Tagline Badge */}
-            <div className="inline-flex items-center gap-2 bg-[#F0E8D8] border border-[#E4D9C4] px-4 py-2 rounded-full text-xs md:text-sm font-semibold text-[#1F3D2B] shadow-xs">
-              <Sprout className="w-4 h-4 text-[#D9A441]" />
-              <span>{t.heroTagline}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-[#D9A441] animate-pulse" />
-            </div>
-
             {/* Main Title - Serif typography */}
             <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-[#1F3D2B] leading-[1.15]">
               {t.heroTitle}
             </h1>
 
-            {/* Subtitle - Exactly one clean sentence explaining the app */}
+            {/* Subtitle - Clean sentence explaining the app */}
             <p className="text-base sm:text-lg md:text-xl text-[#4A5D4E] leading-relaxed max-w-2xl font-sans font-normal">
               {t.heroSub}
             </p>
@@ -61,25 +54,9 @@ export const Hero: React.FC<HeroProps> = ({ currentLang, onOpenRegister, onExplo
               </button>
             </div>
 
-            {/* Value Trust Markers */}
-            <div className="pt-4 grid grid-cols-3 gap-3 border-t border-[#E4D9C4] max-w-lg">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#2D3A2F]">
-                <CheckCircle2 className="w-4 h-4 text-[#D9A441] shrink-0" />
-                <span>Open-Meteo &amp; Sentinel</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#2D3A2F]">
-                <ShieldCheck className="w-4 h-4 text-[#D9A441] shrink-0" />
-                <span>Supabase Xavfsiz</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#2D3A2F]">
-                <Layers className="w-4 h-4 text-[#D9A441] shrink-0" />
-                <span>100% Bepul Boshlash</span>
-              </div>
-            </div>
-
           </div>
 
-          {/* Hero Right Visual Area - Live Card Widgets Showcase */}
+          {/* Hero Right Visual Area - Clean Single Card Showcase */}
           <div className="lg:col-span-5 relative">
             
             {/* Background Frame Box */}
@@ -89,92 +66,49 @@ export const Hero: React.FC<HeroProps> = ({ currentLang, onOpenRegister, onExplo
               <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-white text-sm font-bold tracking-wide">
+                  <span className="text-white text-base font-bold tracking-wide">
                     Yangiyo&apos;l Maydoni #1
                   </span>
                 </div>
-                <span className="bg-[#D9A441] text-[#1F3D2B] text-xs font-extrabold px-2.5 py-1 rounded-full uppercase">
+                <span className="bg-[#D9A441] text-[#1F3D2B] text-xs font-extrabold px-3 py-1 rounded-full uppercase">
                   Jonli Monitoring
                 </span>
               </div>
 
-              {/* Widget Card 1: Soil Moisture */}
-              <div className="bg-[#FAF7F0] p-4 rounded-2xl shadow-md border border-[#E4D9C4] mb-4 transform hover:scale-[1.02] transition-all">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-blue-100 text-blue-800">
-                      <Droplets className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider">
-                        {t.moistureCardTitle}
-                      </h4>
-                      <p className="text-base font-extrabold text-[#1F3D2B]">
-                        {t.moistureStatus}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-2 py-1 rounded-md">
-                    Optimal
-                  </span>
-                </div>
-
-                {/* Progress Gauge */}
-                <div className="w-full bg-[#E4D9C4] rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="bg-[#1F3D2B] h-2.5 rounded-full transition-all duration-1000"
-                    style={{ width: '68%' }}
-                  />
-                </div>
-              </div>
-
-              {/* Widget Card 2: Field Area & Crop */}
-              <div className="bg-[#FAF7F0] p-4 rounded-2xl shadow-md border border-[#E4D9C4] mb-4 transform hover:scale-[1.02] transition-all">
+              {/* Combined Clean Card */}
+              <div className="bg-[#FAF7F0] p-5 rounded-2xl shadow-md border border-[#E4D9C4] space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800">
-                      <Sprout className="w-5 h-5" />
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-100 text-emerald-800">
+                      <Sprout className="w-6 h-6" />
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider">
                         {t.fieldAreaCardTitle}
                       </h4>
-                      <p className="text-base font-extrabold text-[#1F3D2B]">
+                      <p className="text-lg font-extrabold text-[#1F3D2B]">
                         {t.fieldAreaValue}
                       </p>
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-[#5C4033] bg-[#F0E8D8] px-2.5 py-1 rounded-md border border-[#E4D9C4]">
-                    NDVI 0.76
+                  <span className="text-xs font-bold text-[#1F3D2B] bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-300">
+                    NDVI 0.76 (Sog&apos;lom)
                   </span>
                 </div>
-              </div>
 
-              {/* Widget Card 3: Next Irrigation Plan */}
-              <div className="bg-[#FAF7F0] p-4 rounded-2xl shadow-md border border-[#E4D9C4] transform hover:scale-[1.02] transition-all">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-amber-100 text-amber-900">
-                      <Sun className="w-5 h-5 text-[#B8852B]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider">
-                        {t.nextIrrigationTitle}
-                      </h4>
-                      <p className="text-sm font-extrabold text-[#1F3D2B]">
-                        {t.nextIrrigationValue}
-                      </p>
-                    </div>
+                <div className="pt-2 border-t border-[#E4D9C4] flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <Droplets className="w-4 h-4 text-blue-600" />
+                    <span className="font-bold text-[#2D3A2F]">{t.moistureCardTitle}:</span>
+                    <span className="font-bold text-emerald-800">{t.moistureStatus}</span>
                   </div>
-                  <span className="text-xs font-bold bg-[#D9A441]/20 text-[#B8852B] px-2 py-1 rounded-md border border-[#D9A441]/40">
-                    Tavsiya
-                  </span>
+                  <span className="font-semibold text-[#6C7C6F]">Keyingi sug&apos;orish: 2 kundan so&apos;ng</span>
                 </div>
               </div>
 
               {/* Bottom Water Saving Note */}
               <p className="text-center text-xs text-emerald-100/80 pt-4 font-medium">
-                💧 Har faslda 25% gacha suv va elektr energiyasini tejang
+                💧 Aqlli sug&apos;orish va sun&apos;iy yo&apos;ldosh tahlili
               </p>
 
             </div>

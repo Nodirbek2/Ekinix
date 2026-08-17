@@ -140,8 +140,10 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
     crop_type: string;
     planting_date: string;
     area_hectares: number;
+    region?: string;
     coordinates: [number, number][];
   }) => {
+    const selectedRegion = fieldData.region || userProfile?.region || "Toshkent viloyati";
     const newRecord: FieldRecord = {
       id: `field_${Date.now()}`,
       user_id: userProfile?.user_id,
@@ -150,7 +152,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
       crop_type: fieldData.crop_type,
       planting_date: fieldData.planting_date,
       area_hectares: fieldData.area_hectares,
-      region: userProfile?.region || "Toshkent viloyati",
+      region: selectedRegion,
       coordinates: fieldData.coordinates,
     };
 
@@ -168,7 +170,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
           crop_type: fieldData.crop_type,
           planting_date: fieldData.planting_date,
           area_hectares: fieldData.area_hectares,
-          region: userProfile?.region || "Toshkent viloyati",
+          region: selectedRegion,
           coordinates_json: fieldData.coordinates,
         });
 
@@ -235,9 +237,6 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
           <h2 className="text-3xl sm:text-4xl font-serif font-bold text-[#1F3D2B]">
             {t.myFieldsTitle}
           </h2>
-          <p className="text-sm text-[#6C7C6F] mt-1 max-w-2xl">
-            {t.myFieldsSubtitle}
-          </p>
         </div>
 
         <div className="flex items-center gap-3">

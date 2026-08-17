@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Language, translations } from '@/lib/i18n';
 import { supabase, isSupabaseConfigured, MarketplaceListing, FarmerProfile } from '@/lib/supabase';
 import { 
   ShoppingBag, Plus, MapPin, Phone, Calendar, Search, Filter, CheckCircle2, 
   Tag, Send, X, Copy, ExternalLink, Sparkles, RefreshCw, AlertCircle,
-  Package, ChevronRight, MessageSquare, ShieldCheck, Check
+  Package, ChevronRight, MessageSquare, ShieldCheck, Check,
+  Upload, Image as ImageIcon, Camera, Link as LinkIcon, Trash2
 } from 'lucide-react';
 
 interface MarketplaceSectionProps {
@@ -14,7 +15,7 @@ interface MarketplaceSectionProps {
   userProfile?: FarmerProfile | null;
 }
 
-// Preset crop image mappings for clean visual design
+// Preset crop image mappings with high quality agricultural photography
 const DEFAULT_CROP_IMAGES: Record<string, string> = {
   pomidor: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80',
   uzum: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?auto=format&fit=crop&w=600&q=80',
@@ -27,8 +28,28 @@ const DEFAULT_CROP_IMAGES: Record<string, string> = {
   anor: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80',
   kartoshka: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=600&q=80',
   piyoz: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cf?auto=format&fit=crop&w=600&q=80',
+  bodring: 'https://images.unsplash.com/photo-1604977042946-1eecc30f269e?auto=format&fit=crop&w=600&q=80',
+  shaftoli: 'https://images.unsplash.com/photo-1629828874514-c1e5103f2150?auto=format&fit=crop&w=600&q=80',
+  qulupnay: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=600&q=80',
   default: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=600&q=80'
 };
+
+const PRESET_CROP_LIST = [
+  { key: 'pomidor', nameUz: 'Pomidor', img: DEFAULT_CROP_IMAGES.pomidor },
+  { key: 'uzum', nameUz: 'Uzum', img: DEFAULT_CROP_IMAGES.uzum },
+  { key: 'olma', nameUz: 'Olma', img: DEFAULT_CROP_IMAGES.olma },
+  { key: 'bugdoy', nameUz: "Bug'doy", img: DEFAULT_CROP_IMAGES.bugdoy },
+  { key: 'paxta', nameUz: 'Paxta', img: DEFAULT_CROP_IMAGES.paxta },
+  { key: 'qovun', nameUz: 'Qovun', img: DEFAULT_CROP_IMAGES.qovun },
+  { key: 'tarvuz', nameUz: 'Tarvuz', img: DEFAULT_CROP_IMAGES.tarvuz },
+  { key: 'sabzi', nameUz: 'Sabzi', img: DEFAULT_CROP_IMAGES.sabzi },
+  { key: 'anor', nameUz: 'Anor', img: DEFAULT_CROP_IMAGES.anor },
+  { key: 'kartoshka', nameUz: 'Kartoshka', img: DEFAULT_CROP_IMAGES.kartoshka },
+  { key: 'piyoz', nameUz: 'Piyoz', img: DEFAULT_CROP_IMAGES.piyoz },
+  { key: 'bodring', nameUz: 'Bodring', img: DEFAULT_CROP_IMAGES.bodring },
+  { key: 'shaftoli', nameUz: 'Shaftoli', img: DEFAULT_CROP_IMAGES.shaftoli },
+  { key: 'qulupnay', nameUz: 'Qulupnay', img: DEFAULT_CROP_IMAGES.qulupnay },
+];
 
 const INITIAL_MOCK_LISTINGS: MarketplaceListing[] = [
   {
@@ -176,6 +197,13 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
     image_url: ''
   });
 
+  // Image Upload State
+  const [imageUploadTab, setImageUploadTab] = useState<'upload' | 'presets' | 'url'>('upload');
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
   // Pre-fill profile if available
   useEffect(() => {
     if (userProfile) {
@@ -190,6 +218,82 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
       return () => clearTimeout(timer);
     }
   }, [userProfile]);
+
+  // Image Compression & Conversion Helper
+  const processAndCompressImage = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert("Iltimos, faqat rasm faylini tanlang (JPG, PNG, WEBP)");
+      return;
+    }
+
+    setUploadingImage(true);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Calculate max dimensions (max 1000px width/height)
+        const maxDimension = 1000;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress to lightweight JPEG data URL
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          setFormData(prev => ({ ...prev, image_url: compressedDataUrl }));
+        }
+        setUploadingImage(false);
+      };
+
+      img.onerror = () => {
+        setUploadingImage(false);
+        alert("Rasmni o'qishda xatolik yuz berdi");
+      };
+
+      img.src = event.target?.result as string;
+    };
+
+    reader.onerror = () => {
+      setUploadingImage(false);
+      alert("Faylni yuklashda xatolik yuz berdi");
+    };
+
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processAndCompressImage(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processAndCompressImage(file);
+    }
+  };
 
   // Load Listings from Supabase or LocalStorage / Mock
   useEffect(() => {
@@ -247,7 +351,12 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
     return () => { isMounted = false; };
   }, []);
 
-  // Filter listings
+  // Format price helper with thousand spaces
+  const formatPriceWithSpaces = (val: string | number) => {
+    if (!val) return '';
+    const num = typeof val === 'number' ? val : parseInt(val.toString().replace(/\D/g, ''), 10);
+    return isNaN(num) ? '' : num.toLocaleString('ru-RU').replace(/,/g, ' ');
+  };
   const filteredListings = listings.filter((item) => {
     // Search query match
     const q = searchQuery.toLowerCase().trim();
@@ -350,6 +459,20 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
     setListings(prev => [newListing, ...prev]);
     setSubmitting(false);
     setCreateModalOpen(false);
+    setFormData({
+      farmer_name: userProfile?.full_name || '',
+      crop_name: '',
+      category: 'sabzavot',
+      price_uzs_per_unit: '',
+      unit: 'kg',
+      total_quantity: '',
+      expected_date: 'Hozir mavjud',
+      location_region: userProfile?.region ? `${userProfile.region} viloyati` : UZBEKISTAN_REGIONS[0],
+      phone_contact: userProfile?.phone || '',
+      telegram_contact: '',
+      description: '',
+      image_url: ''
+    });
     setSubmitSuccessMsg("E'loningiz muvaffaqiyatli joylashtirildi! Endi xaridorlar siz bilan bog'lanishlari mumkin.");
 
     // Clear alert after 5s
@@ -365,7 +488,7 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
   };
 
   return (
-    <section id="section-market" className="py-16 sm:py-24 bg-[#FAF7F0] border-t border-[#E4D9C4]">
+    <section id="marketplace" className="py-16 sm:py-24 bg-[#FAF7F0] border-t border-[#E4D9C4]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         
         {/* Section Header */}
@@ -785,12 +908,21 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
                     Mo&apos;ljallangan Narx (so&apos;m) <span className="text-[#6C7C6F] font-normal">(Bo&apos;sh = Kelishilgan)</span>
                   </label>
                   <input
-                    type="number"
-                    placeholder="Masalan: 6500"
-                    value={formData.price_uzs_per_unit}
-                    onChange={(e) => setFormData({ ...formData, price_uzs_per_unit: e.target.value })}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Masalan: 6 500"
+                    value={formatPriceWithSpaces(formData.price_uzs_per_unit)}
+                    onChange={(e) => {
+                      const cleanNumber = e.target.value.replace(/\D/g, '');
+                      setFormData({ ...formData, price_uzs_per_unit: cleanNumber });
+                    }}
                     className="w-full bg-white border border-[#E4D9C4] rounded-xl px-3.5 py-2.5 text-xs text-[#1F3D2B] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
                   />
+                  {formData.price_uzs_per_unit && (
+                    <span className="text-[11px] text-[#1F3D2B] font-semibold mt-1 block">
+                      Jami narx: {formatPriceWithSpaces(formData.price_uzs_per_unit)} UZS /{formData.unit}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -854,6 +986,238 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
                     className="w-full bg-white border border-[#E4D9C4] rounded-xl px-3.5 py-2.5 text-xs text-[#1F3D2B] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
                   />
                 </div>
+              </div>
+
+              {/* Product Image Section */}
+              <div className="bg-white p-4 rounded-2xl border border-[#E4D9C4] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-[#1F3D2B]">
+                      Mahsulot / Hosil Rasmi
+                    </label>
+                    <p className="text-[11px] text-[#6C7C6F]">
+                      Rasmli e&apos;lonlar 3 barobar ko&apos;proq xaridorlarni jalb qiladi
+                    </p>
+                  </div>
+
+                  {/* Mode Switcher Tabs */}
+                  <div className="flex items-center bg-[#FAF7F0] p-1 rounded-xl border border-[#E4D9C4] text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setImageUploadTab('upload')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                        imageUploadTab === 'upload'
+                          ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
+                          : 'text-[#6C7C6F] hover:text-[#1F3D2B]'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Fayl / Kamera</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageUploadTab('presets')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                        imageUploadTab === 'presets'
+                          ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
+                          : 'text-[#6C7C6F] hover:text-[#1F3D2B]'
+                      }`}
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      <span>Tayyor</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageUploadTab('url')}
+                      className={`px-2.5 py-1 rounded-lg transition-all flex items-center gap-1.5 ${
+                        imageUploadTab === 'url'
+                          ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
+                          : 'text-[#6C7C6F] hover:text-[#1F3D2B]'
+                      }`}
+                    >
+                      <LinkIcon className="w-3.5 h-3.5" />
+                      <span>Havola</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Hidden File Inputs */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {/* Current Image Preview Card */}
+                {formData.image_url ? (
+                  <div className="relative rounded-2xl overflow-hidden border-2 border-[#D9A441] bg-[#FAF7F0] p-3 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-black/10 shrink-0 border border-[#E4D9C4]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={formData.image_url}
+                          alt="Tanlangan rasm"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300">
+                          <CheckCircle2 className="w-3 h-3" /> Rasm tanlandi
+                        </span>
+                        <p className="text-xs font-bold text-[#1F3D2B] truncate mt-1">
+                          {formData.crop_name || "Hosil rasmi"}
+                        </p>
+                        <p className="text-[10px] text-[#6C7C6F]">
+                          E&apos;lon kartasida to&apos;liq ko&apos;rinadi
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-2 text-xs font-bold text-[#1F3D2B] bg-white hover:bg-[#F0E8D8] border border-[#E4D9C4] rounded-xl transition-colors flex items-center gap-1 shadow-xs"
+                        title="Boshqa rasm yuklash"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-[#D9A441]" />
+                        <span className="hidden sm:inline">O&apos;zgartirish</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, image_url: '' }))}
+                        className="p-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors flex items-center gap-1 shadow-xs"
+                        title="Rasmni o'chirish"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span className="hidden sm:inline">O&apos;chirish</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Image Input Area based on Tab */
+                  <div>
+                    {/* Tab 1: Upload / Camera */}
+                    {imageUploadTab === 'upload' && (
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDragging(true);
+                        }}
+                        onDragLeave={() => setIsDragging(false)}
+                        onDrop={handleDrop}
+                        className={`border-2 border-dashed rounded-2xl p-5 text-center transition-all ${
+                          isDragging
+                            ? 'border-[#1F3D2B] bg-[#1F3D2B]/10 scale-[1.01]'
+                            : 'border-[#D9A441] bg-[#FAF7F0]/60 hover:bg-[#FAF7F0]'
+                        }`}
+                      >
+                        {uploadingImage ? (
+                          <div className="py-4 flex flex-col items-center justify-center gap-2">
+                            <RefreshCw className="w-7 h-7 text-[#D9A441] animate-spin" />
+                            <p className="text-xs font-bold text-[#1F3D2B]">
+                              Rasm siqilmoqda va yuklanmoqda...
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="w-12 h-12 rounded-2xl bg-[#1F3D2B]/10 text-[#1F3D2B] flex items-center justify-center mx-auto">
+                              <Upload className="w-6 h-6 text-[#D9A441]" />
+                            </div>
+
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold text-[#1F3D2B]">
+                                Rasmni bu yerga tashlang yoki tanlang
+                              </p>
+                              <p className="text-[10px] text-[#6C7C6F]">
+                                JPG, PNG, WEBP formatlari qabul qilinadi
+                              </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="px-3.5 py-2 bg-[#1F3D2B] hover:bg-[#14281C] text-[#FAF7F0] text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-1.5"
+                              >
+                                <Upload className="w-3.5 h-3.5 text-[#D9A441]" />
+                                <span>Galereyadan tanlash</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => cameraInputRef.current?.click()}
+                                className="px-3.5 py-2 bg-white hover:bg-[#F0E8D8] text-[#1F3D2B] text-xs font-bold rounded-xl transition-all border border-[#E4D9C4] shadow-xs flex items-center gap-1.5"
+                              >
+                                <Camera className="w-3.5 h-3.5 text-[#D9A441]" />
+                                <span>Kameradan olish</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tab 2: Presets Gallery */}
+                    {imageUploadTab === 'presets' && (
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-[#6C7C6F]">
+                          Ekingizga mos tayyor professional rasmni 1 marta bosib tanlang:
+                        </p>
+                        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 max-h-40 overflow-y-auto p-1">
+                          {PRESET_CROP_LIST.map((crop) => (
+                            <button
+                              key={crop.key}
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, image_url: crop.img }))}
+                              className="group p-1 bg-white hover:bg-[#F0E8D8] border border-[#E4D9C4] hover:border-[#D9A441] rounded-xl transition-all flex flex-col items-center text-center shadow-2xs"
+                            >
+                              <div className="w-10 h-10 rounded-lg overflow-hidden bg-black/10 relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={crop.img}
+                                  alt={crop.nameUz}
+                                  className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                                />
+                              </div>
+                              <span className="text-[10px] font-bold text-[#1F3D2B] truncate w-full mt-1">
+                                {crop.nameUz}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tab 3: URL link */}
+                    {imageUploadTab === 'url' && (
+                      <div className="space-y-2">
+                        <label className="block text-[11px] font-bold text-[#1F3D2B]">
+                          Rasm to&apos;g&apos;ridan-to&apos;g&apos;ri internet havolasi (URL)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            placeholder="https://images.unsplash.com/photo-..."
+                            value={formData.image_url}
+                            onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                            className="flex-1 bg-white border border-[#E4D9C4] rounded-xl px-3.5 py-2 text-xs text-[#1F3D2B] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Description */}

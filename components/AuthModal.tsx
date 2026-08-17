@@ -30,6 +30,14 @@ const REGIONS = [
   "Qoraqalpog'iston Respublikasi"
 ];
 
+const normalizePhoneToEmail = (input: string): string => {
+  if (input.includes('@')) return input.trim().toLowerCase();
+  const digits = input.replace(/\D/g, '');
+  const nationalDigits = digits.length === 9 ? digits : digits.slice(-9);
+  const standardPhone = `998${nationalDigits}`;
+  return `${standardPhone}@ekinix.uz`;
+};
+
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   mode,
@@ -55,10 +63,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setMessage(null);
 
     const cleanInput = phoneOrEmail.trim();
-    const isEmail = cleanInput.includes('@');
-    const sanitizedEmail = isEmail
-      ? cleanInput
-      : `${cleanInput.replace(/[^0-9]/g, '')}@ekinix.uz`;
+    const sanitizedEmail = normalizePhoneToEmail(cleanInput);
 
     try {
       if (isSupabaseConfigured && supabase) {

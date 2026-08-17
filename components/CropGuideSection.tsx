@@ -70,7 +70,7 @@ export const CropGuideSection: React.FC<CropGuideSectionProps> = ({ currentLang 
   const currentCalc = calculateGrowthStage(testCrop, testPlantingDate);
 
   return (
-    <section id="section-guides" className="py-16 bg-[#FAF7F0] border-t border-[#E4D9C4]">
+    <section id="crop-guides" className="py-16 bg-[#FAF7F0] border-t border-[#E4D9C4]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}

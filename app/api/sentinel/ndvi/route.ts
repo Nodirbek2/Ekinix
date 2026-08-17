@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     let cloudCoverPercent = simulateCloud ? 85 : 12;
     let satelliteDate = new Date().toISOString().split('T')[0];
 
-    // Try live Sentinel Hub API if credentials exist and are not placeholders
+    // Try live Copernicus Data Space Ecosystem API if credentials exist and are not placeholders
     if (
       clientId &&
       clientSecret &&
@@ -46,11 +46,11 @@ export async function POST(req: NextRequest) {
       !clientSecret.includes('your-sentinel') &&
       clientId.trim().length > 5
     ) {
-      console.log(`[Sentinel Hub Request] Querying Sentinel Hub for field ${fieldId}`);
+      console.log(`[Copernicus Data Space Request] Querying CDSE Sentinel API for field ${fieldId}`);
       try {
-        // 1. Obtain OAuth Token with 3.5s timeout
+        // 1. Obtain OAuth Token from Copernicus Data Space Identity Realm (6s timeout)
         const tokenRes = await fetchWithTimeout(
-          'https://services.sentinel-hub.com/oauth/token',
+          'https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token',
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -60,13 +60,13 @@ export async function POST(req: NextRequest) {
               client_secret: clientSecret,
             }),
           },
-          3500
+          6000
         );
 
         if (tokenRes.ok) {
           const tokenData = await tokenRes.json();
           const accessToken = tokenData.access_token;
-          console.log('[Sentinel Hub OAuth Success]: Token obtained successfully');
+          console.log('[Copernicus Data Space OAuth Success]: Token obtained successfully');
 
           // Compute Bounding Box / Polygon from coordinates
           let minLat = 40.0, maxLat = 42.0, minLon = 68.0, maxLon = 71.0;
@@ -79,9 +79,9 @@ export async function POST(req: NextRequest) {
             maxLon = Math.max(...lons);
           }
 
-          // Query Sentinel-2 L2A Statistical API with 3.5s timeout
+          // Query Copernicus Sentinel-2 L2A Statistical API (6s timeout)
           const statsRes = await fetchWithTimeout(
-            'https://services.sentinel-hub.com/api/v1/statistics',
+            'https://sh.dataspace.copernicus.eu/api/v1/statistics',
             {
               method: 'POST',
               headers: {
@@ -124,28 +124,34 @@ export async function POST(req: NextRequest) {
                 },
               }),
             },
-            3500
+            6000
           );
 
           if (statsRes.ok) {
             const statsData = await statsRes.json();
-            console.log('[Sentinel Hub Statistical API Success]');
+            console.log('[Copernicus Data Space Statistical API Success]');
 
             const interval = statsData?.data?.[0]?.outputs?.ndvi?.bands?.B0?.stats;
             if (interval && typeof interval.mean === 'number' && !isNaN(interval.mean)) {
               realNdvi = parseFloat(interval.mean.toFixed(2));
               isCloudy = false;
+              console.log(`[Copernicus Data Space Real NDVI Calculated]: ${realNdvi}`);
             } else {
+              console.warn('[Copernicus Data Space Notice]: No mean value in interval data');
               isCloudy = true;
             }
           } else {
+            const errText = await statsRes.text().catch(() => '');
+            console.warn(`[Copernicus Data Space Stats Error]: ${statsRes.status} ${errText.slice(0, 200)}`);
             isCloudy = true;
           }
         } else {
+          const errText = await tokenRes.text().catch(() => '');
+          console.warn(`[Copernicus Data Space Token Error]: ${tokenRes.status} ${errText.slice(0, 200)}`);
           isCloudy = true;
         }
-      } catch {
-        console.log('[Sentinel Hub Notice]: External Sentinel service unreachable or timed out. Serving friendly fallback state.');
+      } catch (err: any) {
+        console.log(`[Copernicus Data Space Notice]: External service notice (${err?.message || 'timeout'}). Serving fallback state if needed.`);
         isCloudy = true;
       }
     } else {
