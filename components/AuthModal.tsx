@@ -38,6 +38,12 @@ const normalizePhoneToEmail = (input: string): string => {
   return `${standardPhone}@ekinix.uz`;
 };
 
+const formatStandardUzbekPhone = (input: string): string => {
+  const digits = input.replace(/\D/g, '');
+  const nationalDigits = digits.length === 9 ? digits : digits.slice(-9);
+  return `+998${nationalDigits}`;
+};
+
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   mode,
@@ -63,7 +69,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setMessage(null);
 
     const cleanInput = phoneOrEmail.trim();
+    const digitsOnly = cleanInput.replace(/\D/g, '');
+
+    // Mandatory phone number validation on registration
+    if (mode === 'register') {
+      if (digitsOnly.length < 9) {
+        setLoading(false);
+        setMessage({
+          type: 'error',
+          text: currentLang === 'uz'
+            ? "Iltimos, haqiqiy telefon raqamingizni to'liq kiriting (masalan: +998 90 123 45 67)"
+            : currentLang === 'ru'
+            ? "Пожалуйста, введите корректный номер телефона (например: +998 90 123 45 67)"
+            : "Please enter a valid phone number (e.g. +998 90 123 45 67)",
+        });
+        return;
+      }
+      if (!fullName.trim()) {
+        setLoading(false);
+        setMessage({
+          type: 'error',
+          text: currentLang === 'uz'
+            ? "Iltimos, ism va familiyangizni kiriting"
+            : currentLang === 'ru'
+            ? "Пожалуйста, введите имя и фамилию"
+            : "Please enter your full name",
+        });
+        return;
+      }
+    }
+
     const sanitizedEmail = normalizePhoneToEmail(cleanInput);
+    const standardPhone = digitsOnly.length >= 9 ? formatStandardUzbekPhone(cleanInput) : cleanInput;
 
     try {
       if (isSupabaseConfigured && supabase) {
@@ -73,8 +110,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             password,
             options: {
               data: {
-                full_name: fullName,
-                phone: cleanInput,
+                full_name: fullName.trim(),
+                phone: standardPhone,
                 region,
               },
             },
@@ -84,25 +121,46 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           const createdUserId = data.user?.id || `user_${Date.now()}`;
           const newProfile: Partial<FarmerProfile> = {
+            id: `farmer_${createdUserId}`,
             user_id: createdUserId,
-            full_name: fullName || 'Dehqon',
-            phone: cleanInput,
+            full_name: fullName.trim(),
+            phone: standardPhone,
             region: region,
+            farm_type: 'smallholder',
+            primary_crops: ['cotton', 'wheat'],
+            telegram_notifications_enabled: true,
           };
+
+          // Also insert/upsert into farmers table immediately
+          try {
+            await supabase.from('farmers').upsert({
+              user_id: createdUserId,
+              full_name: fullName.trim(),
+              phone: standardPhone,
+              region: region,
+              farm_type: 'smallholder',
+              primary_crops: ['cotton', 'wheat'],
+              telegram_notifications_enabled: true,
+            }, { onConflict: 'user_id' });
+          } catch (dbErr) {
+            console.warn('[Supabase Farmer Record Upsert Warning]', dbErr);
+          }
+
+          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(newProfile));
 
           setMessage({
             type: 'success',
             text: currentLang === 'uz'
-              ? "Ro'yxatdan o'tdingiz! Endi profilingizni to'ldirishingiz mumkin."
+              ? `Ro'yxatdan o'tdingiz! Telegram bot orqali ${standardPhone} raqamingizni ulab, dalalaringizni boshqarishingiz mumkin.`
               : currentLang === 'ru'
-              ? "Регистрация завершена! Теперь вы можете настроить свой профиль."
-              : "Registration completed! Now set up your farmer profile.",
+              ? `Регистрация завершена! Вы можете подключить номер ${standardPhone} к Telegram-боту.`
+              : `Registration complete! You can connect ${standardPhone} to the Telegram bot.`,
           });
 
           setTimeout(() => {
             onAuthSuccess(newProfile, true);
             onClose();
-          }, 800);
+          }, 900);
 
         } else {
           const { data, error } = await supabase.auth.signInWithPassword({
@@ -114,11 +172,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           const loggedUserId = data.user?.id || `user_${Date.now()}`;
           const loggedProfile: Partial<FarmerProfile> = {
+            id: `farmer_${loggedUserId}`,
             user_id: loggedUserId,
             full_name: data.user?.user_metadata?.full_name || fullName || 'Dehqon',
-            phone: data.user?.user_metadata?.phone || cleanInput,
+            phone: data.user?.user_metadata?.phone || standardPhone,
             region: data.user?.user_metadata?.region || region,
           };
+
+          // Fetch from farmers table if exists
+          try {
+            const { data: dbFarmer } = await supabase
+              .from('farmers')
+              .select('*')
+              .eq('user_id', loggedUserId)
+              .maybeSingle();
+
+            if (dbFarmer) {
+              loggedProfile.full_name = dbFarmer.full_name;
+              loggedProfile.phone = dbFarmer.phone;
+              loggedProfile.region = dbFarmer.region;
+              loggedProfile.telegram_chat_id = dbFarmer.telegram_chat_id;
+            }
+          } catch {}
+
+          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(loggedProfile));
 
           setMessage({
             type: 'success',
@@ -135,24 +212,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           }, 800);
         }
       } else {
-        // Demo Mode Simulation
+        // Demo / Standalone Mode Simulation
         setTimeout(() => {
           const demoProfile: Partial<FarmerProfile> = {
+            id: `farmer_demo_${Date.now()}`,
             user_id: `demo_${Date.now()}`,
-            full_name: fullName || 'Karimjon Rahimov',
-            phone: cleanInput || '+998 90 123 45 67',
+            full_name: fullName.trim() || 'Nodirbek Baratov',
+            phone: standardPhone || '+998 90 123 45 67',
             region: region,
+            farm_type: 'smallholder',
+            primary_crops: ['cotton', 'wheat'],
+            telegram_notifications_enabled: true,
           };
+
+          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(demoProfile));
 
           setMessage({
             type: 'success',
             text: mode === 'register'
-              ? (currentLang === 'uz' 
-                  ? `Xush kelibsiz, ${fullName || 'Dehqon'}! (Demo rejimida ro'yxatdan o'tildi)`
-                  : `Добро пожаловать! (Зарегистрировано в демо-режиме)`)
+              ? (currentLang === 'uz'
+                  ? `Xush kelibsiz, ${fullName || 'Dehqon'}! Telefoningiz (${standardPhone}) saqlandi.`
+                  : `Добро пожаловать! Номер (${standardPhone}) сохранен.`)
               : (currentLang === 'uz'
-                  ? "Tizimga muvaffaqiyatli kirdingiz (Demo rejim)!"
-                  : "Успешный вход (Демо-режим)!"),
+                  ? "Tizimga muvaffaqiyatli kirdingiz!"
+                  : "Успешный вход!"),
           });
 
           setLoading(false);

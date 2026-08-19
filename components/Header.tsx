@@ -221,7 +221,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={onOpenTelegram}
               id="header-telegram-btn"
-              title="Telegram Agro Bot (@EkinixAgroBot)"
+              title="Telegram Agro Bot (@ekinixbot)"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] border border-[#0088cc]/30 transition-all shadow-xs cursor-pointer text-xs font-bold"
             >
               <Send className="w-3.5 h-3.5" />

@@ -78,8 +78,12 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
   } | null>(null);
 
   // Telegram Bot Info
-  const [botUsername, setBotUsername] = useState('EkinixAgroBot');
+  const [botUsername, setBotUsername] = useState(() => process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'ekinixbot');
+  const [botName, setBotName] = useState('Ekinix Agro Yordamchi Bot');
   const [isBotConfigured, setIsBotConfigured] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<string>('unconfigured');
+  const [isSyncingWebhook, setIsSyncingWebhook] = useState(false);
+  const [webhookSyncMsg, setWebhookSyncMsg] = useState<{ success: boolean; message: string } | null>(null);
 
   // Chat simulator state with default initial message
   const [simulatedChat, setSimulatedChat] = useState<SimulatedChatMessage[]>(() => [
@@ -100,17 +104,67 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
   ]);
   const [userInput, setUserInput] = useState('');
 
+  const fetchBotStatus = async () => {
+    try {
+      const res = await fetch('/api/telegram/status', { cache: 'no-store' });
+      const data = await res.json();
+      if (data.botUsername) setBotUsername(data.botUsername);
+      if (data.botName) setBotName(data.botName);
+      if (data.isConfigured !== undefined) setIsBotConfigured(data.isConfigured);
+      if (data.webhookStatus) setWebhookStatus(data.webhookStatus);
+    } catch {}
+  };
+
+  const handleSyncWebhook = async () => {
+    setIsSyncingWebhook(true);
+    setWebhookSyncMsg(null);
+    try {
+      const res = await fetch('/api/telegram/setup-webhook', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        setWebhookSyncMsg({
+          success: true,
+          message: data.message || "Webhook muvaffaqiyatli bog'landi!",
+        });
+        if (data.botUsername) setBotUsername(data.botUsername);
+        if (data.botName) setBotName(data.botName);
+        setIsBotConfigured(true);
+        setWebhookStatus('active');
+      } else {
+        setWebhookSyncMsg({
+          success: false,
+          message: data.error || 'Webhook bog‘lanishida xatolik',
+        });
+      }
+    } catch (err: any) {
+      setWebhookSyncMsg({
+        success: false,
+        message: err.message || 'Tarmoq xatosi',
+      });
+    } finally {
+      setIsSyncingWebhook(false);
+      fetchBotStatus();
+    }
+  };
+
   // Fetch bot status on mount
   useEffect(() => {
     if (!isOpen) return;
-
-    fetch('/api/telegram/status')
+    let isMounted = true;
+    fetch('/api/telegram/status', { cache: 'no-store' })
       .then((res) => res.json())
       .then((data) => {
+        if (!isMounted) return;
         if (data.botUsername) setBotUsername(data.botUsername);
+        if (data.botName) setBotName(data.botName);
         if (data.isConfigured !== undefined) setIsBotConfigured(data.isConfigured);
+        if (data.webhookStatus) setWebhookStatus(data.webhookStatus);
       })
       .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -394,47 +448,102 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
           {activeTab === 'settings' && (
             <div className="space-y-6">
               {/* Connection Status Banner */}
-              <div className="bg-white rounded-2xl p-5 border border-[#E4D9C4] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="font-serif text-base font-bold text-[#1F3D2B]">
-                      {currentLang === 'ru' ? 'Telegram Bot готов к отправке' : currentLang === 'en' ? 'Telegram Bot Ready' : "Telegram Bot Ishga Tayyor"}
-                    </span>
-                    <span className="text-xs bg-[#0088cc]/10 text-[#0088cc] font-bold px-2 py-0.5 rounded-md border border-[#0088cc]/20">
-                      @{botUsername}
-                    </span>
+              <div className="bg-white rounded-2xl p-5 border border-[#E4D9C4] shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          isBotConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                        }`}
+                      />
+                      <span className="font-serif text-base font-bold text-[#1F3D2B]">
+                        {isBotConfigured
+                          ? botName
+                          : currentLang === 'ru'
+                          ? 'Telegram Bot (Режим тестирования)'
+                          : currentLang === 'en'
+                          ? 'Telegram Bot (Test Mode)'
+                          : "Telegram Bot (Sinov rejimi)"}
+                      </span>
+                      <a
+                        href={botDeepLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs bg-[#0088cc]/10 hover:bg-[#0088cc]/20 text-[#0088cc] font-bold px-2.5 py-0.5 rounded-full border border-[#0088cc]/30 inline-flex items-center gap-1 transition-colors"
+                      >
+                        @{botUsername}
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <p className="text-xs text-[#6C7C6F]">
+                      {currentLang === 'ru'
+                        ? 'Привязанный номер телефона: '
+                        : currentLang === 'en'
+                        ? 'Linked phone number: '
+                        : "Biriktirilgan telefon raqam: "}
+                      <b className="text-[#1F3D2B]">{phoneNumber || '+998 90 123 45 67'}</b>
+                      <span className="mx-2 text-[#D4C4A8]">•</span>
+                      <span className="text-[11px] text-emerald-700 font-medium">
+                        Webhook:{' '}
+                        {webhookStatus === 'active'
+                          ? '🟢 Faol (Ulangan)'
+                          : webhookStatus === 'pending'
+                          ? '🟡 Kutilyapti'
+                          : '🔵 Jonli aloqa'}
+                      </span>
+                    </p>
                   </div>
-                  <p className="text-xs text-[#6C7C6F]">
-                    {currentLang === 'ru'
-                      ? 'Привязанный телефон: '
-                      : currentLang === 'en'
-                      ? 'Connected phone: '
-                      : "Biriktirilgan telefon raqam: "}
-                    <b className="text-[#1F3D2B]">{phoneNumber || '+998 90 123 45 67'}</b>
-                  </p>
+
+                  <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                    <a
+                      href={botDeepLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>{currentLang === 'ru' ? 'Открыть в Telegram' : currentLang === 'en' ? 'Open in Telegram' : "Telegramda ochish"}</span>
+                      <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                    </a>
+
+                    <button
+                      onClick={handleCopyLink}
+                      title="Havolani nusxalash"
+                      className="p-2.5 bg-[#FAF7F0] hover:bg-[#F0E8D8] text-[#1F3D2B] border border-[#E4D9C4] rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+
+                    <Button
+                      onClick={handleSyncWebhook}
+                      variant="secondary"
+                      size="sm"
+                      isLoading={isSyncingWebhook}
+                      leftIcon={<RotateCcw className="w-3.5 h-3.5 text-[#1F3D2B]" />}
+                      title="Webhookni qayta tekshirish va sinxronlash"
+                    >
+                      {currentLang === 'ru' ? 'Синхронизировать' : 'Sinxronlash'}
+                    </Button>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <a
-                    href={botDeepLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all cursor-pointer"
+                {webhookSyncMsg && (
+                  <div
+                    className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 ${
+                      webhookSyncMsg.success
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-950'
+                    }`}
                   >
-                    <Send className="w-4 h-4" />
-                    <span>{currentLang === 'ru' ? 'Открыть в Telegram' : currentLang === 'en' ? 'Open in Telegram' : "Telegramda ochish"}</span>
-                    <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-                  </a>
-
-                  <button
-                    onClick={handleCopyLink}
-                    title="Havolani nusxalash"
-                    className="p-2.5 bg-[#FAF7F0] hover:bg-[#F0E8D8] text-[#1F3D2B] border border-[#E4D9C4] rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                  >
-                    {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  </button>
-                </div>
+                    {webhookSyncMsg.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{webhookSyncMsg.message}</span>
+                  </div>
+                )}
               </div>
 
               {/* 2-Step Simple Activation Instructions */}

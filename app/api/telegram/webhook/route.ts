@@ -2,111 +2,224 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   normalizePhoneNumber,
   fetchLiveWeather,
-  formatTelegramWelcomeMessage,
-  formatTelegramStartGreeting,
-  formatTelegramWeatherAlert,
-  formatTelegramFieldStatus,
-  formatTelegramNotificationsMenu,
-  getNotificationSettingsInlineKeyboard,
-  sendTelegramMessage,
-  getFarmerReplyKeyboard,
   getFieldCoordinates,
+  formatTelegram5DayWeatherMessage,
+  formatTelegramFieldsMessage,
+  formatTelegramAgronomistMessage,
+  formatTelegramIrrigationScheduleMessage,
+  getFarmerReplyKeyboard,
+  getMainMenuInlineKeyboard,
+  getOnboardingContactReplyKeyboard,
+  getRegionSelectionInlineKeyboard,
+  getCropSelectionInlineKeyboard,
+  CROP_SELECTION_OPTIONS,
+  sendTelegramMessage,
+  sendTelegramChatAction,
   answerTelegramCallbackQuery,
   editTelegramMessageText,
+  FieldWithTelemetry,
 } from '@/lib/telegramBot';
-import { supabase, isSupabaseConfigured, FarmerProfile, FieldRecord } from '@/lib/supabase';
+import {
+  supabase,
+  isSupabaseConfigured,
+  FarmerProfile,
+  FieldRecord,
+  NdviReadingRecord,
+} from '@/lib/supabase';
 
-// Sample fallback farmer data for demo or development
-const DEMO_FARMERS: Array<{ profile: FarmerProfile; fields: FieldRecord[] }> = [
-  {
-    profile: {
-      id: 'demo_farmer_1',
-      full_name: "Otabek Qodirov",
-      phone: "+998901234567",
-      region: "Farg'ona viloyati",
-      farm_type: "commercial",
-      primary_crops: ["Paxta", "Bug'doy"],
-      tier: "standart",
-      telegram_notifications_enabled: true,
-    },
-    fields: [
-      {
-        id: 'f1',
-        name: "Yulduz Paxtazor Maydoni",
-        crop_type: "cotton",
-        area_hectares: 24.5,
-        region: "Farg'ona viloyati",
-        planting_date: "2026-04-12",
-        coordinates: [
-          [40.3842, 71.7843],
-          [40.3882, 71.7912],
-          [40.3815, 71.7955],
-          [40.3785, 71.7875],
-        ],
-      },
-      {
-        id: 'f2',
-        name: "Bog' Shamoli Bog'dorchilik",
-        crop_type: "apple",
-        area_hectares: 12.0,
-        region: "Farg'ona viloyati",
-        planting_date: "2024-03-10",
-      },
-    ],
-  },
-];
+// In-memory registration session store for multi-step onboarding
+interface RegistrationSession {
+  phone: string;
+  full_name: string;
+  region?: string;
+  primary_crop?: string;
+  step: 'ask_region' | 'ask_crop';
+  startedAt: number;
+}
 
-// Helper to look up farmer and their fields
-async function getFarmerAndFieldsByChatIdOrPhone(
+const registrationSessions = new Map<string, RegistrationSession>();
+
+// In-memory Short-term cache for Farmer & Fields Telemetry (60-second TTL)
+interface FarmerTelemetryCacheEntry {
+  data: {
+    farmer: FarmerProfile | null;
+    fieldsWithTelemetry: FieldWithTelemetry[];
+    isRealDbRecord: boolean;
+  };
+  timestamp: number;
+}
+const farmerTelemetryCache = new Map<string, FarmerTelemetryCacheEntry>();
+const FARMER_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+function invalidateFarmerCache(chatId?: string | number, phone?: string) {
+  if (chatId) farmerTelemetryCache.delete(`chat:${chatId}`);
+  if (phone) {
+    const norm = normalizePhoneNumber(phone);
+    farmerTelemetryCache.delete(`phone:${norm}`);
+  }
+}
+
+/**
+ * Finds a farmer, their real fields, latest NDVI telemetry, and watering logs from Supabase
+ * Optimizations:
+ * 1. 60-second in-memory caching to eliminate redundant roundtrips.
+ * 2. Parallelized Promise.all query execution for all field NDVI and watering records.
+ */
+async function getFarmerAndTelemetryData(
   chatId: string | number,
   phone?: string
-): Promise<{ farmer: FarmerProfile | null; fields: FieldRecord[] }> {
+): Promise<{
+  farmer: FarmerProfile | null;
+  fieldsWithTelemetry: FieldWithTelemetry[];
+  isRealDbRecord: boolean;
+  timing: { farmerDbMs: number; fieldsDbMs: number };
+}> {
+  const cacheKey = phone ? `phone:${normalizePhoneNumber(phone)}` : `chat:${chatId}`;
+  const cached = farmerTelemetryCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && now - cached.timestamp < FARMER_CACHE_TTL_MS) {
+    return {
+      ...cached.data,
+      timing: { farmerDbMs: 0, fieldsDbMs: 0 },
+    };
+  }
+
   let farmer: FarmerProfile | null = null;
-  let fields: FieldRecord[] = [];
+  const fieldsWithTelemetry: FieldWithTelemetry[] = [];
+  let isRealDbRecord = false;
+
+  let farmerDbMs = 0;
+  let fieldsDbMs = 0;
 
   if (isSupabaseConfigured && supabase) {
     try {
-      let query = supabase.from('farmers').select('*');
+      const t0Farmer = performance.now();
+
+      // 1. Check by phone number if provided
       if (phone) {
         const norm = normalizePhoneNumber(phone);
-        query = query.or(`phone.eq.${norm},phone.eq.+${norm},phone.ilike.%${norm.slice(-9)}%`);
-      } else {
-        query = query.eq('telegram_chat_id', String(chatId));
+        const national = norm.slice(-9);
+        const { data: farmerData } = await supabase
+          .from('farmers')
+          .select('*')
+          .or(`phone.eq.+${norm},phone.eq.${norm},phone.ilike.%${national}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (farmerData) {
+          farmer = farmerData as FarmerProfile;
+          isRealDbRecord = true;
+        }
       }
 
-      const { data: farmerData } = await query.maybeSingle();
-      if (farmerData) {
-        farmer = farmerData as FarmerProfile;
+      // 2. Check by telegram_chat_id
+      if (!farmer) {
+        const { data: farmerData } = await supabase
+          .from('farmers')
+          .select('*')
+          .eq('telegram_chat_id', String(chatId))
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (farmerData) {
+          farmer = farmerData as FarmerProfile;
+          isRealDbRecord = true;
+        }
+      }
+
+      farmerDbMs = performance.now() - t0Farmer;
+
+      // 3. Fetch real fields and latest NDVI + watering logs concurrently in parallel
+      if (farmer) {
+        const t0Fields = performance.now();
         const { data: fieldsData } = await supabase
           .from('fields')
           .select('*')
-          .or(`farmer_id.eq.${farmerData.id},user_id.eq.${farmerData.id}`);
-        fields = (fieldsData as FieldRecord[]) || [];
+          .or(`farmer_id.eq.${farmer.id},user_id.eq.${farmer.user_id || farmer.id}`)
+          .order('created_at', { ascending: false });
+
+        const fieldsList = (fieldsData as FieldRecord[]) || [];
+
+        if (fieldsList.length > 0) {
+          // Parallelized queries for all fields
+          const telemetryPromises = fieldsList.map(async (field) => {
+            let latestNdvi: NdviReadingRecord | null = null;
+            let lastWateredDate: string | null = null;
+
+            const [ndviResult, waterResult] = await Promise.all([
+              (async () => {
+                try {
+                  const { data } = await supabase!
+                    .from('ndvi_readings')
+                    .select('*')
+                    .eq('field_id', field.id)
+                    .order('satellite_date', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  return data as NdviReadingRecord | null;
+                } catch {
+                  return null;
+                }
+              })(),
+              (async () => {
+                try {
+                  const { data } = await supabase!
+                    .from('watering_log')
+                    .select('*')
+                    .eq('field_id', field.id)
+                    .order('watered_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                  return data;
+                } catch {
+                  return null;
+                }
+              })(),
+            ]);
+
+            latestNdvi = ndviResult;
+            if (waterResult && (waterResult.watered_at || waterResult.created_at)) {
+              lastWateredDate = waterResult.watered_at || waterResult.created_at;
+            }
+
+            return {
+              field,
+              latestNdvi,
+              lastWateredDate,
+            };
+          });
+
+          const results = await Promise.all(telemetryPromises);
+          fieldsWithTelemetry.push(...results);
+        }
+
+        fieldsDbMs = performance.now() - t0Fields;
       }
     } catch (err) {
       console.warn('[DB Lookup Error in Telegram Webhook]', err);
     }
   }
 
-  // Fallback to demo profile
-  if (!farmer) {
-    const demo = DEMO_FARMERS[0];
-    farmer = {
-      ...demo.profile,
-      telegram_chat_id: String(chatId),
-    };
-    fields = demo.fields;
-  }
+  const resultData = { farmer, fieldsWithTelemetry, isRealDbRecord };
+  farmerTelemetryCache.set(cacheKey, { data: resultData, timestamp: now });
 
-  return { farmer, fields };
+  return {
+    ...resultData,
+    timing: { farmerDbMs, fieldsDbMs },
+  };
 }
 
 export async function POST(req: NextRequest) {
+  const reqStart = performance.now();
+
   try {
     const body = await req.json();
 
     // =========================================================================
-    // 1. HANDLE INLINE CALLBACK QUERIES (BUTTON CLICKS)
+    // 1. HANDLE INLINE CALLBACK QUERIES
     // =========================================================================
     if (body.callback_query) {
       const cq = body.callback_query;
@@ -115,114 +228,179 @@ export async function POST(req: NextRequest) {
       const chatId = cq.message?.chat?.id;
       const messageId = cq.message?.message_id;
       const fromUser = cq.from || {};
-      const farmerName = fromUser.first_name || 'Hurmatli Dehqon';
+      const telegramUsername = fromUser.username ? `@${fromUser.username}` : '';
+      const userFirstName = fromUser.first_name || '';
+      const userLastName = fromUser.last_name || '';
+      const userFullName = `${userFirstName} ${userLastName}`.trim() || 'Hurmatli Dehqon';
 
-      const { farmer, fields } = await getFarmerAndFieldsByChatIdOrPhone(chatId);
-      const isEnabled = farmer?.telegram_notifications_enabled ?? true;
+      // Immediate visual feedback: send 'typing' chat action and answer callback query concurrently
+      const t0Typing = performance.now();
+      const typingPromise = chatId ? sendTelegramChatAction(chatId, 'typing').catch(() => {}) : Promise.resolve();
 
-      // 1A. Toggle Master Notifications
-      if (data === 'notif_master_off') {
-        if (farmer && isSupabaseConfigured && supabase) {
-          try {
-            await supabase
-              .from('farmers')
-              .update({ telegram_notifications_enabled: false })
-              .eq('id', farmer.id);
-          } catch {}
+      // 1A. Region Selection during in-bot registration
+      if (data.startsWith('reg:')) {
+        const selectedRegion = data.replace('reg:', '').trim();
+        let session = registrationSessions.get(String(chatId));
+
+        if (!session) {
+          session = {
+            phone: '998901234567',
+            full_name: userFullName,
+            region: selectedRegion,
+            step: 'ask_crop',
+            startedAt: Date.now(),
+          };
+        } else {
+          session.region = selectedRegion;
+          session.step = 'ask_crop';
         }
-        await answerTelegramCallbackQuery(callbackId, "🔕 Bildirishnomalar o'chirildi", false);
+        registrationSessions.set(String(chatId), session);
+
+        const [answerRes] = await Promise.all([
+          answerTelegramCallbackQuery(callbackId, `📍 ${selectedRegion} tanlandi!`, false),
+          typingPromise,
+        ]);
+
+        const cropPrompt =
+          `🌱 <b>Ro'yxatdan o'tish (2-qadam / 2)</b>\n\n` +
+          `📍 Tanlangan hudud: <b>${selectedRegion}</b> ✅\n\n` +
+          `🌾 Yetishtiradigan asosiy <b>ekin turingizni</b> tanlang:`;
+
         if (messageId) {
-          const updatedMenu = formatTelegramNotificationsMenu(farmerName, false, false, false, false, 'uz');
           await editTelegramMessageText({
             chatId,
             messageId,
-            text: updatedMenu,
-            replyMarkup: getNotificationSettingsInlineKeyboard(false, false, false, false, 'uz'),
-          });
-        }
-        return NextResponse.json({ ok: true, action: 'toggled_off' });
-      }
-
-      if (data === 'notif_master_on') {
-        if (farmer && isSupabaseConfigured && supabase) {
-          try {
-            await supabase
-              .from('farmers')
-              .update({ telegram_notifications_enabled: true })
-              .eq('id', farmer.id);
-          } catch {}
-        }
-        await answerTelegramCallbackQuery(callbackId, "🔔 Bildirishnomalar yoqildi (07:00)", false);
-        if (messageId) {
-          const updatedMenu = formatTelegramNotificationsMenu(farmerName, true, true, true, true, 'uz');
-          await editTelegramMessageText({
-            chatId,
-            messageId,
-            text: updatedMenu,
-            replyMarkup: getNotificationSettingsInlineKeyboard(true, true, true, true, 'uz'),
-          });
-        }
-        return NextResponse.json({ ok: true, action: 'toggled_on' });
-      }
-
-      // 1B. Toggle Sub-settings
-      if (data === 'notif_toggle_weather' || data === 'notif_toggle_frost' || data === 'notif_toggle_ndvi' || data === 'notif_refresh_status') {
-        await answerTelegramCallbackQuery(callbackId, "✅ Holat yangilandi", false);
-        if (messageId) {
-          const updatedMenu = formatTelegramNotificationsMenu(farmerName, isEnabled, true, true, true, 'uz');
-          await editTelegramMessageText({
-            chatId,
-            messageId,
-            text: updatedMenu,
-            replyMarkup: getNotificationSettingsInlineKeyboard(isEnabled, true, true, true, 'uz'),
-          });
-        }
-        return NextResponse.json({ ok: true, action: 'sub_toggle' });
-      }
-
-      // 1C. Trigger Weather Command from Inline Button
-      if (data === 'cmd_weather') {
-        await answerTelegramCallbackQuery(callbackId, "⛅ Ob-havo ma'lumoti tayyorlanmoqda...", false);
-        const primaryField = fields[0] || null;
-        const coords = getFieldCoordinates(primaryField, farmer?.region);
-        const weather = await fetchLiveWeather(coords.lat, coords.lng);
-        const weatherMsg = formatTelegramWeatherAlert(farmer || DEMO_FARMERS[0].profile, primaryField, weather, 'uz');
-
-        await sendTelegramMessage({
-          chatId,
-          text: weatherMsg,
-          replyMarkup: getFarmerReplyKeyboard('uz'),
-        });
-        return NextResponse.json({ ok: true, action: 'inline_weather_sent' });
-      }
-
-      // 1D. Trigger Fields Command from Inline Button
-      if (data === 'cmd_fields') {
-        await answerTelegramCallbackQuery(callbackId, "🌾 Dalalar ro'yxati", false);
-        let fieldsMsg = `🌾 <b>SIZNING EKIN MAYDONLARINGIZ:</b>\n\n`;
-        if (fields.length > 0) {
-          fields.forEach((f, idx) => {
-            fieldsMsg += `${idx + 1}️⃣ <b>${f.name}</b>\n• Maydoni: <b>${f.area_hectares} ga</b> | Ekin: <b>${f.crop_type}</b>\n• Hudud: <b>${f.region || "O'zbekiston"}</b>\n\n`;
+            text: cropPrompt,
+            replyMarkup: getCropSelectionInlineKeyboard(),
           });
         } else {
-          fieldsMsg += `1️⃣ <b>1-Maydon (Paxtazor)</b> — 24.5 ga (Paxta)\n2️⃣ <b>2-Maydon (Olmazor)</b> — 12.0 ga (Olma)\n\n`;
+          await sendTelegramMessage({
+            chatId,
+            text: cropPrompt,
+            replyMarkup: getCropSelectionInlineKeyboard(),
+          });
         }
-        fieldsMsg += `💡 <i>Har bir maydon bo'yicha aniq NDVI tahlilini olish uchun «🛰️ Sun'iy yo'ldosh NDVI» tugmasini bosing.</i>`;
 
-        await sendTelegramMessage({
-          chatId,
-          text: fieldsMsg,
-          replyMarkup: getFarmerReplyKeyboard('uz'),
-        });
-        return NextResponse.json({ ok: true, action: 'inline_fields_sent' });
+        console.log(`[Telegram Latency] Callback "reg" handled in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'region_selected' });
       }
 
-      await answerTelegramCallbackQuery(callbackId);
+      // 1B. Crop Selection -> Complete Registration and Create Farmer in Supabase
+      if (data.startsWith('crop:')) {
+        const cropId = data.replace('crop:', '').trim();
+        const cropOption = CROP_SELECTION_OPTIONS.find((c) => c.id === cropId);
+        const cropName = cropOption ? cropOption.nameUz : cropId;
+
+        const session = registrationSessions.get(String(chatId));
+        const finalPhone = session?.phone ? `+${session.phone}` : '+998901234567';
+        const finalName = session?.full_name || userFullName;
+        const finalRegion = session?.region || 'Toshkent viloyati';
+
+        // Save to Supabase farmers table
+        if (isSupabaseConfigured && supabase) {
+          try {
+            await supabase.from('farmers').insert({
+              full_name: finalName,
+              phone: finalPhone,
+              region: finalRegion,
+              primary_crops: [cropName],
+              farm_type: 'smallholder',
+              telegram_chat_id: String(chatId),
+              telegram_username: telegramUsername,
+              telegram_linked_at: new Date().toISOString(),
+              telegram_notifications_enabled: true,
+              tier: 'standart',
+            });
+            invalidateFarmerCache(chatId, finalPhone);
+          } catch (dbErr) {
+            console.error('[Supabase in-bot registration error]', dbErr);
+          }
+        }
+
+        registrationSessions.delete(String(chatId));
+        await Promise.all([
+          answerTelegramCallbackQuery(callbackId, `🎉 Ro'yxatdan muvaffaqiyatli o'tdingiz!`, false),
+          typingPromise,
+        ]);
+
+        const successMsg =
+          `🎉 <b>Tabriklaymiz, ${finalName}!</b>\n\n` +
+          `Siz Ekinix aqlli agro-platformasida muvaffaqiyatli ro'yxatdan o'tdingiz!\n\n` +
+          `📋 <b>Profilingiz:</b>\n` +
+          `• 👤 Fermer: <b>${finalName}</b>\n` +
+          `• 📱 Telefon: <code>${finalPhone}</code>\n` +
+          `• 📍 Hudud: <b>${finalRegion}</b>\n` +
+          `• 🌱 Asosiy ekin: <b>${cropName}</b>\n\n` +
+          `👇 <b>Quyidagi menyu orqali kerakli bo'limni tanlang:</b>`;
+
+        await Promise.all([
+          sendTelegramMessage({
+            chatId,
+            text: successMsg,
+            replyMarkup: getMainMenuInlineKeyboard(),
+          }),
+          sendTelegramMessage({
+            chatId,
+            text: `Menyudan foydalanishingiz mumkin:`,
+            replyMarkup: getFarmerReplyKeyboard(),
+          }),
+        ]);
+
+        console.log(`[Telegram Latency] Registration completed in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'registration_completed' });
+      }
+
+      // 1C. EXACT 4 SPECIFICATION BUTTONS FROM INLINE KEYBOARD
+      // Concurrent fetching: start answerCallbackQuery + getFarmerAndTelemetryData in parallel
+      const [answerResult, farmerData] = await Promise.all([
+        answerTelegramCallbackQuery(callbackId),
+        getFarmerAndTelemetryData(chatId),
+        typingPromise,
+      ]);
+
+      const { farmer, fieldsWithTelemetry, timing } = farmerData;
+      const primaryField = fieldsWithTelemetry[0]?.field || null;
+      const coords = getFieldCoordinates(primaryField, farmer?.region);
+
+      const t0Weather = performance.now();
+      const weather = await fetchLiveWeather(coords.lat, coords.lng);
+      const weatherMs = performance.now() - t0Weather;
+
+      let msgText = '';
+      const actionName = data;
+
+      if (data === 'menu_weather') {
+        msgText = formatTelegram5DayWeatherMessage(farmer, primaryField, weather);
+      } else if (data === 'menu_fields') {
+        msgText = formatTelegramFieldsMessage(farmer, fieldsWithTelemetry);
+      } else if (data === 'menu_agronomist') {
+        msgText = formatTelegramAgronomistMessage(farmer, fieldsWithTelemetry, weather);
+      } else if (data === 'menu_irrigation') {
+        msgText = formatTelegramIrrigationScheduleMessage(farmer, fieldsWithTelemetry, weather);
+      }
+
+      if (msgText) {
+        const t0Send = performance.now();
+        await sendTelegramMessage({
+          chatId,
+          text: msgText,
+          replyMarkup: getMainMenuInlineKeyboard(),
+        });
+        const sendMs = performance.now() - t0Send;
+        const totalMs = performance.now() - reqStart;
+
+        console.log(
+          `[Telegram Timing Breakdown] Cmd: "${actionName}" | Total: ${totalMs.toFixed(1)}ms | FarmerDB: ${timing.farmerDbMs.toFixed(1)}ms | FieldsDB: ${timing.fieldsDbMs.toFixed(1)}ms | Weather: ${weatherMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
+        );
+
+        return NextResponse.json({ ok: true, action: actionName, durationMs: totalMs });
+      }
+
       return NextResponse.json({ ok: true });
     }
 
     // =========================================================================
-    // 2. HANDLE STANDARD CHAT MESSAGES
+    // 2. HANDLE STANDARD CHAT MESSAGES & NATIVE CONTACT SHARING
     // =========================================================================
     const message = body.message || body.edited_message;
     if (!message) {
@@ -235,33 +413,36 @@ export async function POST(req: NextRequest) {
     const fromUser = message.from || {};
     const telegramUsername = fromUser.username ? `@${fromUser.username}` : '';
     const userFirstName = fromUser.first_name || '';
+    const userLastName = fromUser.last_name || '';
+    const userFullName = `${userFirstName} ${userLastName}`.trim() || 'Hurmatli Dehqon';
 
-    // Check if user sent a Phone Number or Contact
+    // Immediate instant feedback: send 'typing' chat action right away
+    const typingPromise = sendTelegramChatAction(chatId, 'typing').catch(() => {});
+
+    // -------------------------------------------------------------------------
+    // 2A. DETECT INCOMING PHONE NUMBER (NATIVE CONTACT OR TEXT)
+    // -------------------------------------------------------------------------
     let incomingPhone = '';
     if (contact && contact.phone_number) {
       incomingPhone = normalizePhoneNumber(contact.phone_number);
     } else if (text.startsWith('/start phone_')) {
-      const rawPhone = text.replace('/start phone_', '').trim();
-      incomingPhone = normalizePhoneNumber(rawPhone);
-    } else if (/^(\+?998|\d{9,12}$)/.test(text.replace(/[\s\-()]/g, ''))) {
+      incomingPhone = normalizePhoneNumber(text.replace('/start phone_', '').trim());
+    } else if (/^(\+?998|\d{9,12}$)/.test(text.replace(/[\s\-()]/g, '')) && !text.startsWith('/')) {
       incomingPhone = normalizePhoneNumber(text);
     }
 
-    // Handle Phone Number Registration & Linking
     if (incomingPhone) {
-      let matchedFarmer: FarmerProfile | null = null;
-      let matchedFields: FieldRecord[] = [];
+      const [typingRes, farmerData] = await Promise.all([
+        typingPromise,
+        getFarmerAndTelemetryData(chatId, incomingPhone),
+      ]);
 
-      if (isSupabaseConfigured && supabase) {
-        try {
-          const { data: farmerData } = await supabase
-            .from('farmers')
-            .select('*')
-            .or(`phone.eq.${incomingPhone},phone.eq.+${incomingPhone},phone.ilike.%${incomingPhone.slice(-9)}%`)
-            .maybeSingle();
+      const { farmer: matchedFarmer, fieldsWithTelemetry: matchedFields, isRealDbRecord } = farmerData;
 
-          if (farmerData) {
-            matchedFarmer = farmerData as FarmerProfile;
+      // CASE 1: MATCH FOUND in Supabase `farmers`
+      if (matchedFarmer && isRealDbRecord) {
+        if (isSupabaseConfigured && supabase) {
+          try {
             await supabase
               .from('farmers')
               .update({
@@ -270,279 +451,265 @@ export async function POST(req: NextRequest) {
                 telegram_linked_at: new Date().toISOString(),
                 telegram_notifications_enabled: true,
               })
-              .eq('id', farmerData.id);
-
-            const { data: fieldsData } = await supabase
-              .from('fields')
-              .select('*')
-              .or(`farmer_id.eq.${farmerData.id},user_id.eq.${farmerData.id}`);
-            matchedFields = (fieldsData as FieldRecord[]) || [];
+              .eq('id', matchedFarmer.id);
+            invalidateFarmerCache(chatId, incomingPhone);
+          } catch (updateErr) {
+            console.error('[Supabase link error]', updateErr);
           }
-        } catch (dbErr) {
-          console.error('[Telegram Webhook DB Error]', dbErr);
         }
+
+        const totalArea = matchedFields.reduce((sum, item) => sum + (Number(item.field.area_hectares) || 0), 0);
+        const cropsList = Array.from(new Set(matchedFields.map((item) => item.field.crop_type || 'Ekin'))).join(', ') ||
+          (matchedFarmer.primary_crops?.join(', ') || "Paxta, Bug'doy");
+
+        const linkedGreetingMsg =
+          `✅ <b>Assalomu alaykum, ${matchedFarmer.full_name}!</b>\n\n` +
+          `Sizning <code>+${incomingPhone}</code> telefon raqamingiz Ekinix hisobingizga muvaffaqiyatli bog'landi!\n\n` +
+          `🌾 <b>Sizning dalalaringiz:</b>\n` +
+          `• Maydonlar soni: <b>${matchedFields.length} ta</b> (${totalArea > 0 ? totalArea.toFixed(1) : '0'} ga)\n` +
+          `• Asosiy hudud: <b>${matchedFarmer.region || "O'zbekiston"}</b>\n` +
+          `• Ekinlar: <b>${cropsList}</b>\n\n` +
+          `👇 <b>Quyidagi menyu orqali kerakli bo'limni tanlang:</b>`;
+
+        await Promise.all([
+          sendTelegramMessage({
+            chatId,
+            text: linkedGreetingMsg,
+            replyMarkup: getMainMenuInlineKeyboard(),
+          }),
+          sendTelegramMessage({
+            chatId,
+            text: `Boshqaruv paneli faollashtirildi.`,
+            replyMarkup: getFarmerReplyKeyboard(),
+          }),
+        ]);
+
+        console.log(`[Telegram Latency] Account linked in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'existing_farmer_linked', farmer: matchedFarmer.full_name });
       }
 
-      if (!matchedFarmer) {
-        matchedFarmer = {
-          id: `farmer_${chatId}`,
-          full_name: `${userFirstName || 'Hurmatli Dehqon'}`,
-          phone: `+${incomingPhone}`,
-          region: "Toshkent viloyati",
-          telegram_chat_id: String(chatId),
-          telegram_username: telegramUsername,
-          telegram_notifications_enabled: true,
-          tier: 'standart',
-        };
-        matchedFields = DEMO_FARMERS[0].fields;
-      }
+      // CASE 2: NO MATCH in Supabase -> In-bot registration
+      registrationSessions.set(String(chatId), {
+        phone: incomingPhone,
+        full_name: userFullName,
+        step: 'ask_region',
+        startedAt: Date.now(),
+      });
 
-      const welcomeMsg = formatTelegramWelcomeMessage(
-        matchedFarmer.full_name,
-        matchedFarmer.phone,
-        matchedFields.length,
-        'uz'
-      );
+      const askRegionMsg =
+        `📋 <b>Ekinixda ro'yxatdan o'tish (1-qadam / 2)</b>\n\n` +
+        `Telefon raqamingiz: <code>+${incomingPhone}</code> ✅\n` +
+        `Fermer: <b>${userFullName}</b>\n\n` +
+        `📍 Iltimos, ekin maydoningiz joylashgan <b>viloyatni</b> tanlang:`;
 
       await sendTelegramMessage({
         chatId,
-        text: welcomeMsg,
-        replyMarkup: getFarmerReplyKeyboard('uz'),
+        text: askRegionMsg,
+        replyMarkup: getRegionSelectionInlineKeyboard(),
       });
 
-      // Send immediate weather snapshot
-      const primaryField = matchedFields[0] || null;
-      const coords = getFieldCoordinates(primaryField, matchedFarmer.region);
-      const weather = await fetchLiveWeather(coords.lat, coords.lng);
-      const weatherMsg = formatTelegramWeatherAlert(matchedFarmer, primaryField, weather, 'uz');
-
-      await sendTelegramMessage({
-        chatId,
-        text: weatherMsg,
-        replyMarkup: getFarmerReplyKeyboard('uz'),
-      });
-
-      return NextResponse.json({ ok: true, action: 'phone_linked', farmer: matchedFarmer.full_name });
+      console.log(`[Telegram Latency] Ask region prompted in ${(performance.now() - reqStart).toFixed(1)}ms`);
+      return NextResponse.json({ ok: true, action: 'onboarding_ask_region' });
     }
 
-    // Lookup profile for command context
-    const { farmer, fields } = await getFarmerAndFieldsByChatIdOrPhone(chatId);
+    // -------------------------------------------------------------------------
+    // 2B. RESOLVE FARMER & TELEMETRY DATA CONCURRENTLY
+    // -------------------------------------------------------------------------
+    const [typingRes, farmerData] = await Promise.all([
+      typingPromise,
+      getFarmerAndTelemetryData(chatId),
+    ]);
+
+    const { farmer: currentFarmer, fieldsWithTelemetry, isRealDbRecord, timing } = farmerData;
     const lowerText = text.toLowerCase();
 
-    // =========================================================================
-    // 3. COMMAND ROUTING
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // 2C. /start COMMAND
+    // -------------------------------------------------------------------------
+    if (lowerText === '/start' || lowerText.startsWith('/start')) {
+      if (currentFarmer && isRealDbRecord) {
+        const totalArea = fieldsWithTelemetry.reduce(
+          (sum, item) => sum + (Number(item.field.area_hectares) || 0),
+          0
+        );
+        const cropsList = Array.from(new Set(fieldsWithTelemetry.map((item) => item.field.crop_type || 'Ekin'))).join(', ') ||
+          (currentFarmer.primary_crops?.join(', ') || "Paxta, Bug'doy");
 
-    // 3A. /notifications — Manage alerts, toggle ON/OFF
-    if (
-      lowerText === '/notifications' ||
-      lowerText === '/alerts' ||
-      lowerText === '/bildirishnomalar' ||
-      lowerText.includes('bildirishnoma') ||
-      lowerText.includes('уведомлен') ||
-      lowerText.includes('notification')
-    ) {
-      const isEnabled = farmer?.telegram_notifications_enabled ?? true;
-      const notifMsg = formatTelegramNotificationsMenu(
-        farmer?.full_name || userFirstName || 'Hurmatli Dehqon',
-        isEnabled,
-        true,
-        true,
-        true,
-        'uz'
-      );
+        const startMsg =
+          `🌱 <b>Ekinix Agro Botiga xush kelibsiz, ${currentFarmer.full_name}!</b>\n\n` +
+          `✅ Sizning hisobingiz <code>${currentFarmer.phone}</code> raqami orqali bog'langan.\n\n` +
+          `🌾 <b>Sizning dalalaringiz:</b>\n` +
+          `• Maydonlar soni: <b>${fieldsWithTelemetry.length} ta</b> (${totalArea.toFixed(1)} ga)\n` +
+          `• Hudud: <b>${currentFarmer.region || "O'zbekiston"}</b>\n` +
+          `• Asosiy ekinlar: <b>${cropsList}</b>\n\n` +
+          `👇 <b>Kerakli xizmatni tanlang:</b>`;
+
+        await Promise.all([
+          sendTelegramMessage({
+            chatId,
+            text: startMsg,
+            replyMarkup: getMainMenuInlineKeyboard(),
+          }),
+          sendTelegramMessage({
+            chatId,
+            text: `Asosiy menyu:`,
+            replyMarkup: getFarmerReplyKeyboard(),
+          }),
+        ]);
+
+        console.log(`[Telegram Latency] /start handled in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'start_linked_greeted' });
+      }
+
+      // Not linked yet -> Request phone number
+      const onboardingStartMsg =
+        `🌱 <b>Ekinix — O'zbekiston dehqonlari uchun aqlli agro-botiga xush kelibsiz!</b>\n\n` +
+        `Assalomu alaykum, <b>${userFirstName || 'Hurmatli Dehqon'}</b>! 👋\n\n` +
+        `Ekinix platformasidagi profilingizni va dalalaringizni aniqlash hamda hisobingizni bog'lash uchun quyidagi <b>«📲 Telefon raqamni yuborish»</b> tugmasini bosing:`;
 
       await sendTelegramMessage({
         chatId,
-        text: notifMsg,
-        replyMarkup: getNotificationSettingsInlineKeyboard(isEnabled, true, true, true, 'uz'),
+        text: onboardingStartMsg,
+        replyMarkup: getOnboardingContactReplyKeyboard(),
       });
 
-      return NextResponse.json({ ok: true, action: 'notifications_menu_sent' });
+      console.log(`[Telegram Latency] /start unlinked prompt in ${(performance.now() - reqStart).toFixed(1)}ms`);
+      return NextResponse.json({ ok: true, action: 'start_contact_requested' });
     }
 
-    // 3B. /weather — 7-Day Live Weather & Smart Irrigation
+    // Resolve coordinates & live weather concurrently
+    const primaryField = fieldsWithTelemetry[0]?.field || null;
+    const coords = getFieldCoordinates(primaryField, currentFarmer?.region);
+
+    const t0Weather = performance.now();
+    const weather = await fetchLiveWeather(coords.lat, coords.lng);
+    const weatherMs = performance.now() - t0Weather;
+
+    // -------------------------------------------------------------------------
+    // 2D. BUTTON 1: "🌦 Ob-havo"
+    // -------------------------------------------------------------------------
     if (
-      lowerText === '/weather' ||
-      lowerText === '/obhavo' ||
-      lowerText === '/ob_havo' ||
+      lowerText === '🌦 ob-havo' ||
       lowerText.includes('ob-havo') ||
       lowerText.includes('ob havo') ||
+      lowerText === '/weather' ||
       lowerText.includes('погода') ||
-      lowerText.includes('weather') ||
-      lowerText.includes('prognos') ||
-      lowerText.includes('prognoz')
+      lowerText.includes('weather')
     ) {
-      const primaryField = fields[0] || null;
-      const coords = getFieldCoordinates(primaryField, farmer?.region);
-      const weather = await fetchLiveWeather(coords.lat, coords.lng);
-      const weatherMsg = formatTelegramWeatherAlert(farmer || DEMO_FARMERS[0].profile, primaryField, weather, 'uz');
-
+      const weatherText = formatTelegram5DayWeatherMessage(currentFarmer, primaryField, weather);
+      const t0Send = performance.now();
       await sendTelegramMessage({
         chatId,
-        text: weatherMsg,
-        replyMarkup: getFarmerReplyKeyboard('uz'),
+        text: weatherText,
+        replyMarkup: getMainMenuInlineKeyboard(),
       });
+      const sendMs = performance.now() - t0Send;
+      const totalMs = performance.now() - reqStart;
 
-      return NextResponse.json({ ok: true, action: 'weather_sent' });
+      console.log(
+        `[Telegram Timing Breakdown] Cmd: "weather" | Total: ${totalMs.toFixed(1)}ms | FarmerDB: ${timing.farmerDbMs.toFixed(1)}ms | FieldsDB: ${timing.fieldsDbMs.toFixed(1)}ms | Weather: ${weatherMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
+      );
+      return NextResponse.json({ ok: true, action: 'weather_sent', durationMs: totalMs });
     }
 
-    // 3C. /fields — My Fields List
+    // -------------------------------------------------------------------------
+    // 2E. BUTTON 2: "🌾 Mening dalalarim"
+    // -------------------------------------------------------------------------
     if (
-      lowerText === '/fields' ||
-      lowerText === '/dalalarim' ||
+      lowerText === '🌾 mening dalalarim' ||
       lowerText.includes('dalalarim') ||
       lowerText.includes('dala') ||
+      lowerText === '/fields' ||
       lowerText.includes('поля') ||
       lowerText.includes('fields')
     ) {
-      let fieldsMsg =
-        `🌾 <b>SIZNING EKIN MAYDONLARINGIZ:</b>\n` +
-        `👤 <b>Fermer:</b> ${farmer?.full_name || userFirstName || 'Hurmatli Dehqon'}\n` +
-        `🗺️ <b>Viloyat:</b> ${farmer?.region || "O'zbekiston"}\n\n`;
-
-      if (fields.length > 0) {
-        fields.forEach((f, idx) => {
-          fieldsMsg +=
-            `${idx + 1}️⃣ <b>${f.name}</b>\n` +
-            `• Maydoni: <b>${f.area_hectares} gektar</b>\n` +
-            `• Ekin turi: <b>${f.crop_type}</b>\n` +
-            `• Ekish sanasi: <b>${f.planting_date || '2026-yil bahor'}</b>\n` +
-            `• Holati: 🟢 <b>Faol vegetatsiya</b>\n\n`;
-        });
-      } else {
-        fieldsMsg +=
-          `1️⃣ <b>1-Maydon (Yulduz Paxtazor)</b> — 24.5 ga (Paxta)\n` +
-          `2️⃣ <b>2-Maydon (Bog' Shamoli)</b> — 12.0 ga (Olma)\n\n`;
-      }
-
-      fieldsMsg += `💡 <i>Sun'iy yo'ldosh tahlili uchun «🛰️ Sun'iy yo'ldosh NDVI» tugmasini bosing.</i>`;
-
+      const fieldsText = formatTelegramFieldsMessage(currentFarmer, fieldsWithTelemetry);
+      const t0Send = performance.now();
       await sendTelegramMessage({
         chatId,
-        text: fieldsMsg,
-        replyMarkup: getFarmerReplyKeyboard('uz'),
+        text: fieldsText,
+        replyMarkup: getMainMenuInlineKeyboard(),
       });
+      const sendMs = performance.now() - t0Send;
+      const totalMs = performance.now() - reqStart;
 
-      return NextResponse.json({ ok: true, action: 'fields_sent' });
-    }
-
-    // 3D. /ndvi — Satellite Telemetry
-    if (
-      lowerText === '/ndvi' ||
-      lowerText === '/satellite' ||
-      lowerText.includes('ndvi') ||
-      lowerText.includes('sun\'iy yo\'ldosh') ||
-      lowerText.includes('спутник')
-    ) {
-      const primaryField = fields[0] || {
-        id: 'f1',
-        name: "Asosiy Paxtazor Maydoni",
-        crop_type: 'cotton',
-        area_hectares: 24.5,
-        region: farmer?.region || "Farg'ona viloyati",
-      };
-
-      const ndviMsg = formatTelegramFieldStatus(
-        farmer || DEMO_FARMERS[0].profile,
-        primaryField as FieldRecord,
-        {
-          id: 'read_1',
-          field_id: primaryField.id,
-          ndvi_score: 0.74,
-          moisture_percentage: 58,
-          status: 'good',
-          satellite_date: new Date().toISOString().split('T')[0],
-          recommendation_uz:
-            "Ekin vegetatsiyasi faol o'sish fazasida. Barg qoplami zichligi a'lo darajada. Bugun kechki payt 32 m³/ga tomchilatib sug'orishni amalga oshirish tavsiya etiladi.",
-          recommendation_ru:
-            "Вегетация в активной фазе роста. Рекомендуется капельный полив 32 м³/га в вечернее время.",
-          recommendation_en:
-            "Active vegetation growth phase. Evening drip irrigation of 32 m³/ha recommended.",
-        },
-        'uz'
+      console.log(
+        `[Telegram Timing Breakdown] Cmd: "fields" | Total: ${totalMs.toFixed(1)}ms | FarmerDB: ${timing.farmerDbMs.toFixed(1)}ms | FieldsDB: ${timing.fieldsDbMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
       );
-
-      await sendTelegramMessage({
-        chatId,
-        text: ndviMsg,
-        replyMarkup: getFarmerReplyKeyboard('uz'),
-      });
-
-      return NextResponse.json({ ok: true, action: 'ndvi_sent' });
+      return NextResponse.json({ ok: true, action: 'fields_sent', durationMs: totalMs });
     }
 
-    // 3E. /agronomist — Agronomist Recommendation
+    // -------------------------------------------------------------------------
+    // 2F. BUTTON 3: "🤖 Agronom xulosasi"
+    // -------------------------------------------------------------------------
     if (
-      lowerText === '/agronomist' ||
-      lowerText === '/advisory' ||
+      lowerText === '🤖 agronom xulosasi' ||
       lowerText.includes('agronom') ||
-      lowerText.includes('агроном')
+      lowerText.includes('xulosa') ||
+      lowerText === '/agronomist' ||
+      lowerText.includes('агроном') ||
+      lowerText.includes('advisory')
     ) {
-      const advisoryMsg =
-        `👨‍🌾 <b>MUTAXASSIS AGRONOM KO'RSATMASI | Ekinix</b>\n\n` +
-        `👨‍🔬 <b>Agronom:</b> Rustam Karimov (Katta agronom, O'zQXI)\n` +
-        `📅 <b>Sana:</b> ${new Date().toLocaleDateString('uz-UZ')}\n` +
-        `🎯 <b>Mavzu:</b> Hozirgi vegetatsiya davrida suv va o'g'it tejamkorligi\n\n` +
-        `📝 <b>Amaliy tavsiya:</b>\n` +
-        `<i>"Hozirgi issiq havoda g'o'za va mevali bog'larda kunduzgi jaziramada sug'orish barglarning kuyishiga olib kelishi mumkin. Sug'orishni soat 19:00 dan keyin amalga oshiring. Fosforli ozuqalarni tomchilatib berish ildiz tizimini 25% ga baquvvat qiladi."</i>\n\n` +
-        `📞 <b>Tezkor aloqa:</b> +998 97 123-45-67\n` +
-        `💬 <b>Savol yuborish:</b> @EkinixAgroSupport`;
-
+      const agronomistText = formatTelegramAgronomistMessage(currentFarmer, fieldsWithTelemetry, weather);
+      const t0Send = performance.now();
       await sendTelegramMessage({
         chatId,
-        text: advisoryMsg,
-        replyMarkup: getFarmerReplyKeyboard('uz'),
+        text: agronomistText,
+        replyMarkup: getMainMenuInlineKeyboard(),
       });
+      const sendMs = performance.now() - t0Send;
+      const totalMs = performance.now() - reqStart;
 
-      return NextResponse.json({ ok: true, action: 'advisory_sent' });
+      console.log(
+        `[Telegram Timing Breakdown] Cmd: "agronomist" | Total: ${totalMs.toFixed(1)}ms | FarmerDB: ${timing.farmerDbMs.toFixed(1)}ms | FieldsDB: ${timing.fieldsDbMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
+      );
+      return NextResponse.json({ ok: true, action: 'agronomist_sent', durationMs: totalMs });
     }
 
-    // 3F. /settings or /help — Settings and Language
+    // -------------------------------------------------------------------------
+    // 2G. BUTTON 4: "💧 Sug'orish jadvali"
+    // -------------------------------------------------------------------------
     if (
-      lowerText === '/settings' ||
-      lowerText === '/help' ||
-      lowerText === '/sozlamalar' ||
-      lowerText.includes('sozlama') ||
-      lowerText.includes('настройк') ||
-      lowerText.includes('til') ||
-      lowerText.includes('язык')
+      lowerText === "💧 sug'orish jadvali" ||
+      lowerText.includes("sug'orish") ||
+      lowerText.includes('jadval') ||
+      lowerText === '/irrigation' ||
+      lowerText === '/schedule' ||
+      lowerText.includes('полив')
     ) {
-      const isEnabled = farmer?.telegram_notifications_enabled ?? true;
-      const settingsMsg =
-        `⚙️ <b>EKINIX BOT SOZLAMALARI</b>\n\n` +
-        `👤 <b>Foydalanuvchi:</b> ${farmer?.full_name || userFirstName || 'Hurmatli Dehqon'}\n` +
-        `📱 <b>Telefon:</b> <code>${farmer?.phone || "Bog'lanmagan"}</code>\n` +
-        `🔔 <b>Bildirishnomalar:</b> ${isEnabled ? '🟢 Yoqilgan (07:00)' : "🔴 O'chirilgan"}\n` +
-        `🌐 <b>Til:</b> O'zbekcha (Lotin)\n\n` +
-        `🛠️ <i>Kerakli sozlamani tanlang:</i>`;
-
+      const irrigationText = formatTelegramIrrigationScheduleMessage(currentFarmer, fieldsWithTelemetry, weather);
+      const t0Send = performance.now();
       await sendTelegramMessage({
         chatId,
-        text: settingsMsg,
-        replyMarkup: getNotificationSettingsInlineKeyboard(isEnabled, true, true, true, 'uz'),
+        text: irrigationText,
+        replyMarkup: getMainMenuInlineKeyboard(),
       });
+      const sendMs = performance.now() - t0Send;
+      const totalMs = performance.now() - reqStart;
 
-      return NextResponse.json({ ok: true, action: 'settings_sent' });
+      console.log(
+        `[Telegram Timing Breakdown] Cmd: "irrigation" | Total: ${totalMs.toFixed(1)}ms | FarmerDB: ${timing.farmerDbMs.toFixed(1)}ms | FieldsDB: ${timing.fieldsDbMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
+      );
+      return NextResponse.json({ ok: true, action: 'irrigation_sent', durationMs: totalMs });
     }
 
-    // 3G. Default /start — Comprehensive Welcome Greeting
-    const isPhoneLinked = Boolean(farmer?.phone && farmer.phone !== '+998901234567');
-    const startMsg = formatTelegramStartGreeting(
-      farmer?.full_name || userFirstName || 'Hurmatli Dehqon',
-      isPhoneLinked,
-      farmer?.phone || '',
-      fields.length || 2,
-      'uz'
-    );
+    // Default Fallback: Prompt with the 4-button menu
+    if (currentFarmer && isRealDbRecord) {
+      await sendTelegramMessage({
+        chatId,
+        text: `🌱 <b>Ekinix Boshqaruv Menyusi:</b>\n\nQuyidagi tugmalardan birini tanlang:`,
+        replyMarkup: getMainMenuInlineKeyboard(),
+      });
+    } else {
+      await sendTelegramMessage({
+        chatId,
+        text: `🌱 Ekinix tizimiga ulanish uchun <b>«📲 Telefon raqamni yuborish»</b> tugmasini bosing:`,
+        replyMarkup: getOnboardingContactReplyKeyboard(),
+      });
+    }
 
-    await sendTelegramMessage({
-      chatId,
-      text: startMsg,
-      replyMarkup: getFarmerReplyKeyboard('uz'),
-    });
-
-    return NextResponse.json({ ok: true, action: 'start_greeting_sent' });
+    console.log(`[Telegram Latency] Fallback prompt in ${(performance.now() - reqStart).toFixed(1)}ms`);
+    return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('[Telegram Webhook Error]', err);
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
@@ -555,18 +722,14 @@ export async function GET() {
 
   return NextResponse.json({
     status: 'online',
-    service: 'Ekinix Telegram Bot Webhook',
+    service: 'Ekinix Telegram Bot (4-Button Specification)',
     botConfigured: isConfigured,
-    botUsername: process.env.TELEGRAM_BOT_USERNAME || 'EkinixAgroBot',
-    supportedCommands: [
-      '/start',
-      '/weather',
-      '/fields',
-      '/ndvi',
-      '/agronomist',
-      '/notifications',
-      '/settings',
-      '/help',
+    botUsername: process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME || 'ekinixbot',
+    menuItems: [
+      '🌦 Ob-havo',
+      '🌾 Mening dalalarim',
+      '🤖 Agronom xulosasi',
+      "💧 Sug'orish jadvali",
     ],
   });
 }

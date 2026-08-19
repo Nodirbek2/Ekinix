@@ -128,6 +128,18 @@ export interface NDVIReading {
   recommendation_en: string;
 }
 
+export type NdviReadingRecord = NDVIReading;
+
+export interface WateringLogRecord {
+  id: string;
+  field_id: string;
+  watered_at: string;
+  water_volume_m3?: number;
+  method?: string;
+  notes?: string;
+  created_at?: string;
+}
+
 export interface MarketplaceListing {
   id: string;
   farmer_id?: string;

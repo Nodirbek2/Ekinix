@@ -412,7 +412,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span className="group-hover:text-white">Telegram Agro Bot</span>
             </div>
             <span className="text-[9px] bg-[#0088cc] text-white font-bold px-1.5 py-0.5 rounded shadow-xs">
-              @EkinixAgroBot
+              @{process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'ekinixbot'}
             </span>
           </button>
         )}
