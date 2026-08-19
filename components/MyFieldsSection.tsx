@@ -5,14 +5,18 @@ import { Language, translations } from '@/lib/i18n';
 import { FieldRecord, FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { FieldMapDrawer } from '@/components/FieldMapDrawer';
 import { FieldCardThumbnail } from '@/components/FieldCardThumbnail';
+import { UnifiedFieldDetailView } from '@/components/UnifiedFieldDetailView';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
-import { MapPin, Plus, Calendar, Sparkles, Trash2, Sprout, Activity, Database, Check, AlertCircle, Droplets, Bug, BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { MapPin, Plus, Calendar, Sparkles, Trash2, Sprout, Activity, Database, Check, AlertCircle, Droplets, Bug, BookOpen, ArrowRight, Eye, Layers } from 'lucide-react';
 
 interface MyFieldsSectionProps {
   currentLang: Language;
   userProfile?: FarmerProfile | null;
   onOpenAuth?: (mode: 'login' | 'register') => void;
+  selectedFieldId?: string | null;
+  onNavigateToGuides?: () => void;
 }
 
 // Initial demo fields located in Uzbekistan
@@ -65,9 +69,12 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
   currentLang,
   userProfile,
   onOpenAuth,
+  selectedFieldId,
+  onNavigateToGuides,
 }) => {
   const t = translations[currentLang];
   const [fields, setFields] = useState<FieldRecord[]>([]);
+  const [activeDetailField, setActiveDetailField] = useState<FieldRecord | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -124,6 +131,10 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
 
       if (isMounted) {
         setFields(loaded);
+        if (selectedFieldId) {
+          const found = loaded.find((f) => f.id === selectedFieldId);
+          if (found) setActiveDetailField(found);
+        }
         setLoading(false);
       }
     }
@@ -133,7 +144,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [userProfile]);
+  }, [userProfile, selectedFieldId]);
 
   const handleSaveField = async (fieldData: {
     name: string;
@@ -224,54 +235,75 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
     return { icon: '🌱', label: cropId };
   };
 
+  if (activeDetailField) {
+    return (
+      <section id="my-fields" className="py-8 px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
+        <UnifiedFieldDetailView
+          field={activeDetailField}
+          allFields={fields}
+          currentLang={currentLang}
+          onSelectField={setActiveDetailField}
+          onBack={() => setActiveDetailField(null)}
+          onNavigateToGuides={onNavigateToGuides}
+        />
+      </section>
+    );
+  }
+
   return (
-    <section id="my-fields" className="py-12 px-4 sm:px-8 max-w-7xl mx-auto space-y-8">
+    <section id="my-fields" className="py-4 sm:py-6 max-w-7xl mx-auto space-y-6">
       
       {/* Section Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#E4D9C4] pb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#E4D9C4] pb-5">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9A441]/15 text-[#B8852B] rounded-md border border-[#D9A441]/30 text-xs font-bold uppercase tracking-wider mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9A441]/15 text-[#B8852B] rounded-full border border-[#D9A441]/30 text-xs font-bold uppercase tracking-wider mb-2">
             <Sprout className="w-3.5 h-3.5 text-[#D9A441]" />
             <span>Interaktiv Xarita & Monitoring</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-serif font-bold text-[#1F3D2B]">
+          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B]">
             {t.myFieldsTitle}
           </h2>
+          <p className="text-xs sm:text-sm text-[#6C7C6F] mt-1">
+            Har bir maydoningiz uchun sun&apos;iy yo&apos;ldosh NDVI telemetriyasi, ob-havo va sug&apos;orish hisob-kitoblari.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 shrink-0">
           {!userProfile && onOpenAuth && (
-            <button
+            <Button
               onClick={() => onOpenAuth('login')}
-              className="text-xs font-bold text-[#1F3D2B] bg-[#F0E8D8] hover:bg-[#E4D9C4] px-4 py-2.5 rounded-xl border border-[#E4D9C4] transition-all"
+              variant="secondary"
+              size="sm"
             >
-              Kirish va Bazaga Saqlash
-            </button>
+              Kirish va Saqlash
+            </Button>
           )}
 
-          <button
+          <Button
             onClick={() => setIsRegistering(!isRegistering)}
-            className="flex items-center gap-2 bg-[#1F3D2B] hover:bg-[#14281C] text-[#FAF7F0] font-bold text-sm px-6 py-3 rounded-xl shadow-lg border border-[#D9A441]/40 transition-all transform active:scale-95"
+            variant={isRegistering ? 'secondary' : 'primary'}
+            size="sm"
+            leftIcon={<Plus className="w-4 h-4 text-[#D9A441]" />}
           >
-            <Plus className="w-4 h-4 text-[#D9A441]" />
-            <span>{isRegistering ? 'Xaritani Yopish' : t.addFieldBtn}</span>
-          </button>
+            {isRegistering ? 'Xaritani Yopish' : t.addFieldBtn}
+          </Button>
         </div>
       </div>
 
       {/* Alert Notification */}
       {notification && (
-        <div className="p-4 bg-[#1F3D2B] text-[#FAF7F0] border-2 border-[#D9A441] rounded-2xl shadow-lg flex items-center justify-between gap-3 animate-in fade-in duration-300">
+        <div className="p-4 bg-[#1F3D2B] text-[#FAF7F0] border border-[#D9A441] rounded-2xl shadow-xs flex items-center justify-between gap-3 animate-in fade-in duration-300">
           <div className="flex items-center gap-2.5">
             <Check className="w-5 h-5 text-[#D9A441]" />
             <span className="text-xs sm:text-sm font-bold">{notification.text}</span>
           </div>
-          <button
+          <Button
             onClick={() => setNotification(null)}
-            className="text-xs font-bold text-[#D9A441] hover:underline"
+            variant="dark-ghost"
+            size="sm"
           >
             Yopish
-          </button>
+          </Button>
         </div>
       )}
 
@@ -289,38 +321,42 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
 
       {/* Fields List View / Cards */}
       {loading ? (
-        <div className="py-16 text-center space-y-3 bg-[#FAF7F0] rounded-3xl border border-[#E4D9C4]">
+        <div className="py-16 text-center space-y-3 bg-[#FAF7F0] rounded-2xl border border-[#E4D9C4]">
           <div className="w-8 h-8 border-3 border-[#1F3D2B] border-t-[#D9A441] rounded-full animate-spin mx-auto" />
           <p className="text-xs font-bold text-[#6C7C6F]">Maydonlar ma&apos;lumotlari yuklanmoqda...</p>
         </div>
       ) : fields.length === 0 ? (
-        <div className="py-16 px-6 text-center bg-[#FAF7F0] rounded-3xl border-2 border-dashed border-[#E4D9C4] space-y-4 max-w-xl mx-auto">
-          <div className="w-16 h-16 bg-[#F0E8D8] text-[#D9A441] rounded-2xl flex items-center justify-center mx-auto border border-[#E4D9C4]">
-            <Sprout className="w-8 h-8" />
+        <div className="py-12 px-6 text-center bg-white rounded-2xl border-2 border-dashed border-[#D9A441] space-y-4 max-w-xl mx-auto shadow-xs">
+          <div className="w-14 h-14 bg-[#F0E8D8] text-[#D9A441] rounded-2xl flex items-center justify-center mx-auto border border-[#E4D9C4]">
+            <Sprout className="w-7 h-7" />
           </div>
-          <h3 className="font-serif text-xl font-bold text-[#1F3D2B]">
-            {t.noFieldsYet}
-          </h3>
-          <p className="text-xs text-[#6C7C6F] leading-relaxed">
-            {t.noFieldsSub}
-          </p>
-          <button
+          <div className="space-y-1">
+            <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1F3D2B]">
+              {t.noFieldsYet}
+            </h3>
+            <p className="text-xs text-[#6C7C6F] leading-relaxed">
+              {t.noFieldsSub}
+            </p>
+          </div>
+          <Button
             onClick={() => setIsRegistering(true)}
-            className="inline-flex items-center gap-2 bg-[#D9A441] hover:bg-[#B8852B] text-[#1F3D2B] hover:text-[#FAF7F0] font-bold text-xs px-6 py-3 rounded-xl shadow-md transition-all"
+            variant="accent"
+            size="md"
+            leftIcon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-4 h-4" />
-            <span>{t.addFieldBtn}</span>
-          </button>
+            {t.addFieldBtn}
+          </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {fields.map((field) => {
             const cropMeta = getCropMeta(field.crop_type);
 
             return (
               <div
                 key={field.id}
-                className="bg-white rounded-3xl border border-[#E4D9C4] hover:border-[#1F3D2B] p-5 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between space-y-4 group"
+                onClick={() => setActiveDetailField(field)}
+                className="bg-white rounded-2xl border border-[#E4D9C4] hover:border-[#1F3D2B] p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-4 group cursor-pointer"
               >
                 {/* Field Top Info */}
                 <div className="space-y-3">
@@ -335,19 +371,21 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
                       </h4>
                     </div>
 
-                    <span className="bg-[#1F3D2B] text-[#FAF7F0] px-3 py-1 rounded-full text-xs font-bold border border-[#D9A441]/40 flex items-center gap-1.5 shrink-0">
+                    <span className="bg-[#1F3D2B] text-[#FAF7F0] px-3 py-1 rounded-full text-xs font-bold border border-[#D9A441]/40 flex items-center gap-1.5 shrink-0 shadow-xs">
                       <span>{cropMeta.icon}</span>
                       <span>{cropMeta.label}</span>
                     </span>
                   </div>
 
                   {/* Satellite Thumbnail Map */}
-                  <FieldCardThumbnail coordinates={field.coordinates} height={140} />
+                  <div className="rounded-2xl overflow-hidden border border-[#E4D9C4]">
+                    <FieldCardThumbnail coordinates={field.coordinates} height={140} />
+                  </div>
 
                   {/* Metrics Row */}
                   <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
                     <div className="bg-[#FAF7F0] p-2.5 rounded-xl border border-[#E4D9C4]">
-                      <p className="text-[10px] text-[#6C7C6F] font-semibold uppercase">Maydon Maydoni</p>
+                      <p className="text-[10px] text-[#6C7C6F] font-semibold uppercase">Maydon Hajmi</p>
                       <p className="font-bold text-[#1F3D2B] text-sm mt-0.5">
                         {field.area_hectares} <span className="text-xs font-normal text-[#6C7C6F]">{t.hectaresUnit}</span>
                       </p>
@@ -367,7 +405,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
                     const calc = calculateGrowthStage(field.crop_type, field.planting_date);
                     const stage = calc.currentStage;
                     return (
-                      <div className="bg-[#1F3D2B] text-[#FAF7F0] p-3.5 rounded-2xl border border-[#D9A441]/40 space-y-2 text-xs">
+                      <div className="bg-[#1F3D2B] text-[#FAF7F0] p-3.5 rounded-xl border border-[#D9A441]/40 space-y-2 text-xs">
                         <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
                           <div className="flex items-center gap-1.5 font-bold text-[#D9A441] text-[11px]">
                             <BookOpen className="w-3.5 h-3.5" />
@@ -387,30 +425,40 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
                             <Droplets className="w-3 h-3 text-blue-300 shrink-0 mt-0.5" />
                             <span><strong>Sug&apos;orish:</strong> {currentLang === 'ru' ? stage.irrigation_notes_ru : currentLang === 'en' ? stage.irrigation_notes_en : stage.irrigation_notes_uz}</span>
                           </p>
-                          <p className="flex items-start gap-1">
-                            <Bug className="w-3 h-3 text-amber-300 shrink-0 mt-0.5" />
-                            <span><strong>Zararkunanda:</strong> {currentLang === 'ru' ? stage.pest_notes_ru : currentLang === 'en' ? stage.pest_notes_en : stage.pest_notes_uz}</span>
-                          </p>
                         </div>
                       </div>
                     );
                   })()}
                 </div>
 
-                {/* Footer Controls */}
+                {/* Footer Controls & Detail View CTA Button */}
                 <div className="pt-3 border-t border-[#E4D9C4] flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#1F3D2B] bg-[#F5F9F7] px-2.5 py-1 rounded-lg border border-[#2D4D3D]/20">
-                    <Activity className="w-3.5 h-3.5 text-[#2D4D3D]" />
-                    <span>NDVI: Normal (0.68)</span>
-                  </div>
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveDetailField(field);
+                    }}
+                    variant="secondary"
+                    size="sm"
+                    className="flex-1"
+                    leftIcon={<Eye className="w-3.5 h-3.5 text-[#D9A441]" />}
+                    rightIcon={<ArrowRight className="w-3 h-3" />}
+                  >
+                    Maydon Tahlili
+                  </Button>
 
-                  <button
-                    onClick={() => handleDeleteField(field.id)}
-                    className="p-2 text-[#6C7C6F] hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteField(field.id);
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-[#6C7C6F] hover:text-rose-700 hover:bg-rose-50 px-2.5"
                     title="Maydonni o'chirish"
                   >
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </Button>
                 </div>
 
               </div>

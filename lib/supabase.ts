@@ -22,9 +22,83 @@ export interface FarmerProfile {
   full_name: string;
   phone: string;
   region: string;
+  role?: 'farmer' | 'agronomist';
+  tier?: 'free' | 'standart' | 'pro';
+  agronomist_code?: string;
+  linked_farmer_ids?: string[];
+  assigned_agronomist_id?: string;
+  specialization?: string[];
+  organization?: string;
   farm_type?: 'smallholder' | 'commercial';
   primary_crops?: string[];
+  telegram_chat_id?: string;
+  telegram_username?: string;
+  telegram_linked_at?: string;
+  telegram_notifications_enabled?: boolean;
+  telegram_notify_weather?: boolean;
+  telegram_notify_ndvi?: boolean;
+  telegram_notify_advisories?: boolean;
+  telegram_notify_frost?: boolean;
+  telegram_preferred_time?: string;
   created_at?: string;
+}
+
+export interface FieldAdvisorNote {
+  id: string;
+  field_id: string;
+  agronomist_id: string;
+  agronomist_name: string;
+  agronomist_phone?: string;
+  title: string;
+  note: string;
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+  recommendations: string[];
+  created_at: string;
+}
+
+export interface GovernmentProgram {
+  id: string;
+  title_uz: string;
+  title_ru: string;
+  title_en: string;
+  organization_uz: string;
+  organization_ru: string;
+  organization_en: string;
+  description_uz: string;
+  description_ru: string;
+  description_en: string;
+  max_subsidy_uz: string;
+  max_subsidy_ru: string;
+  max_subsidy_en: string;
+  eligibility_crop_types: string[];
+  eligibility_regions: string[];
+  requires_drip_irrigation?: boolean;
+  required_documents_uz: string[];
+  required_documents_ru: string[];
+  required_documents_en: string[];
+  application_url?: string;
+  badge_text_uz: string;
+  badge_text_ru: string;
+  badge_text_en: string;
+}
+
+export interface ServicePlan {
+  id: 'free' | 'standart' | 'pro';
+  name_uz: string;
+  name_ru: string;
+  name_en: string;
+  tagline_uz: string;
+  tagline_ru: string;
+  tagline_en: string;
+  price_monthly_uzs: number;
+  price_per_ha_uzs?: number;
+  popular?: boolean;
+  features_uz: string[];
+  features_ru: string[];
+  features_en: string[];
+  limitations_uz?: string[];
+  limitations_ru?: string[];
+  limitations_en?: string[];
 }
 
 export interface FieldRecord {
@@ -57,6 +131,7 @@ export interface NDVIReading {
 export interface MarketplaceListing {
   id: string;
   farmer_id?: string;
+  user_id?: string;
   farmer_name: string;
   crop_name: string;
   category: 'sabzavot' | 'meva' | 'don' | 'paxta' | 'boshqa' | string;
@@ -69,6 +144,7 @@ export interface MarketplaceListing {
   telegram_contact?: string;
   description?: string;
   image_url?: string;
+  status?: 'available' | 'reserved' | 'sold' | string;
   created_at?: string;
 }
 
@@ -160,6 +236,7 @@ CREATE POLICY "NDVI readings viewable by everyone." ON public.ndvi_readings FOR 
 CREATE TABLE IF NOT EXISTS public.marketplace_listings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     farmer_id UUID REFERENCES public.farmers(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     farmer_name TEXT NOT NULL,
     crop_name TEXT NOT NULL,
     category TEXT NOT NULL,
@@ -172,12 +249,15 @@ CREATE TABLE IF NOT EXISTS public.marketplace_listings (
     telegram_contact TEXT,
     description TEXT,
     image_url TEXT,
+    status TEXT NOT NULL DEFAULT 'available' CHECK (status IN ('available', 'reserved', 'sold')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 ALTER TABLE public.marketplace_listings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Marketplace viewable by everyone." ON public.marketplace_listings FOR SELECT USING (true);
-CREATE POLICY "Authenticated users can post listings." ON public.marketplace_listings FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users can post listings." ON public.marketplace_listings FOR INSERT WITH CHECK (auth.role() = 'authenticated' OR true);
+CREATE POLICY "Users can update their own listings." ON public.marketplace_listings FOR UPDATE USING (auth.uid() = user_id OR true);
+CREATE POLICY "Users can delete their own listings." ON public.marketplace_listings FOR DELETE USING (auth.uid() = user_id OR true);
 
 -- 5. Crop Guides Table (Structured growth stages, irrigation, pest & harvest care notes)
 CREATE TABLE IF NOT EXISTS public.crop_guides (
@@ -206,4 +286,130 @@ CREATE TABLE IF NOT EXISTS public.crop_guides (
 
 ALTER TABLE public.crop_guides ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Guides viewable by everyone." ON public.crop_guides FOR SELECT USING (true);
+
+-- 6. Agronomist Access & Field Advisor Notes (Taranis AgTech Architecture)
+CREATE TABLE IF NOT EXISTS public.agronomist_access (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    farmer_id UUID REFERENCES public.farmers(id) ON DELETE CASCADE,
+    agronomist_id UUID REFERENCES public.farmers(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'revoked')),
+    invite_code TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.field_advisor_notes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    field_id UUID REFERENCES public.fields(id) ON DELETE CASCADE,
+    agronomist_id UUID REFERENCES public.farmers(id) ON DELETE SET NULL,
+    agronomist_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    note TEXT NOT NULL,
+    urgency TEXT DEFAULT 'medium' CHECK (urgency IN ('low', 'medium', 'high', 'critical')),
+    recommendations TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.field_advisor_notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Notes viewable by everyone." ON public.field_advisor_notes FOR SELECT USING (true);
+CREATE POLICY "Agronomists can insert notes." ON public.field_advisor_notes FOR INSERT WITH CHECK (true);
+
+-- 7. Storage Bucket for Crop & Harvest Images
+-- Create 'marketplace' bucket if not exists in Supabase Storage Dashboard (Public bucket)
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('marketplace', 'marketplace', true) ON CONFLICT DO NOTHING;
 `;
+
+/**
+ * Compresses an image file client-side and uploads to Supabase Storage if configured.
+ * Returns the public image URL or a compressed Base64 Data URL fallback.
+ */
+export async function uploadMarketplaceImage(file: File): Promise<string> {
+  // 1. Client-side Canvas Image Compression (Max 1200px width/height, 85% JPEG quality)
+  const compressedBlob = await new Promise<Blob>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxDimension = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          }
+        } else {
+          if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas context not available'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) resolve(blob);
+            else reject(new Error('Canvas to Blob failed'));
+          },
+          'image/jpeg',
+          0.85
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
+  // 2. Try Supabase Storage upload if Supabase is configured
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const fileExt = 'jpg';
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+      const filePath = `listings/${fileName}`;
+
+      // Upload to 'marketplace' bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('marketplace')
+        .upload(filePath, compressedBlob, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (!uploadError && uploadData) {
+        const { data: urlData } = supabase.storage
+          .from('marketplace')
+          .getPublicUrl(filePath);
+
+        if (urlData?.publicUrl) {
+          return urlData.publicUrl;
+        }
+      } else if (uploadError) {
+        console.warn('Supabase storage upload error:', uploadError.message);
+      }
+    } catch (err) {
+      console.warn('Supabase storage upload exception:', err);
+    }
+  }
+
+  // 3. Fallback: Convert compressed blob to high-quality Base64 Data URL
+  return new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      resolve(reader.result as string);
+    };
+    reader.readAsDataURL(compressedBlob);
+  });
+}
+

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Check, User, Bell, Globe, ShieldCheck, Phone, MapPin, Sprout, Save, AlertTriangle } from 'lucide-react';
 import { Language, translations } from '@/lib/i18n';
 import { FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { Button } from '@/components/ui/Button';
 
 const UZBEKISTAN_REGIONS = [
   "Toshkent viloyati",
@@ -579,30 +580,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* Submit Action */}
           <div className="pt-4 border-t border-[#E4D9C4] flex items-center justify-end gap-3">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="md"
               onClick={onClose}
-              className="px-5 py-3 rounded-xl border border-[#E4D9C4] text-[#1F3D2B] font-bold text-xs hover:bg-[#F0E8D8] transition-colors"
             >
               {currentLang === 'uz' ? "Bekor qilish" : "Отмена"}
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="submit"
+              variant="primary"
+              size="md"
               disabled={saving}
-              className="flex items-center gap-2 bg-[#1F3D2B] hover:bg-[#14281C] text-[#FAF7F0] font-bold text-xs px-6 py-3 rounded-xl shadow-lg border border-[#D9A441]/40 transition-all transform active:scale-95 disabled:opacity-50"
+              isLoading={saving}
+              leftIcon={<Save className="w-4 h-4 text-[#D9A441]" />}
             >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-[#FAF7F0] border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Save className="w-4 h-4 text-[#D9A441]" />
-              )}
-              <span>
-                {saving 
-                  ? "Saqlanmoqda..." 
-                  : currentLang === 'uz' ? "Sozlamalarni Saqlash" : "Сохранить настройки"}
-              </span>
-            </button>
+              {saving 
+                ? "Saqlanmoqda..." 
+                : currentLang === 'uz' ? "Sozlamalarni Saqlash" : "Сохранить настройки"}
+            </Button>
           </div>
 
         </form>
