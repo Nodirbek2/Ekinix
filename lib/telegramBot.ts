@@ -26,11 +26,13 @@ export interface TelegramWeatherSummary {
   isHeatAlert: boolean;
   isFrostAlert: boolean;
   dailyForecast: TelegramDailyForecastItem[];
+  soilMoisture0to10cm?: number;
 }
 
 export interface FieldWithTelemetry {
   field: FieldRecord;
   latestNdvi?: NdviReadingRecord | null;
+  previousNdvi?: NdviReadingRecord | null;
   lastWateredDate?: string | null;
 }
 
@@ -551,17 +553,42 @@ export function formatTelegramIrrigationScheduleMessage(
 }
 
 // =============================================================================
-// PERSISTENT MAIN MENU KEYBOARDS (EXACTLY 4 BUTTONS)
+// PERSISTENT MAIN MENU KEYBOARDS (4 CORE BOT SERVICES + HELP & SETTINGS)
 // =============================================================================
 
 /**
- * Main Persistent Reply Keyboard with EXACTLY 4 requested options
+ * Main Persistent Reply Keyboard with core agricultural options and Help/Support
  */
-export function getFarmerReplyKeyboard() {
+export function getFarmerReplyKeyboard(lang: 'uz' | 'ru' | 'en' = 'uz') {
+  if (lang === 'ru') {
+    return {
+      keyboard: [
+        [{ text: '🌦 Погода' }, { text: '🌾 Мои поля' }],
+        [{ text: '🤖 Заключение агронома' }, { text: '💧 График полива' }],
+        [{ text: '🆘 Помощь' }, { text: '⚙️ Настройки' }],
+      ],
+      resize_keyboard: true,
+      persistent: true,
+    };
+  }
+
+  if (lang === 'en') {
+    return {
+      keyboard: [
+        [{ text: '🌦 Weather' }, { text: '🌾 My Fields' }],
+        [{ text: '🤖 Agronomist Advisory' }, { text: '💧 Irrigation Schedule' }],
+        [{ text: '🆘 Help & Support' }, { text: '⚙️ Settings' }],
+      ],
+      resize_keyboard: true,
+      persistent: true,
+    };
+  }
+
   return {
     keyboard: [
       [{ text: '🌦 Ob-havo' }, { text: '🌾 Mening dalalarim' }],
       [{ text: '🤖 Agronom xulosasi' }, { text: "💧 Sug'orish jadvali" }],
+      [{ text: '🆘 Yordam' }, { text: '⚙️ Sozlamalar' }],
     ],
     resize_keyboard: true,
     persistent: true,
@@ -569,9 +596,47 @@ export function getFarmerReplyKeyboard() {
 }
 
 /**
- * Main Persistent Inline Keyboard with EXACTLY 4 requested options
+ * Main Persistent Inline Keyboard with core services and quick shortcuts
  */
-export function getMainMenuInlineKeyboard() {
+export function getMainMenuInlineKeyboard(lang: 'uz' | 'ru' | 'en' = 'uz') {
+  if (lang === 'ru') {
+    return {
+      inline_keyboard: [
+        [
+          { text: '🌦 Погода', callback_data: 'menu_weather' },
+          { text: '🌾 Мои поля', callback_data: 'menu_fields' },
+        ],
+        [
+          { text: '🤖 Заключение агронома', callback_data: 'menu_agronomist' },
+          { text: '💧 График полива', callback_data: 'menu_irrigation' },
+        ],
+        [
+          { text: '🆘 Помощь', callback_data: 'menu_support' },
+          { text: '⚙️ Настройки / Язык', callback_data: 'menu_settings' },
+        ],
+      ],
+    };
+  }
+
+  if (lang === 'en') {
+    return {
+      inline_keyboard: [
+        [
+          { text: '🌦 Weather', callback_data: 'menu_weather' },
+          { text: '🌾 My Fields', callback_data: 'menu_fields' },
+        ],
+        [
+          { text: '🤖 Agronomist Advisory', callback_data: 'menu_agronomist' },
+          { text: '💧 Irrigation Schedule', callback_data: 'menu_irrigation' },
+        ],
+        [
+          { text: '🆘 Help & Support', callback_data: 'menu_support' },
+          { text: '⚙️ Settings / Language', callback_data: 'menu_settings' },
+        ],
+      ],
+    };
+  }
+
   return {
     inline_keyboard: [
       [
@@ -581,6 +646,10 @@ export function getMainMenuInlineKeyboard() {
       [
         { text: '🤖 Agronom xulosasi', callback_data: 'menu_agronomist' },
         { text: "💧 Sug'orish jadvali", callback_data: 'menu_irrigation' },
+      ],
+      [
+        { text: '🆘 Yordam', callback_data: 'menu_support' },
+        { text: '⚙️ Sozlamalar / Til', callback_data: 'menu_settings' },
       ],
     ],
   };
@@ -634,6 +703,400 @@ export function getTelegramBotToken(): string {
 
 export function getTelegramBotUsername(): string {
   return process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || process.env.TELEGRAM_BOT_USERNAME || 'ekinixbot';
+}
+
+// =============================================================================
+// PROACTIVE SCHEDULED ALERTS & NOTIFICATIONS FORMATTERS
+// =============================================================================
+
+/**
+ * Requirement 1: Rain Alert
+ * "🌧️ [Field name]: ertaga yomg'ir kutilmoqda (X%) — sug'orishni kechiktiring."
+ */
+export function formatTelegramRainAlert(
+  field: FieldRecord,
+  rainProb: number,
+  dayNameUz: string = 'ertaga',
+  rainSumMm: number = 0
+): string {
+  const rainText = rainSumMm > 0 ? `~${rainSumMm} mm` : `${rainProb}%`;
+  return (
+    `🌧️ <b>${field.name}:</b> ${dayNameUz.toLowerCase()} yomg'ir kutilmoqda (${rainProb}%) — sug'orishni kechiktiring.\n\n` +
+    `📊 <b>Kutilayotgan yog'ingarchilik:</b> ${rainText}\n` +
+    `💡 <i>Ekinix tavsiyasi: Tabiiy yog'in suvidan unumli foydalaning, sug'orishni kechiktirib elektr va suv resurslarini tejang.</i>`
+  );
+}
+
+/**
+ * Requirement 2: Daily Irrigation Task with Inline Button
+ * "✅ Sug'orildi deb belgilash"
+ */
+export function formatTelegramDailyIrrigationTask(
+  field: FieldRecord,
+  rec: {
+    timingAdvice?: { uz?: string };
+    recommendedVolumeM3PerHa?: number;
+    totalWaterM3?: number;
+    reasoning?: { uz?: string };
+    actionBadge?: { textUz?: string };
+  },
+  areaHa: number = 10
+): { text: string; replyMarkup: any } {
+  const cropNameUz = getCropNameUz(field.crop_type);
+  const timingUz = rec.timingAdvice?.uz || "19:30 – 22:30 oralig'ida (Kechki salqinda)";
+  const volumePerHa = rec.recommendedVolumeM3PerHa || 35;
+  const totalM3 = rec.totalWaterM3 || Math.round(volumePerHa * areaHa);
+  const reasonUz = rec.reasoning?.uz || "O'simlik vegetatsiyasi va tuproq namligi me'yorini saqlash uchun";
+
+  const text =
+    `💧 <b>KUNLIK SUG'ORISH VAZIFASI: ${field.name}</b>\n\n` +
+    `🌱 <b>Ekin turi:</b> ${cropNameUz} (<b>${areaHa} gektar</b>)\n` +
+    `⏰ <b>Tavsiya etilgan vaqt:</b> <b>${timingUz}</b>\n` +
+    `🚰 <b>Suv miqdori:</b> <b>${volumePerHa} m³/ga</b> (Jami maydon: <b>${totalM3} m³</b>)\n` +
+    `🔍 <b>Sababi va asosi:</b> <i>${reasonUz}</i>\n\n` +
+    `👇 <i>Dala sug'orilgach, darhol quyidagi tugmani bosing:</i>`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        {
+          text: "✅ Sug'orildi deb belgilash",
+          callback_data: `water:${field.id}:${volumePerHa}`,
+        },
+      ],
+    ],
+  };
+
+  return { text, replyMarkup };
+}
+
+/**
+ * Requirement 3: NDVI Stress Alert
+ * "⚠️ [Field name]da o'simlik stressi aniqlandi — tekshirib ko'ring."
+ */
+export function formatTelegramNdviStressAlert(
+  field: FieldRecord,
+  ndviScore: number = 0.38,
+  previousScore?: number
+): string {
+  const scoreFormatted = Number(ndviScore).toFixed(2);
+  const dropText = previousScore && previousScore > ndviScore
+    ? ` (Oldingi: <b>${previousScore.toFixed(2)}</b> ➔ Hozir: <b>${scoreFormatted}</b>)`
+    : '';
+
+  return (
+    `⚠️ <b>${field.name}</b>da o'simlik stressi aniqlandi${dropText} — tekshirib ko'ring.\n\n` +
+    `🌿 <b>NDVI ko'rsatkichi:</b> <b>${scoreFormatted}</b> (Vegetativ faollik pasaygan)\n` +
+    `🔍 <b>Tavsiya etilgan choralar:</b>\n` +
+    `• Tuproq namligi va tomchilatish tizimini tekshiring;\n` +
+    `• Zararkunandalar yoki zamburug'li kasalliklar bor-yo'qligini ko'zdan kechiring;\n` +
+    `• Zarurat tug'ilsa agronom maslahatiga murojaat qiling.`
+  );
+}
+
+/**
+ * Requirement 4: Notification Settings & Language Panel (/sozlamalar or /settings)
+ */
+export function formatTelegramSettingsMessage(farmer: FarmerProfile | null): {
+  text: string;
+  replyMarkup: any;
+} {
+  const farmerName = farmer?.full_name || "Hurmatli Dehqon";
+  const currentLang = farmer?.telegram_language || farmer?.preferred_language || 'uz';
+  const notifyRain = farmer?.telegram_notify_rain ?? farmer?.telegram_notify_weather ?? true;
+  const notifyIrrigation = farmer?.telegram_notify_irrigation ?? true;
+  const notifyNdvi = farmer?.telegram_notify_ndvi ?? true;
+  const notifyAll = farmer?.telegram_notifications_enabled ?? true;
+
+  if (currentLang === 'ru') {
+    const text =
+      `⚙️ <b>НАСТРОЙКИ УВЕДОМЛЕНИЙ И ЯЗЫКА | Ekinix</b>\n\n` +
+      `👤 Фермер: <b>${farmerName}</b>\n` +
+      `🌐 Текущий язык: <b>Русский (RU)</b>\n\n` +
+      `Нажимайте на кнопки для включения/выключения оповещений:\n\n` +
+      `• 🌧️ <b>Оповещения о дожде (>40%):</b> ${notifyRain ? '🟢 Включено' : '🔴 Выключено'}\n` +
+      `• 💧 <b>Задачи на полив:</b> ${notifyIrrigation ? '🟢 Включено' : '🔴 Выключено'}\n` +
+      `• ⚠️ <b>NDVI стресс-оповещения:</b> ${notifyNdvi ? '🟢 Включено' : '🔴 Выключено'}\n` +
+      `• 🔔 <b>Все уведомления:</b> ${notifyAll ? '🟢 Активны' : '🔴 Отключены'}\n\n` +
+      `💡 <i>Настройки мгновенно сохраняются в базе данных Supabase.</i>`;
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: `🌧️ Дождь: ${notifyRain ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:rain',
+          },
+          {
+            text: `💧 Полив: ${notifyIrrigation ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:irrigation',
+          },
+        ],
+        [
+          {
+            text: `⚠️ NDVI Стресс: ${notifyNdvi ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:ndvi',
+          },
+          {
+            text: `🔔 Все: ${notifyAll ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:all',
+          },
+        ],
+        [
+          {
+            text: `🇺🇿 O'zbek`,
+            callback_data: 'lang:uz',
+          },
+          {
+            text: `🇷🇺 Русский ✅`,
+            callback_data: 'lang:ru',
+          },
+          {
+            text: `🇬🇧 English`,
+            callback_data: 'lang:en',
+          },
+        ],
+        [
+          { text: '◀️ Главное меню', callback_data: 'menu_main' },
+        ],
+      ],
+    };
+    return { text, replyMarkup };
+  }
+
+  if (currentLang === 'en') {
+    const text =
+      `⚙️ <b>NOTIFICATION & LANGUAGE SETTINGS | Ekinix</b>\n\n` +
+      `👤 Farmer: <b>${farmerName}</b>\n` +
+      `🌐 Current Language: <b>English (EN)</b>\n\n` +
+      `Tap buttons below to toggle alert channels:\n\n` +
+      `• 🌧️ <b>Rain alerts (>40%):</b> ${notifyRain ? '🟢 Enabled' : '🔴 Disabled'}\n` +
+      `• 💧 <b>Daily irrigation tasks:</b> ${notifyIrrigation ? '🟢 Enabled' : '🔴 Disabled'}\n` +
+      `• ⚠️ <b>NDVI stress alerts:</b> ${notifyNdvi ? '🟢 Enabled' : '🔴 Disabled'}\n` +
+      `• 🔔 <b>All notifications:</b> ${notifyAll ? '🟢 Active' : '🔴 Disabled'}\n\n` +
+      `💡 <i>Preferences are saved directly to your Supabase farmer profile.</i>`;
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          {
+            text: `🌧️ Rain: ${notifyRain ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:rain',
+          },
+          {
+            text: `💧 Irrigation: ${notifyIrrigation ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:irrigation',
+          },
+        ],
+        [
+          {
+            text: `⚠️ NDVI Stress: ${notifyNdvi ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:ndvi',
+          },
+          {
+            text: `🔔 All: ${notifyAll ? 'ON ✅' : 'OFF ❌'}`,
+            callback_data: 'toggle:all',
+          },
+        ],
+        [
+          {
+            text: `🇺🇿 O'zbek`,
+            callback_data: 'lang:uz',
+          },
+          {
+            text: `🇷🇺 Русский`,
+            callback_data: 'lang:ru',
+          },
+          {
+            text: `🇬🇧 English ✅`,
+            callback_data: 'lang:en',
+          },
+        ],
+        [
+          { text: '◀️ Main menu', callback_data: 'menu_main' },
+        ],
+      ],
+    };
+    return { text, replyMarkup };
+  }
+
+  // Default Uzbek
+  const text =
+    `⚙️ <b>BILDIRISHNOMA VA TIL SOZLAMALARI | Ekinix</b>\n\n` +
+    `👤 Fermer: <b>${farmerName}</b>\n` +
+    `🌐 Joriy til: <b>O'zbekcha (UZ)</b>\n\n` +
+    `Kerakli bildirishnomalarni yoqish yoki o'chirish uchun quyidagi tugmalarni bosing:\n\n` +
+    `• 🌧️ <b>Yomg'ir xabarlari (>40%):</b> ${notifyRain ? '🟢 Yoqilgan' : "🔴 O'chirilgan"}\n` +
+    `• 💧 <b>Kunlik sug'orish vazifalari:</b> ${notifyIrrigation ? '🟢 Yoqilgan' : "🔴 O'chirilgan"}\n` +
+    `• ⚠️ <b>NDVI stress ogohlantirishlari:</b> ${notifyNdvi ? '🟢 Yoqilgan' : "🔴 O'chirilgan"}\n` +
+    `• 🔔 <b>Barcha bildirishnomalar:</b> ${notifyAll ? '🟢 Faol' : "🔴 O'chirilgan"}\n\n` +
+    `💡 <i>Sozlamalar va til o'zgarishi Supabase bazasida darhol saqlanadi.</i>`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        {
+          text: `🌧️ Yomg'ir: ${notifyRain ? 'ON ✅' : 'OFF ❌'}`,
+          callback_data: 'toggle:rain',
+        },
+        {
+          text: `💧 Sug'orish: ${notifyIrrigation ? 'ON ✅' : 'OFF ❌'}`,
+          callback_data: 'toggle:irrigation',
+        },
+      ],
+      [
+        {
+          text: `⚠️ NDVI Stress: ${notifyNdvi ? 'ON ✅' : 'OFF ❌'}`,
+          callback_data: 'toggle:ndvi',
+        },
+        {
+          text: `🔔 Barchasi: ${notifyAll ? 'ON ✅' : 'OFF ❌'}`,
+          callback_data: 'toggle:all',
+        },
+      ],
+      [
+        {
+          text: `🇺🇿 O'zbek ✅`,
+          callback_data: 'lang:uz',
+        },
+        {
+          text: `🇷🇺 Русский`,
+          callback_data: 'lang:ru',
+        },
+        {
+          text: `🇬🇧 English`,
+          callback_data: 'lang:en',
+        },
+      ],
+      [
+        { text: '◀️ Asosiy menyu', callback_data: 'menu_main' },
+      ],
+    ],
+  };
+
+  return { text, replyMarkup };
+}
+
+/**
+ * Language Shortcut Selector Panel (/til or /lang)
+ */
+export function formatTelegramLanguageSelectorMessage(currentLang: string = 'uz'): {
+  text: string;
+  replyMarkup: any;
+} {
+  const text =
+    `🌐 <b>TILNI TANLASH / ВЫБОР ЯЗЫКА / LANGUAGE SELECTION</b>\n\n` +
+    `Iltimos, botdan foydalanish uchun o'zingizga qulay tilni tanlang:\n` +
+    `Пожалуйста, выберите удобный язык для работы с ботом:\n` +
+    `Please select your preferred language for the bot:`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: `🇺🇿 O'zbek tili ${currentLang === 'uz' ? '✅' : ''}`, callback_data: 'lang:uz' },
+      ],
+      [
+        { text: `🇷🇺 Русский язык ${currentLang === 'ru' ? '✅' : ''}`, callback_data: 'lang:ru' },
+      ],
+      [
+        { text: `🇬🇧 English ${currentLang === 'en' ? '✅' : ''}`, callback_data: 'lang:en' },
+      ],
+      [
+        { text: '◀️ Asosiy menyu / Главное меню', callback_data: 'menu_main' },
+      ],
+    ],
+  };
+
+  return { text, replyMarkup };
+}
+
+/**
+ * Help & Support Panel ("🆘 Yordam" / /yordam / /help)
+ */
+export function formatTelegramHelpSupportMessage(
+  farmer: FarmerProfile | null,
+  lang: 'uz' | 'ru' | 'en' = 'uz'
+): { text: string; replyMarkup: any } {
+  if (lang === 'ru') {
+    const text =
+      `🆘 <b>ЦЕНТР ПОДДЕРЖКИ И ПОМОЩЬ | Ekinix</b>\n\n` +
+      `Assalomu alaykum! Мы готовы помочь вам с использованием платформы Ekinix.\n\n` +
+      `❓ <b>Часто задаваемые вопросы (FAQ):</b>\n` +
+      `1. <b>Как отправить фото на анализ?</b>\n` +
+      `   • Просто отправьте боту фотографию листа, растения или поля. Gemini Vision определит симптомы болезней или вредителей.\n\n` +
+      `2. <b>Откуда данные NDVI?</b>\n` +
+      `   • Спутниковая группировка Sentinel-2 (ESA) обновляет снимки каждые 3-5 дней.\n\n` +
+      `3. <b>Как работает график полива?</b>\n` +
+      `   • ИИ рассчитывает норму на основе влажности почвы, фазы культуры и прогноза погоды Open-Meteo.\n\n` +
+      `📞 <b>Контакты службы поддержки:</b>\n` +
+      `• Telegram: @EkinixAgroSupport\n` +
+      `• Горячая линия: <b>+998 71 200-45-67</b> (9:00 - 18:00)\n` +
+      `• Веб-платформа: <a href="https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app">Ekinix Web</a>\n\n` +
+      `✍️ <i>Вы также можете написать ваш вопрос прямо в этот чат — сообщение будет передано команде агрономов Ekinix.</i>`;
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [{ text: '💬 Написать в поддержку', callback_data: 'support_write' }],
+        [{ text: '🤖 Заключение агронома', callback_data: 'menu_agronomist' }],
+        [{ text: '◀️ Главное меню', callback_data: 'menu_main' }],
+      ],
+    };
+    return { text, replyMarkup };
+  }
+
+  if (lang === 'en') {
+    const text =
+      `🆘 <b>HELP & SUPPORT CENTER | Ekinix</b>\n\n` +
+      `Welcome to Ekinix farmer support!\n\n` +
+      `❓ <b>Frequently Asked Questions (FAQ):</b>\n` +
+      `1. <b>How to run photo diagnosis?</b>\n` +
+      `   • Simply send a photo of any leaf, crop, or field. Gemini Vision analyzes disease and pest symptoms.\n\n` +
+      `2. <b>Where does satellite data come from?</b>\n` +
+      `   • Sentinel-2 multispectral satellites (ESA) refresh NDVI imagery every 3–5 days.\n\n` +
+      `3. <b>How is irrigation calculated?</b>\n` +
+      `   • AI aggregates real-time Open-Meteo weather, soil moisture, and crop stage coefficients.\n\n` +
+      `📞 <b>Support Contacts:</b>\n` +
+      `• Telegram: @EkinixAgroSupport\n` +
+      `• Hotline: <b>+998 71 200-45-67</b> (9:00 - 18:00)\n` +
+      `• Web: <a href="https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app">Ekinix App</a>\n\n` +
+      `✍️ <i>You can also type your message directly in chat to submit a ticket to the Ekinix team.</i>`;
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [{ text: '💬 Message Support Team', callback_data: 'support_write' }],
+        [{ text: '🤖 Agronomist Advisory', callback_data: 'menu_agronomist' }],
+        [{ text: '◀️ Main Menu', callback_data: 'menu_main' }],
+      ],
+    };
+    return { text, replyMarkup };
+  }
+
+  // Default Uzbek
+  const text =
+    `🆘 <b>YORDAM VA MUTAXASSIS QO'LLAB-QUVVATLASH | Ekinix</b>\n\n` +
+    `Assalomu alaykum! Ekinix tizimidan foydalanishda sizga yordam berishdan mamnunmiz.\n\n` +
+    `❓ <b>Ko'p beriladigan savollar (FAQ):</b>\n` +
+    `1. <b>Foto-diagnostikadan qanday foydalaniladi?</b>\n` +
+    `   • Botga zararlangan barg yoki ekin suratini yuboring. Gemini AI kasallik va zararkunandalarni tahlil qilib beradi.\n\n` +
+    `2. <b>NDVI ko'rsatkichlari qayerdan olinadi?</b>\n` +
+    `   • Sentinel-2 sun'iy yo'ldoshi orqali har 3-5 kunda yangilanadi.\n\n` +
+    `3. <b>Sug'orish normasi qanday hisoblanadi?</b>\n` +
+    `   • Tuproq namligi, ekin turi va ob-havo prognoziga asosan tejamkor norma tavsiya etiladi.\n\n` +
+    `📞 <b>Aloqa va qo'llab-quvvatlash xizmati:</b>\n` +
+    `• Telegram admin: @EkinixAgroSupport\n` +
+    `• Ishonch telefoni: <b>+998 71 200-45-67</b> (Dush-Juma, 9:00 - 18:00)\n` +
+    `• Veb-portal: <a href="https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app">Ekinix Web</a>\n\n` +
+    `✍️ <i>Ekinix mutaxassislariga xabar yoki taklif qoldirmoqchi bo'lsangiz, quyidagi tugmani bosing yoki to'g'ridan-to'g'ri yozib yuboring:</i>`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '💬 Mutaxassisga xabar qoldirish', callback_data: 'support_write' }],
+      [{ text: '🤖 Agronom xulosasi', callback_data: 'menu_agronomist' }],
+      [{ text: '◀️ Asosiy menyu', callback_data: 'menu_main' }],
+    ],
+  };
+
+  return { text, replyMarkup };
 }
 
 export function formatTelegramWeatherAlert(

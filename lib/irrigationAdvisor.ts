@@ -9,6 +9,9 @@ export interface IrrigationAdvisorInput {
   ndviValue: number; // 0.0 - 1.0 (e.g. 0.72)
   ndviTrend?: 'improving' | 'stable' | 'declining' | null;
   soilMoisture: number; // 0 - 100 percentage (e.g. 54)
+  modeledSoilMoisture?: number; // Open-Meteo root-zone model (0-27cm)
+  ndviMoisture?: number; // Sentinel-2 NDVI derived estimate
+  moistureSource?: 'open_meteo_and_ndvi_hybrid' | 'agrometeorological_model' | 'ndvi_estimated';
   rainForecast?: Array<{
     date?: string;
     rainProb?: number; // 0 - 100
@@ -45,6 +48,11 @@ export interface IrrigationRecommendation {
     ru: string;
     en: string;
   };
+  transparencyNote: {
+    uz: string;
+    ru: string;
+    en: string;
+  };
   growthStage: {
     stageKey: string;
     stageNameUz: string;
@@ -66,6 +74,10 @@ export interface IrrigationRecommendation {
     ndviValue: number;
     ndviTrend: 'improving' | 'stable' | 'declining' | 'unknown';
     soilMoisture: number;
+    modeledSoilMoisture?: number;
+    ndviMoisture?: number;
+    moistureSource: string;
+    isEstimated: boolean;
     rainProbNext48h: number;
     rainSumNext48h: number;
     tempMaxToday: number;
@@ -217,6 +229,27 @@ export function calculateIrrigationRecommendation(
   const trendLabelRu = ndviTrend === 'improving' ? "растёт" : ndviTrend === 'declining' ? "снижается" : "стабилен";
   const trendLabelEn = ndviTrend === 'improving' ? "improving" : ndviTrend === 'declining' ? "declining" : "stable";
 
+  const transparencyNote = {
+    uz: "Ushbu sug'orish tavsiyasi Open-Meteo agrometeorologik ildiz qatlami (0-27 sm) modeli va Sentinel-2 NDVI o'simlik salomatligi tahliliga asoslangan.",
+    ru: "Эта рекомендация по поливу основана на агрометеорологической модели корневого слоя Open-Meteo (0-27 см) и анализе NDVI Sentinel-2.",
+    en: "This irrigation recommendation is based on the Open-Meteo root-zone (0-27cm) physical model and Sentinel-2 NDVI canopy health analysis.",
+  };
+
+  const factorMetadata: IrrigationRecommendation['factors'] = {
+    ndviValue,
+    ndviTrend: (ndviTrend === 'improving' || ndviTrend === 'stable' || ndviTrend === 'declining') ? ndviTrend : 'unknown',
+    soilMoisture,
+    modeledSoilMoisture: input.modeledSoilMoisture,
+    ndviMoisture: input.ndviMoisture,
+    moistureSource: input.moistureSource || 'open_meteo_and_ndvi_hybrid',
+    isEstimated: true,
+    rainProbNext48h,
+    rainSumNext48h,
+    tempMaxToday,
+    soilType,
+    irrigationMethod,
+  };
+
   // 4. Decision Rule Tree
 
   // RULE 1: Crop in Maturation / Pre-Harvest Drying Stage
@@ -241,10 +274,11 @@ export function calculateIrrigationRecommendation(
         en: currentStage.irrigation_notes_en,
       },
       reasoning: {
-        uz: `Tavsiya: sug'ormang — ekin "${currentStage.stage_name_uz}" bosqichida bo'lib (namlik ${soilMoisture}%), ortiqcha suv hosil pishishini kechiktiradi va tola/meva sifatini pasaytiradi.`,
-        ru: `Рекомендация: не поливать — культура в фазе "${currentStage.stage_name_ru}" (влажность ${soilMoisture}%), избыточная влага задерживает созревание урожая.`,
-        en: `Recommendation: do not irrigate — crop is in "${currentStage.stage_name_en}" phase (moisture ${soilMoisture}%), excess water delays ripening.`,
+        uz: `Tavsiya: sug'ormang — ekin "${currentStage.stage_name_uz}" bosqichida bo'lib (taxminiy namlik ${soilMoisture}%), ortiqcha suv hosil pishishini kechiktiradi va tola/meva sifatini pasaytiradi.`,
+        ru: `Рекомендация: не поливать — культура в фазе "${currentStage.stage_name_ru}" (оценочная влажность ${soilMoisture}%), избыточная влага задерживает созревание урожая.`,
+        en: `Recommendation: do not irrigate — crop is in "${currentStage.stage_name_en}" phase (estimated moisture ${soilMoisture}%), excess water delays ripening.`,
       },
+      transparencyNote,
       growthStage: {
         stageKey: stageGrowthKey,
         stageNameUz: currentStage.stage_name_uz,
@@ -262,16 +296,7 @@ export function calculateIrrigationRecommendation(
         ru: "Полив не рекомендуется до полного сбора урожая.",
         en: "No irrigation recommended until harvesting is complete.",
       },
-      factors: {
-        ndviValue,
-        ndviTrend: ndviTrend || 'unknown',
-        soilMoisture,
-        rainProbNext48h,
-        rainSumNext48h,
-        tempMaxToday,
-        soilType,
-        irrigationMethod,
-      },
+      factors: factorMetadata,
     };
   }
 
@@ -297,10 +322,11 @@ export function calculateIrrigationRecommendation(
         en: currentStage.irrigation_notes_en,
       },
       reasoning: {
-        uz: `Tavsiya: kuting — yaqin 48 soatda ${rainSumNext48h > 0 ? `~${rainSumNext48h} mm ` : ''}yomg'ir ehtimoli ${rainProbNext48h}% bo'lib, hozirgi tuproq namligi ${soilMoisture}% yetarli.`,
-        ru: `Рекомендация: подождите — в течение 48 часов ожидаются осадки ${rainSumNext48h > 0 ? `(~${rainSumNext48h} мм) ` : ''}с вероятностью ${rainProbNext48h}%, текущей влажности ${soilMoisture}% достаточно.`,
-        en: `Recommendation: wait — ${rainSumNext48h > 0 ? `~${rainSumNext48h} mm ` : ''}rain forecasted in next 48 hours (${rainProbNext48h}% chance), current moisture ${soilMoisture}% is sufficient.`,
+        uz: `Tavsiya: kuting — yaqin 48 soatda ${rainSumNext48h > 0 ? `~${rainSumNext48h} mm ` : ''}yomg'ir ehtimoli ${rainProbNext48h}% bo'lib, hozirgi taxminiy namlik (${soilMoisture}%) hisobi bilan sug'orishni to'xtatib turish maqsadga muvofiq.`,
+        ru: `Рекомендация: подождите — в течение 48 часов ожидаются осадки ${rainSumNext48h > 0 ? `(~${rainSumNext48h} мм) ` : ''}с вероятностью ${rainProbNext48h}%, при текущей оценке влажности ${soilMoisture}% полив не требуется.`,
+        en: `Recommendation: wait — ${rainSumNext48h > 0 ? `~${rainSumNext48h} mm ` : ''}rain forecasted in next 48 hours (${rainProbNext48h}% chance), current estimated moisture ${soilMoisture}% is sufficient.`,
       },
+      transparencyNote,
       growthStage: {
         stageKey: stageGrowthKey,
         stageNameUz: currentStage.stage_name_uz,
@@ -314,20 +340,11 @@ export function calculateIrrigationRecommendation(
         cropTitleEn: guide.crop_title_en,
       },
       timingAdvice: {
-        uz: "Yomg'irdan so'ng tuproq namligini qayta tekshirib, shunga ko'ra rejalashtiring.",
-        ru: "Проверьте влажность почвы после осадков для корректировки графика.",
-        en: "Re-evaluate soil moisture after rainfall before scheduling next watering.",
+        uz: "Yomg'irdan so'ng tuproq namligi modelini qayta tekshirib, shunga ko'ra rejalashtiring.",
+        ru: "Проверьте показатели влажности почвы после осадков для корректировки графика.",
+        en: "Re-evaluate soil moisture telemetry after rainfall before scheduling next watering.",
       },
-      factors: {
-        ndviValue,
-        ndviTrend: ndviTrend || 'unknown',
-        soilMoisture,
-        rainProbNext48h,
-        rainSumNext48h,
-        tempMaxToday,
-        soilType,
-        irrigationMethod,
-      },
+      factors: factorMetadata,
     };
   }
 
@@ -355,10 +372,11 @@ export function calculateIrrigationRecommendation(
         en: currentStage.irrigation_notes_en,
       },
       reasoning: {
-        uz: `Tavsiya: suv me'yorini kamaytiring — ${rainSumNext48h > 0 ? `${rainSumNext48h} mm ` : ''}engil yomg'ir ehtimoli ${rainProbNext48h}% va tuproq namligi ${soilMoisture}% bo'lgani uchun me'yorni ${reducedVolumePerHa} m³/ga gacha pasaytirish kifoya.`,
-        ru: `Рекомендация: уменьшите норму полива — ожидается небольшой дождь (${rainProbNext48h}%), поэтому достаточно дать ${reducedVolumePerHa} м³/га при влажности ${soilMoisture}%.`,
-        en: `Recommendation: reduce water volume — light rain possible (${rainProbNext48h}%), reducing rate to ${reducedVolumePerHa} m³/ha is sufficient for ${soilMoisture}% moisture.`,
+        uz: `Tavsiya: suv me'yorini kamaytiring — ${rainSumNext48h > 0 ? `${rainSumNext48h} mm ` : ''}engil yomg'ir ehtimoli ${rainProbNext48h}% va taxminiy namlik ${soilMoisture}% bo'lgani uchun me'yorni ${reducedVolumePerHa} m³/ga gacha pasaytirish kifoya.`,
+        ru: `Рекомендация: уменьшите норму полива — ожидается небольшой дождь (${rainProbNext48h}%), поэтому достаточно дать ${reducedVolumePerHa} м³/га при расчетной влажности ${soilMoisture}%.`,
+        en: `Recommendation: reduce water volume — light rain possible (${rainProbNext48h}%), reducing rate to ${reducedVolumePerHa} m³/ha is sufficient for estimated ${soilMoisture}% moisture.`,
       },
+      transparencyNote,
       growthStage: {
         stageKey: stageGrowthKey,
         stageNameUz: currentStage.stage_name_uz,
@@ -376,16 +394,7 @@ export function calculateIrrigationRecommendation(
         ru: "Поливайте с 05:00 до 08:30 утра или после захода солнца (после 19:30).",
         en: "Irrigate between 05:00 - 08:30 AM or after sunset (past 19:30).",
       },
-      factors: {
-        ndviValue,
-        ndviTrend: ndviTrend || 'unknown',
-        soilMoisture,
-        rainProbNext48h,
-        rainSumNext48h,
-        tempMaxToday,
-        soilType,
-        irrigationMethod,
-      },
+      factors: factorMetadata,
     };
   }
 
@@ -411,10 +420,11 @@ export function calculateIrrigationRecommendation(
         en: currentStage.irrigation_notes_en,
       },
       reasoning: {
-        uz: `Tavsiya: zudlik bilan sug'oring — tuproq namligi ${soilMoisture}% (me'yordan past), NDVI ${trendLabelUz} (${ndviValue}) va ekin "${currentStage.stage_name_uz}" bosqichida suvga muhtoj.`,
-        ru: `Рекомендация: полейте сейчас — влажность почвы ${soilMoisture}% (ниже нормы), NDVI ${trendLabelRu} (${ndviValue}), культуре в фазе "${currentStage.stage_name_ru}" требуется влага.`,
-        en: `Recommendation: irrigate now — soil moisture is ${soilMoisture}% (below threshold), NDVI is ${trendLabelEn} (${ndviValue}), crop in "${currentStage.stage_name_en}" requires water.`,
+        uz: `Tavsiya: zudlik bilan sug'oring — ildiz namligi ${soilMoisture}% (Open-Meteo va NDVI tahliliga ko'ra me'yordan past), ekin "${currentStage.stage_name_uz}" bosqichida suvga muhtoj.`,
+        ru: `Рекомендация: полейте сейчас — влажность корневого слоя ${soilMoisture}% (по анализу Open-Meteo и NDVI ниже нормы), культуре в фазе "${currentStage.stage_name_ru}" требуется влага.`,
+        en: `Recommendation: irrigate now — root moisture is ${soilMoisture}% (below threshold via Open-Meteo model & NDVI), crop in "${currentStage.stage_name_en}" requires watering.`,
       },
+      transparencyNote,
       growthStage: {
         stageKey: stageGrowthKey,
         stageNameUz: currentStage.stage_name_uz,
@@ -432,16 +442,7 @@ export function calculateIrrigationRecommendation(
         ru: "Лучшее время: 05:00 - 08:30 или после 19:00 (в полуденную жару испарение возрастает на 35%).",
         en: "Optimal window: 05:00 - 08:30 AM or after 19:00 (midday heat increases evaporative loss by 35%).",
       },
-      factors: {
-        ndviValue,
-        ndviTrend: ndviTrend || 'unknown',
-        soilMoisture,
-        rainProbNext48h,
-        rainSumNext48h,
-        tempMaxToday,
-        soilType,
-        irrigationMethod,
-      },
+      factors: factorMetadata,
     };
   }
 
@@ -467,10 +468,11 @@ export function calculateIrrigationRecommendation(
         en: currentStage.irrigation_notes_en,
       },
       reasoning: {
-        uz: `Tavsiya: kuting — namlik ${soilMoisture}% (yetarli) va NDVI ${ndviValue} barqaror rivojlanishni ko'rsatmoqda. Hozircha sug'orish talab etilmaydi.`,
-        ru: `Рекомендация: подождите — влажность ${soilMoisture}% (в оптимуме) и NDVI ${ndviValue} подтверждают стабильное развитие. Полив пока не требуется.`,
-        en: `Recommendation: wait — moisture is ${soilMoisture}% (optimal) and NDVI ${ndviValue} indicates healthy vegetative vigor. No irrigation needed now.`,
+        uz: `Tavsiya: kuting — taxminiy namlik ${soilMoisture}% (yetarli) va NDVI ${ndviValue} barqaror rivojlanishni ko'rsatmoqda. Hozircha sug'orish talab etilmaydi.`,
+        ru: `Рекомендация: подождите — оценочная влажность ${soilMoisture}% (в норме) и NDVI ${ndviValue} подтверждают стабильное развитие. Полив пока не требуется.`,
+        en: `Recommendation: wait — estimated moisture is ${soilMoisture}% (optimal) and NDVI ${ndviValue} indicates healthy vegetative vigor. No irrigation needed now.`,
       },
+      transparencyNote,
       growthStage: {
         stageKey: stageGrowthKey,
         stageNameUz: currentStage.stage_name_uz,
@@ -486,18 +488,9 @@ export function calculateIrrigationRecommendation(
       timingAdvice: {
         uz: "3-4 kundan so'ng tuproq namligi va sun'iy yo'ldosh suratini qayta tekshiring.",
         ru: "Повторно проверьте влажность почвы и спутниковый снимок через 3-4 дня.",
-        en: "Re-check soil moisture and satellite telemetry in 3-4 days.",
+        en: "Re-check soil moisture telemetry in 3-4 days.",
       },
-      factors: {
-        ndviValue,
-        ndviTrend: ndviTrend || 'unknown',
-        soilMoisture,
-        rainProbNext48h,
-        rainSumNext48h,
-        tempMaxToday,
-        soilType,
-        irrigationMethod,
-      },
+      factors: factorMetadata,
     };
   }
 
@@ -523,10 +516,11 @@ export function calculateIrrigationRecommendation(
       en: currentStage.irrigation_notes_en,
     },
     reasoning: {
-      uz: `Tavsiya: ${daysUntilNext} kundan so'ng sug'oring — tuproq namligi ${soilMoisture}% (o'rtacha), o'simlik "${currentStage.stage_name_uz}" bosqichida me'yoriy suv talab qiladi (${adjustedVolumePerHa} m³/ga).`,
-      ru: `Рекомендация: запланируйте полив через ${daysUntilNext} дня — влажность ${soilMoisture}% (умеренная), культуре в фазе "${currentStage.stage_name_ru}" потребуется плановый объём (${adjustedVolumePerHa} м³/га).`,
+      uz: `Tavsiya: ${daysUntilNext} kundan so'ng sug'oring — ildiz namligi ${soilMoisture}% (o'rtacha), o'simlik "${currentStage.stage_name_uz}" bosqichida me'yoriy suv talab qiladi (${adjustedVolumePerHa} m³/ga).`,
+      ru: `Рекомендация: запланируйте полив через ${daysUntilNext} дня — влажность корневого слоя ${soilMoisture}% (умеренная), культуре в фазе "${currentStage.stage_name_ru}" потребуется плановый объём (${adjustedVolumePerHa} м³/га).`,
       en: `Recommendation: schedule irrigation in ${daysUntilNext} days — moisture is ${soilMoisture}% (moderate), crop in "${currentStage.stage_name_en}" will require standard volume (${adjustedVolumePerHa} m³/ha).`,
     },
+    transparencyNote,
     growthStage: {
       stageKey: stageGrowthKey,
       stageNameUz: currentStage.stage_name_uz,
@@ -544,15 +538,6 @@ export function calculateIrrigationRecommendation(
       ru: `Осуществите полив в течение ${daysUntilNext} дней с 05:00 до 08:30 или после 19:00.`,
       en: `Carry out irrigation in the next ${daysUntilNext} days from 05:00 - 08:30 AM or after 19:00.`,
     },
-    factors: {
-      ndviValue,
-      ndviTrend: ndviTrend || 'unknown',
-      soilMoisture,
-      rainProbNext48h,
-      rainSumNext48h,
-      tempMaxToday,
-      soilType,
-      irrigationMethod,
-    },
+    factors: factorMetadata,
   };
 }

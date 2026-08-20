@@ -310,8 +310,8 @@ export const FieldWeatherCard: React.FC<FieldWeatherCardProps> = ({ field, curre
                 <span className="text-2xl font-serif font-bold text-[#1F3D2B]">
                   NDVI {ndviData.ndviScore}
                 </span>
-                <span className="text-xs font-semibold text-[#6C7C6F]">
-                  (Tuproq namligi ~{ndviData.moisturePercentage}%)
+                <span className="text-xs font-semibold text-[#6C7C6F]" title={t.soilMoistureTooltip}>
+                  ({t.soilMoisture} ~{ndviData.moisturePercentage}%)
                 </span>
               </div>
             </div>

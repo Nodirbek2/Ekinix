@@ -557,14 +557,18 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
                     </div>
 
                     {/* Moisture Gauge */}
-                    <div className="bg-[#FAF7F0] p-5 rounded-2xl border border-[#E4D9C4] shadow-xs">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider">
+                    <div className="bg-[#FAF7F0] p-5 rounded-2xl border border-[#E4D9C4] shadow-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider flex items-center gap-1">
+                          <Droplets className="w-3.5 h-3.5 text-blue-600" />
                           {t.soilMoisture}
                         </span>
-                        <span className="text-xl font-extrabold text-[#1F3D2B]">
-                          {ndviResult?.moisturePercentage || 65}%
-                        </span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-xl font-extrabold text-[#1F3D2B]">
+                            {ndviResult?.moisturePercentage || 65}%
+                          </span>
+                          <span className="text-[10px] text-[#6C7C6F] font-semibold">(taxminiy)</span>
+                        </div>
                       </div>
                       <div className="w-full bg-[#E4D9C4] rounded-full h-3">
                         <div 
@@ -572,6 +576,9 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
                           style={{ width: `${ndviResult?.moisturePercentage || 65}%` }}
                         />
                       </div>
+                      <p className="text-[10px] text-[#6C7C6F] leading-tight">
+                        ℹ️ {t.soilMoistureTooltip}
+                      </p>
                     </div>
                   </>
                 )}

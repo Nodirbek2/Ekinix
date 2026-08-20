@@ -7,6 +7,9 @@ import {
   formatTelegramFieldsMessage,
   formatTelegramAgronomistMessage,
   formatTelegramIrrigationScheduleMessage,
+  formatTelegramSettingsMessage,
+  formatTelegramLanguageSelectorMessage,
+  formatTelegramHelpSupportMessage,
   getFarmerReplyKeyboard,
   getMainMenuInlineKeyboard,
   getOnboardingContactReplyKeyboard,
@@ -18,7 +21,18 @@ import {
   answerTelegramCallbackQuery,
   editTelegramMessageText,
   FieldWithTelemetry,
+  getTelegramBotToken,
 } from '@/lib/telegramBot';
+import {
+  getOrGenerateAgronomistSummary,
+  formatTelegramAgronomistFieldReport,
+  formatTelegramFieldSelectionMenu,
+} from '@/lib/geminiAgronomist';
+import {
+  downloadTelegramPhotoAsBase64,
+  diagnoseCropPhotoWithGemini,
+  formatTelegramPhotoDiagnosisMessage,
+} from '@/lib/geminiPhotoDiagnosis';
 import {
   supabase,
   isSupabaseConfigured,
@@ -147,6 +161,7 @@ async function getFarmerAndTelemetryData(
           // Parallelized queries for all fields
           const telemetryPromises = fieldsList.map(async (field) => {
             let latestNdvi: NdviReadingRecord | null = null;
+            let previousNdvi: NdviReadingRecord | null = null;
             let lastWateredDate: string | null = null;
 
             const [ndviResult, waterResult] = await Promise.all([
@@ -157,9 +172,8 @@ async function getFarmerAndTelemetryData(
                     .select('*')
                     .eq('field_id', field.id)
                     .order('satellite_date', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                  return data as NdviReadingRecord | null;
+                    .limit(2);
+                  return (data as NdviReadingRecord[]) || null;
                 } catch {
                   return null;
                 }
@@ -180,7 +194,13 @@ async function getFarmerAndTelemetryData(
               })(),
             ]);
 
-            latestNdvi = ndviResult;
+            if (ndviResult && ndviResult.length > 0) {
+              latestNdvi = ndviResult[0];
+              if (ndviResult.length > 1) {
+                previousNdvi = ndviResult[1];
+              }
+            }
+
             if (waterResult && (waterResult.watered_at || waterResult.created_at)) {
               lastWateredDate = waterResult.watered_at || waterResult.created_at;
             }
@@ -188,6 +208,7 @@ async function getFarmerAndTelemetryData(
             return {
               field,
               latestNdvi,
+              previousNdvi,
               lastWateredDate,
             };
           });
@@ -350,7 +371,426 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, action: 'registration_completed' });
       }
 
-      // 1C. EXACT 4 SPECIFICATION BUTTONS FROM INLINE KEYBOARD
+      // 1C. WATERING TASK CONFIRMATION (Inline button: "✅ Sug'orildi deb belgilash")
+      if (data.startsWith('water:')) {
+        const parts = data.split(':');
+        const fieldId = parts[1] || 'f1';
+        const volumeM3 = Number(parts[2]) || 35;
+
+        // Fetch field name if possible
+        let fieldName = 'Dala';
+        if (isSupabaseConfigured && supabase) {
+          try {
+            const { data: fieldData } = await supabase
+              .from('fields')
+              .select('name')
+              .eq('id', fieldId)
+              .maybeSingle();
+            if (fieldData?.name) fieldName = fieldData.name;
+          } catch {}
+        }
+
+        // Write directly to Supabase `watering_log` table
+        if (isSupabaseConfigured && supabase) {
+          try {
+            await supabase.from('watering_log').insert({
+              field_id: fieldId,
+              watered_at: new Date().toISOString(),
+              water_volume_m3: volumeM3,
+              method: 'drip',
+              notes: "Telegram bot orqali tasdiqlandi",
+            });
+          } catch (dbErr) {
+            console.error('[Supabase watering_log insert error]', dbErr);
+          }
+        }
+
+        const nowFormatted = new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+        const dateFormatted = new Date().toLocaleDateString('uz-UZ');
+
+        await Promise.all([
+          answerTelegramCallbackQuery(callbackId, `✅ Sug'orildi deb belgilandi va jurnalga yozildi!`, false),
+          typingPromise,
+        ]);
+
+        const confirmationMsg =
+          `✅ <b>BAJARILDI: DALA SUG'ORILDI DEB BELGILANDI!</b>\n\n` +
+          `📍 <b>Dala:</b> <b>${fieldName}</b>\n` +
+          `💧 <b>Berilgan suv hajmi:</b> <b>${volumeM3} m³/ga</b>\n` +
+          `⏰ <b>Qayd etilgan vaqt:</b> ${nowFormatted} (${dateFormatted})\n` +
+          `📝 <i>Ma'lumot Supabase sug'orish jurnaliga (watering_log) muvaffaqiyatli saqlandi.</i>`;
+
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: confirmationMsg,
+            replyMarkup: {
+              inline_keyboard: [
+                [{ text: '✅ Qayd etildi (Bajarildi)', callback_data: 'water_done' }],
+                [{ text: '🌾 Mening dalalarim', callback_data: 'menu_fields' }],
+              ],
+            },
+          });
+        }
+
+        console.log(`[Telegram Latency] Watering task marked in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'watering_logged', fieldId, volumeM3 });
+      }
+
+      if (data === 'water_done') {
+        await answerTelegramCallbackQuery(callbackId, `Bu sug'orish vazifasi allaqachon bajarilgan va qayd etilgan.`, false);
+        return NextResponse.json({ ok: true });
+      }
+
+      // 1D. NOTIFICATION SETTINGS TOGGLE (Rain, Irrigation, NDVI, Master All)
+      if (data.startsWith('toggle:')) {
+        const toggleType = data.replace('toggle:', '').trim(); // 'rain' | 'irrigation' | 'ndvi' | 'all'
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer } = farmerData;
+
+        let currentRain = farmer?.telegram_notify_rain ?? farmer?.telegram_notify_weather ?? true;
+        let currentIrrigation = farmer?.telegram_notify_irrigation ?? true;
+        let currentNdvi = farmer?.telegram_notify_ndvi ?? true;
+        let currentAll = farmer?.telegram_notifications_enabled ?? true;
+
+        if (toggleType === 'rain') currentRain = !currentRain;
+        if (toggleType === 'irrigation') currentIrrigation = !currentIrrigation;
+        if (toggleType === 'ndvi') currentNdvi = !currentNdvi;
+        if (toggleType === 'all') currentAll = !currentAll;
+
+        const updatedFarmer: FarmerProfile = {
+          id: farmer?.id || 'demo_farmer',
+          full_name: farmer?.full_name || 'Hurmatli Dehqon',
+          phone: farmer?.phone || '+998901234567',
+          region: farmer?.region || 'Toshkent viloyati',
+          telegram_chat_id: String(chatId),
+          telegram_notifications_enabled: currentAll,
+          telegram_notify_weather: currentRain,
+          telegram_notify_rain: currentRain,
+          telegram_notify_irrigation: currentIrrigation,
+          telegram_notify_ndvi: currentNdvi,
+        };
+
+        if (isSupabaseConfigured && supabase && farmer?.id) {
+          try {
+            await supabase
+              .from('farmers')
+              .update({
+                telegram_notifications_enabled: currentAll,
+                telegram_notify_weather: currentRain,
+                telegram_notify_rain: currentRain,
+                telegram_notify_irrigation: currentIrrigation,
+                telegram_notify_ndvi: currentNdvi,
+              })
+              .eq('id', farmer.id);
+            invalidateFarmerCache(chatId, farmer.phone);
+          } catch (dbErr) {
+            console.error('[Supabase notification settings update error]', dbErr);
+          }
+        }
+
+        await answerTelegramCallbackQuery(callbackId, `Sozlama yangilandi!`, false);
+
+        const settingsMsg = formatTelegramSettingsMessage(updatedFarmer);
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: settingsMsg.text,
+            replyMarkup: settingsMsg.replyMarkup,
+          });
+        }
+
+        console.log(`[Telegram Latency] Settings toggle "${toggleType}" handled in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'settings_toggled', toggleType });
+      }
+
+      // 1D-2. LANGUAGE SWITCHING (lang:uz | lang:ru | lang:en)
+      if (data.startsWith('lang:')) {
+        const selectedLang = data.replace('lang:', '').trim() as 'uz' | 'ru' | 'en';
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer } = farmerData;
+
+        const updatedFarmer: FarmerProfile = {
+          id: farmer?.id || 'demo_farmer',
+          full_name: farmer?.full_name || 'Hurmatli Dehqon',
+          phone: farmer?.phone || '+998901234567',
+          region: farmer?.region || 'Toshkent viloyati',
+          telegram_chat_id: String(chatId),
+          telegram_language: selectedLang,
+          preferred_language: selectedLang,
+        };
+
+        if (isSupabaseConfigured && supabase && farmer?.id) {
+          try {
+            await supabase
+              .from('farmers')
+              .update({
+                telegram_language: selectedLang,
+                preferred_language: selectedLang,
+              })
+              .eq('id', farmer.id);
+            invalidateFarmerCache(chatId, farmer.phone);
+          } catch (dbErr) {
+            console.error('[Supabase language update error]', dbErr);
+          }
+        }
+
+        const langLabels = { uz: "O'zbek tili (Lotin)", ru: "Русский язык", en: "English" };
+        await answerTelegramCallbackQuery(callbackId, `🌐 ${langLabels[selectedLang] || selectedLang} tanlandi!`, false);
+
+        const settingsMsg = formatTelegramSettingsMessage(updatedFarmer);
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: settingsMsg.text,
+            replyMarkup: settingsMsg.replyMarkup,
+          });
+        }
+
+        // Update persistent reply keyboard to match newly chosen language
+        await sendTelegramMessage({
+          chatId,
+          text: selectedLang === 'ru' ? `✅ Язык интерфейса изменен на Русский.` : selectedLang === 'en' ? `✅ Interface language changed to English.` : `✅ Til o'zgartirildi: O'zbek tili.`,
+          replyMarkup: getFarmerReplyKeyboard(selectedLang),
+        });
+
+        return NextResponse.json({ ok: true, action: 'language_changed', selectedLang });
+      }
+
+      // 1D-3. SUPPORT & HELP CALLBACK
+      if (data === 'menu_support') {
+        await answerTelegramCallbackQuery(callbackId);
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const currentLang = farmerData.farmer?.telegram_language || farmerData.farmer?.preferred_language || 'uz';
+        const helpMsg = formatTelegramHelpSupportMessage(farmerData.farmer, currentLang);
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: helpMsg.text,
+            replyMarkup: helpMsg.replyMarkup,
+          });
+        } else {
+          await sendTelegramMessage({
+            chatId,
+            text: helpMsg.text,
+            replyMarkup: helpMsg.replyMarkup,
+          });
+        }
+        return NextResponse.json({ ok: true, action: 'menu_support_rendered' });
+      }
+
+      if (data === 'support_write') {
+        await answerTelegramCallbackQuery(callbackId, "✍️ Savolingiz yoki murojaatingizni yozing!", false);
+        await sendTelegramMessage({
+          chatId,
+          text:
+            `✍️ <b>Ekinix jamoasiga murojaat:</b>\n\n` +
+            `Iltimos, o'zingizni qiziqtirgan savol yoki taklifingizni quyida oddiy xabar sifatida yozib yuboring.\n` +
+            `Xabaringiz zudlik bilan qayd etiladi va agronomlarimiz siz bilan bog'lanishadi.`,
+        });
+        return NextResponse.json({ ok: true, action: 'support_write_prompted' });
+      }
+
+      // 1E. RETURN TO MAIN MENU
+      if (data === 'menu_main') {
+        await answerTelegramCallbackQuery(callbackId);
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const farmerName = farmerData.farmer?.full_name || 'Hurmatli Dehqon';
+        const currentLang = farmerData.farmer?.telegram_language || farmerData.farmer?.preferred_language || 'uz';
+        const startMsg =
+          currentLang === 'ru'
+            ? `🌱 <b>Главное меню управления Ekinix</b>\n\nЗдравствуйте, <b>${farmerName}</b>! 👋\n\nВыберите нужный раздел:`
+            : currentLang === 'en'
+            ? `🌱 <b>Ekinix Agro Dashboard Menu</b>\n\nWelcome, <b>${farmerName}</b>! 👋\n\nSelect an option:`
+            : `🌱 <b>Ekinix Agro Boshqaruv Menyusi</b>\n\nAssalomu alaykum, <b>${farmerName}</b>! 👋\n\nKerakli bo'limni tanlang:`;
+
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: startMsg,
+            replyMarkup: getMainMenuInlineKeyboard(currentLang),
+          });
+        }
+        return NextResponse.json({ ok: true, action: 'menu_main_rendered' });
+      }
+
+      if (data === 'menu_settings') {
+        await answerTelegramCallbackQuery(callbackId);
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const settingsMsg = formatTelegramSettingsMessage(farmerData.farmer);
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: settingsMsg.text,
+            replyMarkup: settingsMsg.replyMarkup,
+          });
+        }
+        return NextResponse.json({ ok: true, action: 'menu_settings_rendered' });
+      }
+
+      // 1F. AGRONOMIST SPECIFIC ACTIONS (FIELD SELECTION, SINGLE FIELD REPORT, REFRESH)
+      if (data === 'agro_select_field') {
+        await answerTelegramCallbackQuery(callbackId);
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer, fieldsWithTelemetry } = farmerData;
+        const selectMenu = formatTelegramFieldSelectionMenu(
+          fieldsWithTelemetry,
+          farmer?.full_name || 'Hurmatli Dehqon'
+        );
+
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: selectMenu.text,
+            replyMarkup: selectMenu.replyMarkup,
+          });
+        } else {
+          await sendTelegramMessage({
+            chatId,
+            text: selectMenu.text,
+            replyMarkup: selectMenu.replyMarkup,
+          });
+        }
+        return NextResponse.json({ ok: true, action: 'agro_select_field_rendered' });
+      }
+
+      if (data.startsWith('agro_field:')) {
+        const targetFieldId = data.replace('agro_field:', '').trim();
+        await answerTelegramCallbackQuery(callbackId, "🤖 Agronom tahlili yuklanmoqda...");
+        sendTelegramChatAction(chatId, 'typing').catch(() => {});
+
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer, fieldsWithTelemetry } = farmerData;
+        const primaryField = fieldsWithTelemetry[0]?.field || null;
+        const coords = getFieldCoordinates(primaryField, farmer?.region);
+        const weather = await fetchLiveWeather(coords.lat, coords.lng);
+
+        if (targetFieldId === 'all') {
+          const allMsg = formatTelegramAgronomistMessage(farmer, fieldsWithTelemetry, weather);
+          const replyMarkup = {
+            inline_keyboard: [
+              [{ text: '🌾 Maydonlar bo\'yicha alohida tahlil', callback_data: 'agro_select_field' }],
+              [{ text: '◀️ Asosiy menyu', callback_data: 'menu_main' }],
+            ],
+          };
+
+          if (messageId) {
+            await editTelegramMessageText({
+              chatId,
+              messageId,
+              text: allMsg,
+              replyMarkup,
+            });
+          } else {
+            await sendTelegramMessage({
+              chatId,
+              text: allMsg,
+              replyMarkup,
+            });
+          }
+          return NextResponse.json({ ok: true, action: 'agro_field_all_sent' });
+        }
+
+        const selectedItem =
+          fieldsWithTelemetry.find((f) => f.field.id === targetFieldId) || fieldsWithTelemetry[0];
+
+        if (!selectedItem) {
+          const emptyMsg = formatTelegramAgronomistMessage(farmer, [], weather);
+          await sendTelegramMessage({
+            chatId,
+            text: emptyMsg,
+            replyMarkup: getMainMenuInlineKeyboard(),
+          });
+          return NextResponse.json({ ok: true, action: 'agro_empty_sent' });
+        }
+
+        const report = await getOrGenerateAgronomistSummary({
+          field: selectedItem.field,
+          latestNdvi: selectedItem.latestNdvi,
+          previousNdvi: selectedItem.previousNdvi,
+          weather,
+          farmer,
+          forceRefresh: false,
+        });
+
+        const formatted = formatTelegramAgronomistFieldReport(
+          report,
+          fieldsWithTelemetry.length > 1
+        );
+
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: formatted.text,
+            replyMarkup: formatted.replyMarkup,
+          });
+        } else {
+          await sendTelegramMessage({
+            chatId,
+            text: formatted.text,
+            replyMarkup: formatted.replyMarkup,
+          });
+        }
+
+        return NextResponse.json({ ok: true, action: 'agro_field_report_sent' });
+      }
+
+      if (data.startsWith('agro_refresh:')) {
+        const targetFieldId = data.replace('agro_refresh:', '').trim();
+        await answerTelegramCallbackQuery(callbackId, "🔄 Gemini AI yangi tahlil tayyorlamoqda...", false);
+        sendTelegramChatAction(chatId, 'typing').catch(() => {});
+
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer, fieldsWithTelemetry } = farmerData;
+        const primaryField = fieldsWithTelemetry[0]?.field || null;
+        const coords = getFieldCoordinates(primaryField, farmer?.region);
+        const weather = await fetchLiveWeather(coords.lat, coords.lng);
+
+        const selectedItem =
+          fieldsWithTelemetry.find((f) => f.field.id === targetFieldId) || fieldsWithTelemetry[0];
+
+        if (selectedItem) {
+          const report = await getOrGenerateAgronomistSummary({
+            field: selectedItem.field,
+            latestNdvi: selectedItem.latestNdvi,
+            previousNdvi: selectedItem.previousNdvi,
+            weather,
+            farmer,
+            forceRefresh: true, // Bypass cache
+          });
+
+          const formatted = formatTelegramAgronomistFieldReport(
+            report,
+            fieldsWithTelemetry.length > 1
+          );
+
+          if (messageId) {
+            await editTelegramMessageText({
+              chatId,
+              messageId,
+              text: formatted.text,
+              replyMarkup: formatted.replyMarkup,
+            });
+          } else {
+            await sendTelegramMessage({
+              chatId,
+              text: formatted.text,
+              replyMarkup: formatted.replyMarkup,
+            });
+          }
+        }
+        return NextResponse.json({ ok: true, action: 'agro_refreshed' });
+      }
+
+      // 1G. EXACT 4 SPECIFICATION BUTTONS FROM INLINE KEYBOARD
       // Concurrent fetching: start answerCallbackQuery + getFarmerAndTelemetryData in parallel
       const [answerResult, farmerData] = await Promise.all([
         answerTelegramCallbackQuery(callbackId),
@@ -367,6 +807,7 @@ export async function POST(req: NextRequest) {
       const weatherMs = performance.now() - t0Weather;
 
       let msgText = '';
+      let customReplyMarkup: any = null;
       const actionName = data;
 
       if (data === 'menu_weather') {
@@ -374,7 +815,30 @@ export async function POST(req: NextRequest) {
       } else if (data === 'menu_fields') {
         msgText = formatTelegramFieldsMessage(farmer, fieldsWithTelemetry);
       } else if (data === 'menu_agronomist') {
-        msgText = formatTelegramAgronomistMessage(farmer, fieldsWithTelemetry, weather);
+        if (fieldsWithTelemetry.length === 0) {
+          msgText = formatTelegramAgronomistMessage(farmer, fieldsWithTelemetry, weather);
+        } else if (fieldsWithTelemetry.length === 1) {
+          const item = fieldsWithTelemetry[0];
+          const report = await getOrGenerateAgronomistSummary({
+            field: item.field,
+            latestNdvi: item.latestNdvi,
+            previousNdvi: item.previousNdvi,
+            weather,
+            farmer,
+            forceRefresh: false,
+          });
+          const formatted = formatTelegramAgronomistFieldReport(report, false);
+          msgText = formatted.text;
+          customReplyMarkup = formatted.replyMarkup;
+        } else {
+          // Multiple fields -> show selection menu
+          const selection = formatTelegramFieldSelectionMenu(
+            fieldsWithTelemetry,
+            farmer?.full_name || 'Hurmatli Dehqon'
+          );
+          msgText = selection.text;
+          customReplyMarkup = selection.replyMarkup;
+        }
       } else if (data === 'menu_irrigation') {
         msgText = formatTelegramIrrigationScheduleMessage(farmer, fieldsWithTelemetry, weather);
       }
@@ -384,7 +848,7 @@ export async function POST(req: NextRequest) {
         await sendTelegramMessage({
           chatId,
           text: msgText,
-          replyMarkup: getMainMenuInlineKeyboard(),
+          replyMarkup: customReplyMarkup || getMainMenuInlineKeyboard(),
         });
         const sendMs = performance.now() - t0Send;
         const totalMs = performance.now() - reqStart;
@@ -418,6 +882,64 @@ export async function POST(req: NextRequest) {
 
     // Immediate instant feedback: send 'typing' chat action right away
     const typingPromise = sendTelegramChatAction(chatId, 'typing').catch(() => {});
+
+    // -------------------------------------------------------------------------
+    // 2-PHOTO. PHOTO DIAGNOSIS WITH GEMINI 3.7 FLASH VISION
+    // If a farmer sends a photo (leaf, plant, field), diagnose signs of pest, disease, or deficiency
+    // -------------------------------------------------------------------------
+    if (message.photo && Array.isArray(message.photo) && message.photo.length > 0) {
+      const bestPhoto = message.photo[message.photo.length - 1]; // Highest resolution photo
+      const caption = message.caption || '';
+      const botToken = getTelegramBotToken();
+
+      await sendTelegramChatAction(chatId, 'upload_photo').catch(() => {});
+
+      const [downloadRes, farmerData] = await Promise.all([
+        downloadTelegramPhotoAsBase64(bestPhoto.file_id, botToken),
+        getFarmerAndTelemetryData(chatId),
+      ]);
+
+      const { farmer: currentFarmer } = farmerData;
+      const currentLang = currentFarmer?.telegram_language || currentFarmer?.preferred_language || 'uz';
+
+      if (!downloadRes) {
+        await sendTelegramMessage({
+          chatId,
+          text:
+            `⚠️ <b>Suratni yuklab olishda xatolik yuz berdi.</b>\n\n` +
+            `Iltimos, fotosuratni qaytadan yuborib ko'ring yoki bot bilan aloqa sifatini tekshiring.`,
+          replyMarkup: getMainMenuInlineKeyboard(currentLang),
+        });
+        return NextResponse.json({ ok: false, error: 'photo_download_failed' });
+      }
+
+      // Initial friendly progress notification to farmer
+      await sendTelegramMessage({
+        chatId,
+        text: `🔬 <b>Fotosurat qabul qilindi.</b> Gemini AI vizual tahlil o'tkazmoqda (kasallik, zararkunanda va ozuqa holati)...`,
+      });
+
+      const diagnosis = await diagnoseCropPhotoWithGemini({
+        base64Data: downloadRes.base64Data,
+        mimeType: downloadRes.mimeType,
+        caption,
+        farmer: currentFarmer,
+        lang: currentLang,
+      });
+
+      const formatted = formatTelegramPhotoDiagnosisMessage(diagnosis, currentFarmer?.full_name);
+
+      await sendTelegramMessage({
+        chatId,
+        text: formatted.text,
+        replyMarkup: formatted.replyMarkup,
+      });
+
+      console.log(
+        `[Telegram Photo Diagnosis] Processed photo ${bestPhoto.file_id} for chat ${chatId} in ${(performance.now() - reqStart).toFixed(1)}ms`
+      );
+      return NextResponse.json({ ok: true, action: 'photo_diagnosed', diagnosis });
+    }
 
     // -------------------------------------------------------------------------
     // 2A. DETECT INCOMING PHONE NUMBER (NATIVE CONTACT OR TEXT)
@@ -650,12 +1172,40 @@ export async function POST(req: NextRequest) {
       lowerText.includes('агроном') ||
       lowerText.includes('advisory')
     ) {
-      const agronomistText = formatTelegramAgronomistMessage(currentFarmer, fieldsWithTelemetry, weather);
+      let agronomistText = '';
+      let replyMarkup: any = null;
+
+      if (fieldsWithTelemetry.length === 0) {
+        agronomistText = formatTelegramAgronomistMessage(currentFarmer, fieldsWithTelemetry, weather);
+        replyMarkup = getMainMenuInlineKeyboard();
+      } else if (fieldsWithTelemetry.length === 1) {
+        const item = fieldsWithTelemetry[0];
+        const report = await getOrGenerateAgronomistSummary({
+          field: item.field,
+          latestNdvi: item.latestNdvi,
+          previousNdvi: item.previousNdvi,
+          weather,
+          farmer: currentFarmer,
+          forceRefresh: false,
+        });
+        const formatted = formatTelegramAgronomistFieldReport(report, false);
+        agronomistText = formatted.text;
+        replyMarkup = formatted.replyMarkup;
+      } else {
+        // Multiple fields -> show inline keyboard to select field
+        const selection = formatTelegramFieldSelectionMenu(
+          fieldsWithTelemetry,
+          currentFarmer?.full_name || 'Hurmatli Dehqon'
+        );
+        agronomistText = selection.text;
+        replyMarkup = selection.replyMarkup;
+      }
+
       const t0Send = performance.now();
       await sendTelegramMessage({
         chatId,
         text: agronomistText,
-        replyMarkup: getMainMenuInlineKeyboard(),
+        replyMarkup: replyMarkup || getMainMenuInlineKeyboard(),
       });
       const sendMs = performance.now() - t0Send;
       const totalMs = performance.now() - reqStart;
@@ -693,7 +1243,117 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, action: 'irrigation_sent', durationMs: totalMs });
     }
 
-    // Default Fallback: Prompt with the 4-button menu
+    // -------------------------------------------------------------------------
+    // 2H. NOTIFICATION SETTINGS: /sozlamalar or /settings or "⚙️ Sozlamalar"
+    // -------------------------------------------------------------------------
+    if (
+      lowerText === '/sozlamalar' ||
+      lowerText === '/settings' ||
+      lowerText === '/notifications' ||
+      lowerText.includes('sozlama') ||
+      lowerText.includes('настройки') ||
+      lowerText.includes('bildirishnoma')
+    ) {
+      const settingsMsg = formatTelegramSettingsMessage(currentFarmer);
+      const t0Send = performance.now();
+      await sendTelegramMessage({
+        chatId,
+        text: settingsMsg.text,
+        replyMarkup: settingsMsg.replyMarkup,
+      });
+      const sendMs = performance.now() - t0Send;
+      const totalMs = performance.now() - reqStart;
+
+      console.log(
+        `[Telegram Timing Breakdown] Cmd: "settings" | Total: ${totalMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
+      );
+      return NextResponse.json({ ok: true, action: 'settings_sent', durationMs: totalMs });
+    }
+
+    // -------------------------------------------------------------------------
+    // 2I. QUICK LANGUAGE SWITCH COMMAND: /til or /lang or /language
+    // -------------------------------------------------------------------------
+    if (
+      lowerText === '/til' ||
+      lowerText === '/lang' ||
+      lowerText === '/language' ||
+      lowerText === '/язык' ||
+      lowerText === '🌐 til' ||
+      lowerText === '🌐 язык'
+    ) {
+      const currentLang = currentFarmer?.telegram_language || currentFarmer?.preferred_language || 'uz';
+      const langSelector = formatTelegramLanguageSelectorMessage(currentLang);
+      await sendTelegramMessage({
+        chatId,
+        text: langSelector.text,
+        replyMarkup: langSelector.replyMarkup,
+      });
+      return NextResponse.json({ ok: true, action: 'language_selector_sent' });
+    }
+
+    // -------------------------------------------------------------------------
+    // 2J. HELP & SUPPORT COMMAND: /yordam or /help or "🆘 Yordam" / "Помощь"
+    // -------------------------------------------------------------------------
+    if (
+      lowerText === '/yordam' ||
+      lowerText === '/help' ||
+      lowerText === '/support' ||
+      lowerText.includes('yordam') ||
+      lowerText.includes('помощь') ||
+      lowerText.includes('help')
+    ) {
+      const currentLang = currentFarmer?.telegram_language || currentFarmer?.preferred_language || 'uz';
+      const helpMsg = formatTelegramHelpSupportMessage(currentFarmer, currentLang);
+      await sendTelegramMessage({
+        chatId,
+        text: helpMsg.text,
+        replyMarkup: helpMsg.replyMarkup,
+      });
+      return NextResponse.json({ ok: true, action: 'help_support_sent' });
+    }
+
+    // -------------------------------------------------------------------------
+    // 2K. SUPPORT MESSAGE LOGGING (If farmer typed a message that is not a known command)
+    // -------------------------------------------------------------------------
+    if (text.length > 5 && !text.startsWith('/') && isRealDbRecord && currentFarmer) {
+      // Log as support ticket to Supabase support_tickets if configured
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('support_tickets').insert([
+            {
+              farmer_id: currentFarmer.id,
+              farmer_name: currentFarmer.full_name,
+              farmer_phone: currentFarmer.phone,
+              telegram_chat_id: String(chatId),
+              message: text,
+              status: 'open',
+              created_at: new Date().toISOString(),
+            },
+          ]);
+        } catch (ticketErr) {
+          // Table might not exist or network error; log softly
+          console.warn('[Supabase support ticket log error]', ticketErr);
+        }
+      }
+
+      const currentLang = currentFarmer?.telegram_language || currentFarmer?.preferred_language || 'uz';
+      const ackText =
+        currentLang === 'ru'
+          ? `✅ <b>Ваше сообщение принято!</b>\n\nАгрономическая служба поддержки Ekinix свяжется с вами в ближайшее время.`
+          : currentLang === 'en'
+          ? `✅ <b>Your inquiry has been received!</b>\n\nThe Ekinix agronomist support team will follow up shortly.`
+          : `✅ <b>Xabaringiz qabul qilindi!</b>\n\nEkinix agronomik qo'llab-quvvatlash xizmati tez orada siz bilan bog'lanadi.`;
+
+      await sendTelegramMessage({
+        chatId,
+        text: ackText,
+        replyMarkup: getFarmerReplyKeyboard(currentLang),
+      });
+
+      return NextResponse.json({ ok: true, action: 'support_ticket_logged', messageSnippet: text.slice(0, 50) });
+    }
+
+    // Default Fallback: Prompt with the main menu
     if (currentFarmer && isRealDbRecord) {
       await sendTelegramMessage({
         chatId,

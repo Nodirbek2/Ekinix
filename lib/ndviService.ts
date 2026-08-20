@@ -4,11 +4,34 @@ import { calculateIrrigationRecommendation, IrrigationRecommendation, Irrigation
 
 export * from './irrigationAdvisor';
 
+export interface SoilDepthsTelemetry {
+  volumetric0_1cm: number;
+  volumetric1_3cm: number;
+  volumetric3_9cm: number;
+  volumetric9_27cm: number;
+  volumetric27_81cm: number;
+  percent0_1cm: number;
+  percent1_3cm: number;
+  percent3_9cm: number;
+  percent9_27cm: number;
+  percent27_81cm: number;
+  soilTemp0cm: number;
+  soilTemp18cm: number;
+}
+
 export interface NdviResult {
   fieldId: string;
   ndviScore: number;
   statusTier: 'healthy' | 'moderate' | 'stressed';
   moisturePercentage: number;
+  modeledSoilMoisture?: number;
+  ndviMoisture?: number;
+  soilDepths?: SoilDepthsTelemetry;
+  isEstimated?: boolean;
+  moistureSource?: 'open_meteo_and_ndvi_hybrid' | 'agrometeorological_model' | 'ndvi_estimated';
+  estimationNoticeUz?: string;
+  estimationNoticeRu?: string;
+  estimationNoticeEn?: string;
   satelliteDate: string;
   isCloudy: boolean;
   cloudCoverPercent: number;
@@ -64,6 +87,9 @@ export function calculateRealIrrigationRecommendation(
     ndviValue: ndvi,
     ndviTrend: trendDir,
     soilMoisture: moisture,
+    modeledSoilMoisture: ndviResult?.modeledSoilMoisture,
+    ndviMoisture: ndviResult?.ndviMoisture,
+    moistureSource: ndviResult?.moistureSource,
     rainForecast: weatherDays,
     areaHectares: field.area_hectares || 1,
     soilType: 'loam',
@@ -356,6 +382,14 @@ export async function fetchAndStoreFieldNdvi(field: FieldRecord, simulateCloud =
     ndviScore: currentScore,
     statusTier,
     moisturePercentage: apiData.moisturePercentage,
+    modeledSoilMoisture: apiData.modeledSoilMoisture,
+    ndviMoisture: apiData.ndviMoisture,
+    soilDepths: apiData.soilDepths,
+    isEstimated: apiData.isEstimated ?? true,
+    moistureSource: apiData.moistureSource ?? 'open_meteo_and_ndvi_hybrid',
+    estimationNoticeUz: apiData.estimationNoticeUz,
+    estimationNoticeRu: apiData.estimationNoticeRu,
+    estimationNoticeEn: apiData.estimationNoticeEn,
     satelliteDate: apiData.satelliteDate,
     isCloudy: apiData.isCloudy,
     cloudCoverPercent: apiData.cloudCoverPercent,

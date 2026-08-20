@@ -22,6 +22,7 @@ import {
   Droplets,
   Layers,
   ThermometerSnowflake,
+  Play,
 } from 'lucide-react';
 import { Language, translations } from '@/lib/i18n';
 import { FarmerProfile, FieldRecord } from '@/lib/supabase';
@@ -76,6 +77,88 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
     simulated?: boolean;
     rawText?: string;
   } | null>(null);
+
+  // Proactive Daily Cron Trigger State
+  const [isTriggeringCron, setIsTriggeringCron] = useState(false);
+  const [cronResult, setCronResult] = useState<{
+    success: boolean;
+    message?: string;
+    stats?: {
+      farmersProcessed: number;
+      fieldsProcessed: number;
+      alertsSentCount: number;
+      alertsSkippedCount: number;
+      totalEvaluations: number;
+    };
+    logs?: any[];
+    durationMs?: number;
+  } | null>(null);
+
+  const handleTriggerCronJob = async (force: boolean = false) => {
+    setIsTriggeringCron(true);
+    setCronResult(null);
+    try {
+      const res = await fetch(`/api/cron/daily-alerts?force=${force}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setCronResult({
+          success: true,
+          stats: data.stats,
+          logs: data.logs,
+          durationMs: data.durationMs,
+          message: `Kunlik avtomatik xizmat muvaffaqiyatli bajarildi (${data.durationMs}ms)`,
+        });
+
+        // Add any sent/simulated alerts to simulator chat
+        if (data.logs && data.logs.length > 0) {
+          const activeLogs = data.logs.filter(
+            (l: any) => l.status === 'sent' || l.status === 'simulated'
+          );
+          activeLogs.forEach((item: any, idx: number) => {
+            const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            let text = '';
+            let buttons: string[] = [];
+            if (item.alertType === 'rain_alert') {
+              text = `🌧️ <b>${item.fieldName}:</b> ertaga yomg'ir kutilmoqda (${item.details?.maxRainProb || 65}%) — sug'orishni kechiktiring.`;
+              buttons = ["⛅ Ob-havo", "🌾 Maydonlar"];
+            } else if (item.alertType === 'irrigation_task') {
+              text = `💧 <b>KUNLIK SUG'ORISH VAZIFASI: ${item.fieldName}</b>\n\n⏰ Tavsiya vaqti: <b>${item.details?.timing || '19:30'}</b>\n🚰 Suv miqdori: <b>${item.details?.volumeM3PerHa || 35} m³/ga</b> (Jami: ~${item.details?.totalWaterM3 || 850} m³)\n\n👇 Sug'orish amalga oshirilgach tasdiqlang:`;
+              buttons = ["✅ Sug'orildi deb belgilash", "🌾 Mening dalalarim"];
+            } else if (item.alertType === 'ndvi_stress') {
+              text = `⚠️ <b>${item.fieldName}</b>da o'simlik stressi aniqlandi (NDVI: ${item.details?.currentNdviScore || 0.38}) — tekshirib ko'ring.`;
+              buttons = ["🛰️ NDVI tahlili", "🌾 Mening dalalarim"];
+            }
+            if (text) {
+              setSimulatedChat((prev) => [
+                ...prev,
+                {
+                  id: `cron_alert_${Date.now()}_${idx}`,
+                  sender: 'bot',
+                  text,
+                  time: nowStr,
+                  buttons,
+                },
+              ]);
+            }
+          });
+        }
+      } else {
+        setCronResult({
+          success: false,
+          message: data.error || 'Cron vazifasida xatolik',
+        });
+      }
+    } catch (err: any) {
+      setCronResult({
+        success: false,
+        message: err.message || 'Tarmoq xatosi',
+      });
+    } finally {
+      setIsTriggeringCron(false);
+    }
+  };
 
   // Telegram Bot Info
   const [botUsername, setBotUsername] = useState(() => process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'ekinixbot');
@@ -317,8 +400,27 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
         replyText = `🌾 <b>SIZNING EKIN MAYDONLARINGIZ:</b>\n\n1️⃣ <b>1-Maydon (Yulduz Paxtazor)</b>\n• Maydoni: <b>24.5 gektar</b> | Ekin: <b>Paxta (G'o'za)</b>\n• NDVI ko'rsatkichi: <b>0.74 (A'lo)</b> 🟢\n\n2️⃣ <b>2-Maydon (Bog' Shamoli)</b>\n• Maydoni: <b>12.0 gektar</b> | Ekin: <b>Olmazor</b>\n• NDVI ko'rsatkichi: <b>0.68 (Me'yorda)</b> 🟡\n\n💡 <i>Har bir maydon bo'yicha sun'iy yo'ldosh xaritasi Ekinix ilovasida mavjud.</i>`;
       } else if (lowerCmd.includes('ndvi') || lowerCmd === '/ndvi' || lowerCmd.includes('sun\'iy yo\'ldosh')) {
         replyText = `🛰️ <b>SENTINEL-2 SUN'IY YO'LDOSH TELEMETRIYASI</b>\n\n📍 <b>Dala:</b> 1-Maydon (Paxtazor, 24.5 ga)\n🌿 <b>O'rtacha NDVI:</b> <b>0.74</b> (Sog'lom barg qoplami)\n💧 <b>Tuproq namligi:</b> <b>58%</b>\n🟢 <b>Holati:</b> Faol vegetatsiya davri, kasallik yoki qurg'oqchilik xavfi aniqlanmadi.`;
-      } else if (lowerCmd.includes('agronom') || lowerCmd === '/agronomist') {
-        replyText = `👨‍🌾 <b>MUTAXASSIS AGRONOM KO'RSATMASI | Ekinix</b>\n\n👨‍🔬 <b>Agronom:</b> Rustam Karimov (Katta agronom, O'zQXI)\n📅 <b>Sana:</b> ${new Date().toLocaleDateString('uz-UZ')}\n\n📝 <b>Tavsiya:</b> <i>"Hozirgi issiq havoda g'o'za shonalash davrida fosforli va kaliyli ozuqalarni tomchilatib berish samaradorlikni 20% ga oshiradi. Kunduzgi jaziramada sug'ormang, faqat soat 19:00 dan keyin sug'orishni amalga oshiring."</i>\n\n📞 <b>Bog'lanish:</b> +998 97 123-45-67`;
+      } else if (lowerCmd.includes('agronom') || lowerCmd === '/agronomist' || lowerCmd.includes('xulosa')) {
+        replyText = `🤖 <b>AGRONOM XULOSASI: 1-Maydon (Paxtazor)</b>\n📍 Toshkent viloyati • 24.5 ga • Paxta\n🌿 NDVI: <b>0.74 (Sog'lom)</b> | 💧 Namlik: <b>58%</b>\n\n📌 <b>Umumiy holat:</b>\nEkin maydonida vegetatsiya faol va me'yorida kechmoqda. Havo harorati yuqori bo'lgani sababli transpiratsiya kuchaygan.\n\n⚠️ <b>Asosiy xavflar va e'tibor:</b>\n• Kunduzgi jaziramada barglarning so'lish xavfi mavjud;\n• Shonalash davrida zararkunandalarga (trips, o'rgimchakkana) qarshi nazorat zarur.\n\n📋 <b>Tavsiya etilgan amaliy choralar:</b>\n• 🚰 <b>Sug'orish:</b> Kechki soat 19:30 dan keyin 35 m³/ga me'yorda sug'orish;\n• 🧪 <b>Oziqlantirish:</b> Fosfor va kaliyli ozuqalarni tomchilatib berish;\n• 🛡️ <b>Himoya:</b> Dala chetlarini ko'zdan kechirib, profilaktik ishlov berish.\n\n💧 <b>Sug'orish normasi:</b> 32-35 m³/ga (Kechki salqinda)`;
+        replyButtons = ["🌾 Boshqa maydonni tanlash", "💧 Sug'orish jadvali", "⛅ Bugungi ob-havo"];
+      } else if (lowerCmd.includes('boshqa maydon')) {
+        replyText = `🌾 <b>Qaysi maydon bo'yicha agronom xulosasi kerak?</b>\n\n1️⃣ 1-Maydon (Paxta, 24.5 ga)\n2️⃣ 2-Maydon (Olmazor, 12.0 ga)\n\n<i>Quyidagi maydonlardan birini tanlang:</i>`;
+        replyButtons = ["1-Maydon (Paxtazor)", "2-Maydon (Olmazor)", "🌾 Barcha dalalar xulosasi"];
+      } else if (
+        lowerCmd.includes("sug'orildi") ||
+        lowerCmd.includes('sugorildi') ||
+        lowerCmd.includes('watered') ||
+        lowerCmd.includes('✅')
+      ) {
+        replyText = `✅ <b>TASDIQLANDI: DALA SUG'ORILDI DEB BELGILANDI!</b>\n\n🌾 <b>Maydon:</b> 1-Maydon (Paxtazor)\n💧 <b>Hajm:</b> 35 m³/ga (~857 m³ jami)\n📅 <b>Vaqt:</b> Bugun ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}\n\n<i>Ekinix tizimida sug'orish jurnali (watering_log) yangilandi va vegetatsiya hisob-kitoblariga kiritildi.</i>`;
+        replyButtons = ["🌾 Mening dalalarim", "⛅ Bugungi ob-havo & sug'orish", "⚙️ Sozlamalar"];
+      } else if (
+        lowerCmd.includes('sozlama') ||
+        lowerCmd === '/settings' ||
+        lowerCmd === '/sozlamalar'
+      ) {
+        replyText = `⚙️ <b>EKINIX BILDIRISHNOMA SOZLAMALARI</b>\n\n🔔 <b>Joriy holat:</b>\n• ⛅ Ob-havo: <b>Yoqilgan</b> ✅\n• 🌧️ Yomg'ir kutilganda ogohlantirish: <b>Yoqilgan</b> ✅\n• 💧 Kunlik sug'orish vazifasi: <b>Yoqilgan</b> ✅\n• 🛰️ NDVI stress tahlili: <b>Yoqilgan</b> ✅\n\n<i>Xabarnoma turlarini veb-ilovaning «Sozlamalar» bo'limida boshqarishingiz mumkin.</i>`;
+        replyButtons = ["🌧️ Yomg'ir xabari", "💧 Sug'orish vazifasi", "🌾 Mening dalalarim"];
       } else if (
         lowerCmd.includes('bildirishnoma') ||
         lowerCmd === '/notifications' ||
@@ -824,6 +926,133 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
                         </p>
                       )}
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Scheduled Daily Cron Job Service Panel */}
+              <div className="bg-white rounded-2xl p-5 border-2 border-[#1F3D2B]/20 shadow-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E4D9C4] pb-3">
+                  <div>
+                    <h4 className="font-serif text-sm sm:text-base font-bold text-[#1F3D2B] flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-[#D9A441]" />
+                      <span>Kunlik Rejalashtirilgan Xabarnomalar (Vercel Cron & Supabase)</span>
+                    </h4>
+                    <p className="text-xs text-[#6C7C6F] mt-0.5">
+                      Har kuni ertalab <b>07:00 da (02:00 UTC)</b> barcha ulangan fermerlar uchun tahlil qilinadi
+                    </p>
+                  </div>
+
+                  <span className="text-[10px] font-mono font-bold bg-[#FAF7F0] text-[#1F3D2B] px-2.5 py-1 rounded-lg border border-[#E4D9C4] self-start sm:self-center">
+                    /api/cron/daily-alerts
+                  </span>
+                </div>
+
+                {/* 3 Core Alert Types Explained */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3 bg-[#FAF7F0] rounded-xl border border-[#E4D9C4] space-y-1">
+                    <p className="text-xs font-bold text-[#1F3D2B] flex items-center gap-1.5">
+                      <span>🌧️ Yomg&apos;ir xabari</span>
+                    </p>
+                    <p className="text-[11px] text-[#6C7C6F] leading-tight">
+                      2 kun ichida yog&apos;ingarchilik ehtimoli &gt;60% bo&apos;lsa, sug&apos;orishni kechiktirish xabari yuboriladi.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-[#FAF7F0] rounded-xl border border-[#E4D9C4] space-y-1">
+                    <p className="text-xs font-bold text-[#1F3D2B] flex items-center gap-1.5">
+                      <span>💧 Sug&apos;orish vazifasi</span>
+                    </p>
+                    <p className="text-[11px] text-[#6C7C6F] leading-tight">
+                      Bugun sug&apos;orilishi kerak bo&apos;lgan zonalar uchun hajm (m³/ga) va inline <b>«✅ Sug&apos;orildi»</b> tugmasi.
+                    </p>
+                  </div>
+
+                  <div className="p-3 bg-[#FAF7F0] rounded-xl border border-[#E4D9C4] space-y-1">
+                    <p className="text-xs font-bold text-[#1F3D2B] flex items-center gap-1.5">
+                      <span>⚠️ NDVI stress signali</span>
+                    </p>
+                    <p className="text-[11px] text-[#6C7C6F] leading-tight">
+                      Sun&apos;iy yo&apos;ldosh indeksida keskin pasayish yoki stress aniqlanganda tezkor ogohlantirish.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Anti-spam notice & Trigger Buttons */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                  <div className="text-[11px] text-[#6C7C6F] flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span><b>Anti-spam himoyasi:</b> Bir kunda bitta maydon uchun bir turdagi xabar qayta yuborilmaydi.</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={() => handleTriggerCronJob(false)}
+                      variant="primary"
+                      size="sm"
+                      isLoading={isTriggeringCron}
+                      leftIcon={<Play className="w-3.5 h-3.5 fill-current" />}
+                    >
+                      Kunlik Cronni ishga tushirish
+                    </Button>
+
+                    <Button
+                      onClick={() => handleTriggerCronJob(true)}
+                      variant="secondary"
+                      size="sm"
+                      isLoading={isTriggeringCron}
+                      title="Anti-spam cheklovini chetlab o'tib majburiy yuborish"
+                    >
+                      ⚡ Qayta yuborish
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Cron Execution Result Display */}
+                {cronResult && (
+                  <div
+                    className={`p-4 rounded-xl border text-xs space-y-2.5 transition-all ${
+                      cronResult.success
+                        ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950'
+                        : 'bg-rose-50 border-rose-300 text-rose-950'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-bold">
+                      <div className="flex items-center gap-2">
+                        {cronResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                        )}
+                        <span>{cronResult.message}</span>
+                      </div>
+                      {cronResult.durationMs !== undefined && (
+                        <span className="font-mono text-[10px] text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                          {cronResult.durationMs} ms
+                        </span>
+                      )}
+                    </div>
+
+                    {cronResult.stats && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-emerald-200 text-center">
+                        <div className="bg-white/80 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-[#6C7C6F] block">Fermerlar:</span>
+                          <span className="font-bold text-sm text-[#1F3D2B]">{cronResult.stats.farmersProcessed} ta</span>
+                        </div>
+                        <div className="bg-white/80 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-[#6C7C6F] block">Maydonlar:</span>
+                          <span className="font-bold text-sm text-[#1F3D2B]">{cronResult.stats.fieldsProcessed} ta</span>
+                        </div>
+                        <div className="bg-white/80 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-[#6C7C6F] block">Yuborildi:</span>
+                          <span className="font-bold text-sm text-emerald-700">{cronResult.stats.alertsSentCount} ta</span>
+                        </div>
+                        <div className="bg-white/80 p-2 rounded-lg border border-emerald-200">
+                          <span className="text-[10px] text-[#6C7C6F] block">Anti-spam/Muted:</span>
+                          <span className="font-bold text-sm text-amber-700">{cronResult.stats.alertsSkippedCount} ta</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

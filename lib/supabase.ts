@@ -36,10 +36,26 @@ export interface FarmerProfile {
   telegram_linked_at?: string;
   telegram_notifications_enabled?: boolean;
   telegram_notify_weather?: boolean;
+  telegram_notify_rain?: boolean;
+  telegram_notify_irrigation?: boolean;
   telegram_notify_ndvi?: boolean;
   telegram_notify_advisories?: boolean;
   telegram_notify_frost?: boolean;
   telegram_preferred_time?: string;
+  preferred_language?: 'uz' | 'ru' | 'en';
+  telegram_language?: 'uz' | 'ru' | 'en';
+  created_at?: string;
+}
+
+export interface SupportTicketRecord {
+  id?: string;
+  farmer_id?: string;
+  chat_id: string;
+  farmer_name?: string;
+  phone?: string;
+  message: string;
+  category?: 'general' | 'technical' | 'agronomy' | 'feedback' | string;
+  status?: 'new' | 'in_progress' | 'resolved';
   created_at?: string;
 }
 
@@ -137,6 +153,18 @@ export interface WateringLogRecord {
   water_volume_m3?: number;
   method?: string;
   notes?: string;
+  created_at?: string;
+}
+
+export interface NotificationLogRecord {
+  id: string;
+  farmer_id?: string;
+  field_id?: string;
+  phone?: string;
+  chat_id?: string;
+  type: 'rain_alert' | 'irrigation_task' | 'ndvi_stress' | 'weather' | 'frost' | 'advisory' | 'custom' | string;
+  status: 'sent' | 'failed' | 'skipped';
+  payload?: any;
   created_at?: string;
 }
 
@@ -325,7 +353,39 @@ ALTER TABLE public.field_advisor_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Notes viewable by everyone." ON public.field_advisor_notes FOR SELECT USING (true);
 CREATE POLICY "Agronomists can insert notes." ON public.field_advisor_notes FOR INSERT WITH CHECK (true);
 
--- 7. Storage Bucket for Crop & Harvest Images
+-- 7. Watering Log Table (Irrigation task tracking)
+CREATE TABLE IF NOT EXISTS public.watering_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    field_id UUID REFERENCES public.fields(id) ON DELETE CASCADE,
+    watered_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    water_volume_m3 NUMERIC(10,2),
+    method TEXT DEFAULT 'drip',
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.watering_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Watering logs viewable by everyone." ON public.watering_log FOR SELECT USING (true);
+CREATE POLICY "Users can insert watering logs." ON public.watering_log FOR INSERT WITH CHECK (true);
+
+-- 8. Scheduled Notifications & Telegram Alerts Log
+CREATE TABLE IF NOT EXISTS public.notifications_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    farmer_id UUID REFERENCES public.farmers(id) ON DELETE CASCADE,
+    field_id UUID REFERENCES public.fields(id) ON DELETE SET NULL,
+    phone TEXT,
+    chat_id TEXT,
+    type TEXT NOT NULL,
+    status TEXT DEFAULT 'sent',
+    payload JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications_log ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Notifications viewable by everyone." ON public.notifications_log FOR SELECT USING (true);
+CREATE POLICY "System can insert notification logs." ON public.notifications_log FOR INSERT WITH CHECK (true);
+
+-- 9. Storage Bucket for Crop & Harvest Images
 -- Create 'marketplace' bucket if not exists in Supabase Storage Dashboard (Public bucket)
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('marketplace', 'marketplace', true) ON CONFLICT DO NOTHING;
 `;

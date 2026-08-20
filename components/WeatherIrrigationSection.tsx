@@ -900,7 +900,7 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
 
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-white p-2.5 rounded-xl border border-[#E4D9C4]">
-                  <span className="text-[#6C7C6F] block text-[10px]">Tuproq namligi</span>
+                  <span className="text-[#6C7C6F] block text-[10px]">Taxminiy namlik</span>
                   <span className="font-bold text-[#1F3D2B]">{calcSoilMoisture}%</span>
                 </div>
                 <div className="bg-white p-2.5 rounded-xl border border-[#E4D9C4]">

@@ -19,6 +19,11 @@ export interface Translations {
   tryDemo: string;
   moistureCardTitle: string;
   moistureStatus: string;
+  moistureEstimateTooltip: string;
+  soilMoistureTooltip: string;
+  soilMoistureDepthsTitle: string;
+  moistureFormulaNote: string;
+  estimatedBadge: string;
   fieldAreaCardTitle: string;
   fieldAreaValue: string;
   nextIrrigationTitle: string;
@@ -187,8 +192,13 @@ export const translations: Record<Language, Translations> = {
     heroSub: "Sun'iy yo'ldosh orqali ekin holatini kuzatish, aniq sug'orish tavsiyalari va hosilni vositachisiz to'g'ridan-to'g'ri sotish — barchasi bitta qulay ilovada.",
     getStarted: "Bepul boshlash",
     tryDemo: "Tizimni sinab ko'rish",
-    moistureCardTitle: "Tuproq namligi",
-    moistureStatus: "Yaxshi (68%)",
+    moistureCardTitle: "Taxminiy namlik ko'rsatkichi",
+    moistureStatus: "Qulay (68%)",
+    moistureEstimateTooltip: "Bu ko'rsatkich Open-Meteo agrometeorologik tuproq modeli va Sentinel-2 NDVI (o'simlik salomatligi) asosida hisoblangan taxminiy baho, to'g'ridan-to'g'ri tuproq sensori o'lchovi emas.",
+    soilMoistureTooltip: "Bu ko'rsatkich Open-Meteo agrometeorologik tuproq modeli va Sentinel-2 NDVI (o'simlik salomatligi) asosida hisoblangan taxminiy baho, to'g'ridan-to'g'ri tuproq sensori o'lchovi emas.",
+    soilMoistureDepthsTitle: "Tuproq qatlamlari bo'yicha namlik (Open-Meteo modeli)",
+    moistureFormulaNote: "Hisob: 60% Open-Meteo ildiz modeli + 40% Sentinel-2 NDVI vegetatsiya",
+    estimatedBadge: "Taxminiy model",
     fieldAreaCardTitle: "Ekin maydoni",
     fieldAreaValue: "4.2 gektar (Paxta)",
     nextIrrigationTitle: "Navbatdagi sug'orish",
@@ -213,7 +223,7 @@ export const translations: Record<Language, Translations> = {
     satelliteHeader: "Maydoningizning NDVI va namlik xaritasi",
     selectField: "Maydonni tanlang",
     ndviIndex: "NDVI O'simlik Indeksi",
-    soilMoisture: "Tuproq Namlik Darajasi",
+    soilMoisture: "Taxminiy Namlik Indeksi (Model + NDVI)",
     fieldStatus: "Ekin Holati",
     fieldStatusGood: "Sog'lom rivojlanish",
     fieldStatusWarning: "Suv tanqisligi sezilmoqda",
@@ -344,8 +354,13 @@ export const translations: Record<Language, Translations> = {
     heroSub: "Спутниковый контроль состояния посевов, точные рекомендации по поливу и прямой доступ к рынку без посредников.",
     getStarted: "Начать бесплатно",
     tryDemo: "Попробовать демо",
-    moistureCardTitle: "Влажность почвы",
-    moistureStatus: "Отлично (68%)",
+    moistureCardTitle: "Оценочный индекс влажности",
+    moistureStatus: "Оптимально (68%)",
+    moistureEstimateTooltip: "Этот показатель рассчитан на основе агрометеорологической модели слоёв почвы Open-Meteo и индекса Sentinel-2 NDVI, а не прямого измерения датчиком почвы.",
+    soilMoistureTooltip: "Этот показатель рассчитан на основе агрометеорологической модели слоёв почвы Open-Meteo и индекса Sentinel-2 NDVI, а не прямого измерения датчиком почвы.",
+    soilMoistureDepthsTitle: "Влажность по слоям почвы (модель Open-Meteo)",
+    moistureFormulaNote: "Расчет: 60% модель корневого слоя Open-Meteo + 40% NDVI Sentinel-2",
+    estimatedBadge: "Оценочная модель",
     fieldAreaCardTitle: "Площадь поля",
     fieldAreaValue: "4.2 га (Хлопок)",
     nextIrrigationTitle: "Следующий полив",
@@ -370,7 +385,7 @@ export const translations: Record<Language, Translations> = {
     satelliteHeader: "Карта NDVI и влажности вашего поля",
     selectField: "Выберите поле",
     ndviIndex: "Индекс вегетации NDVI",
-    soilMoisture: "Уровень влажности почвы",
+    soilMoisture: "Оценочный Индекс Влажности (Модель + NDVI)",
     fieldStatus: "Состояние культур",
     fieldStatusGood: "Здоровое развитие",
     fieldStatusWarning: "Наблюдается дефицит влаги",
@@ -501,8 +516,13 @@ export const translations: Record<Language, Translations> = {
     heroSub: "Satellite-driven vegetation tracking, precision irrigation advice, and direct marketplace access for farmers — all in one simple platform.",
     getStarted: "Get Started Free",
     tryDemo: "Explore Demo",
-    moistureCardTitle: "Soil Moisture",
+    moistureCardTitle: "Estimated Moisture Index",
     moistureStatus: "Optimal (68%)",
+    moistureEstimateTooltip: "This indicator is an agronomic estimate derived from Open-Meteo root-zone soil modeling and Sentinel-2 NDVI vegetation health, not a physical in-ground sensor.",
+    soilMoistureTooltip: "This indicator is an agronomic estimate derived from Open-Meteo root-zone soil modeling and Sentinel-2 NDVI vegetation health, not a physical in-ground sensor.",
+    soilMoistureDepthsTitle: "Soil Moisture by Depth (Open-Meteo Model)",
+    moistureFormulaNote: "Method: 60% Open-Meteo root-zone physical model + 40% Sentinel-2 NDVI canopy hydration",
+    estimatedBadge: "Estimated Model",
     fieldAreaCardTitle: "Field Area",
     fieldAreaValue: "4.2 ha (Cotton)",
     nextIrrigationTitle: "Next Irrigation",
@@ -527,7 +547,7 @@ export const translations: Record<Language, Translations> = {
     satelliteHeader: "NDVI Vegetation & Soil Moisture Map",
     selectField: "Select Field",
     ndviIndex: "NDVI Vegetation Index",
-    soilMoisture: "Soil Moisture Level",
+    soilMoisture: "Estimated Moisture Index (Model + NDVI)",
     fieldStatus: "Crop Health",
     fieldStatusGood: "Healthy Growth",
     fieldStatusWarning: "Water Deficit Detected",
