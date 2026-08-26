@@ -1,66 +1,137 @@
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
-@import url('https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400..800;1,400..800&family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
 
 @theme {
-  --font-serif: 'Libre Baskerville', 'Playfair Display', Georgia, serif;
   --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-serif: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 
-  --color-leaf: #2D4D3D;
-  --color-leaf-dark: #1F3D2B;
-  --color-leaf-deeper: #14281C;
+  --color-brand-primary: #164E35;
+  --color-brand-hover: #0F3826;
+  --color-app-canvas: #F8FAFC;
+  --color-surface-card: #FFFFFF;
+  --color-surface-secondary: #F1F5F9;
+  --color-border-card: #E2E8F0;
 
-  --color-wheat: #E6B34D;
-  --color-wheat-gold: #D9A441;
-  --color-wheat-dark: #B8852B;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
 
-  --color-earth-dark: #4D3D2D;
-  --color-earth-border: rgba(77, 61, 45, 0.15);
+  /* Aliased legacy color tokens for backwards compatibility */
+  --color-leaf: #164E35;
+  --color-leaf-dark: #0F3826;
+  --color-leaf-deeper: #0B291C;
 
-  --color-cream: #FAF7F0;
-  --color-cream-light: #FDFCF8;
+  --color-wheat: #164E35;
+  --color-wheat-gold: #164E35;
+  --color-wheat-dark: #0F3826;
+
+  --color-earth-dark: #334155;
+  --color-earth-border: #E2E8F0;
+
+  --color-cream: #F8FAFC;
+  --color-cream-light: #FFFFFF;
   --color-cream-card: #FFFFFF;
-  --color-cream-dark: #F0E8D8;
-  --color-cream-border: #E4D9C4;
+  --color-cream-dark: #F1F5F9;
+  --color-cream-border: #E2E8F0;
 
-  --color-soil: #5C4033;
-  --color-soil-light: #8C684B;
+  --color-soil: #334155;
+  --color-soil-light: #64748B;
 }
 
 :root {
-  --font-serif: 'Libre Baskerville', 'Playfair Display', Georgia, serif;
   --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  --font-serif: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
 }
 
 body {
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
-  background-color: #FAF7F0;
-  color: #1A281E;
+  background-color: #F8FAFC;
+  color: #0F172A;
   margin: 0;
   padding: 0;
   -webkit-font-smoothing: antialiased;
 }
 
 .font-serif {
-  font-family: 'Libre Baskerville', 'Playfair Display', Georgia, serif !important;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif !important;
 }
 
 .font-sans {
   font-family: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif !important;
 }
 
-/* Custom scrollbar for natural feel */
+/* Tabular figures for coordinates, NDVI scores, percentages, and telemetry */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Ensure Leaflet maps never escape their local card/component stacking context */
+.leaflet-container {
+  z-index: 1 !important;
+  isolation: isolate;
+}
+
+.leaflet-pane {
+  z-index: 1 !important;
+}
+
+.leaflet-tile-pane {
+  z-index: 1 !important;
+}
+
+.leaflet-overlay-pane {
+  z-index: 2 !important;
+}
+
+.leaflet-shadow-pane {
+  z-index: 3 !important;
+}
+
+.leaflet-marker-pane {
+  z-index: 4 !important;
+}
+
+.leaflet-tooltip-pane {
+  z-index: 5 !important;
+}
+
+.leaflet-popup-pane {
+  z-index: 6 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 7 !important;
+}
+
+/* Enterprise Status Badges (Low Saturation) */
+.badge-healthy {
+  @apply bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium;
+}
+.badge-warning {
+  @apply bg-amber-50 text-amber-700 border border-amber-200 font-medium;
+}
+.badge-critical {
+  @apply bg-rose-50 text-rose-700 border border-rose-200 font-medium;
+}
+.badge-info {
+  @apply bg-slate-100 text-slate-700 border border-slate-200 font-medium;
+}
+
+/* Custom crisp scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F0E8D8;
+  background: #F1F5F9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D9A441;
-  border-radius: 4px;
+  background: #CBD5E1;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #B8852B;
+  background: #94A3B8;
 }
+

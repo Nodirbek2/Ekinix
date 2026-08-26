@@ -1131,7 +1131,7 @@ export async function POST(req: NextRequest) {
       console.log(
         `[Telegram Timing Breakdown] Cmd: "weather" | Total: ${totalMs.toFixed(1)}ms | FarmerDB: ${timing.farmerDbMs.toFixed(1)}ms | FieldsDB: ${timing.fieldsDbMs.toFixed(1)}ms | Weather: ${weatherMs.toFixed(1)}ms | Send: ${sendMs.toFixed(1)}ms`
       );
-      return NextResponse.json({ ok: true, action: 'weather_sent', durationMs: totalMs });
+      return NextResponse.json({ ok: true, action: 'weather_sent', replyText: weatherText, durationMs: totalMs });
     }
 
     // -------------------------------------------------------------------------

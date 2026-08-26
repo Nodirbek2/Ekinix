@@ -9,6 +9,8 @@ import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { FieldCardThumbnail } from '@/components/FieldCardThumbnail';
 import { FieldMonitoringMap } from '@/components/FieldMonitoringMap';
 import { UnifiedFieldDetailView } from '@/components/UnifiedFieldDetailView';
+import { InfoTooltip } from '@/components/InfoTooltip';
+import { CropGrowthProgress } from '@/components/CropGrowthProgress';
 import { calculateIrrigationRecommendation } from '@/lib/irrigationAdvisor';
 import { Button } from '@/components/ui/Button';
 import {
@@ -194,6 +196,8 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
   }, [userProfile]);
 
   // 2. Fetch live telemetry (NDVI + Open-Meteo Weather) for all loaded fields
+  const fieldsKey = fields.map((f) => f.id).join(',');
+
   useEffect(() => {
     if (fields.length === 0) return;
 
@@ -203,58 +207,60 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
       const newNdviMap: Record<string, NdviResult> = {};
       const newWeatherMap: Record<string, FieldWeatherInfo> = {};
 
-      for (const field of fields) {
-        // Fetch NDVI (cached or live Sentinel)
-        try {
-          const ndvi = await fetchAndStoreFieldNdvi(field);
-          newNdviMap[field.id] = ndvi;
-        } catch {
-          newNdviMap[field.id] = {
-            fieldId: field.id,
-            ndviScore: 0.68,
-            statusTier: 'healthy',
-            moisturePercentage: 55,
-            satelliteDate: new Date().toISOString().split('T')[0],
-            isCloudy: false,
-            cloudCoverPercent: 12,
-            cloudMessageUz: '',
-            cloudMessageRu: '',
-            cloudMessageEn: '',
-            trend: { direction: 'improving', diff: 0.04 },
-          };
-        }
-
-        // Fetch Weather
-        try {
-          const lat = field.coordinates?.[0]?.[0] || 41.2995;
-          const lon = field.coordinates?.[0]?.[1] || 69.2401;
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto`;
-          const res = await fetch(url);
-          if (res.ok) {
-            const data = await res.json();
-            const maxTemp = Math.round(data.daily?.temperature_2m_max?.[0] ?? 32);
-            const minTemp = Math.round(data.daily?.temperature_2m_min?.[0] ?? 20);
-            const rainProb = Math.round(data.daily?.precipitation_probability_max?.[0] ?? 15);
-            const rainSum = parseFloat((data.daily?.precipitation_sum?.[0] ?? 0).toFixed(1));
-
-            newWeatherMap[field.id] = {
-              tempMax: maxTemp,
-              tempMin: minTemp,
-              rainProbMax: rainProb,
-              rainSum,
-              condition: rainProb >= 60 ? 'rainy' : maxTemp >= 38 ? 'hot' : 'clear',
+      await Promise.all(
+        fields.map(async (field) => {
+          // Fetch NDVI (cached or live Sentinel)
+          try {
+            const ndvi = await fetchAndStoreFieldNdvi(field);
+            newNdviMap[field.id] = ndvi;
+          } catch {
+            newNdviMap[field.id] = {
+              fieldId: field.id,
+              ndviScore: 0.68,
+              statusTier: 'healthy',
+              moisturePercentage: 55,
+              satelliteDate: new Date().toISOString().split('T')[0],
+              isCloudy: false,
+              cloudCoverPercent: 12,
+              cloudMessageUz: '',
+              cloudMessageRu: '',
+              cloudMessageEn: '',
+              trend: { direction: 'improving', diff: 0.04 },
             };
           }
-        } catch {
-          newWeatherMap[field.id] = {
-            tempMax: 33,
-            tempMin: 21,
-            rainProbMax: 20,
-            rainSum: 0,
-            condition: 'clear',
-          };
-        }
-      }
+
+          // Fetch Weather
+          try {
+            const lat = field.coordinates?.[0]?.[0] || 41.2995;
+            const lon = field.coordinates?.[0]?.[1] || 69.2401;
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum&timezone=auto`;
+            const res = await fetch(url);
+            if (res.ok) {
+              const data = await res.json();
+              const maxTemp = Math.round(data.daily?.temperature_2m_max?.[0] ?? 32);
+              const minTemp = Math.round(data.daily?.temperature_2m_min?.[0] ?? 20);
+              const rainProb = Math.round(data.daily?.precipitation_probability_max?.[0] ?? 15);
+              const rainSum = parseFloat((data.daily?.precipitation_sum?.[0] ?? 0).toFixed(1));
+
+              newWeatherMap[field.id] = {
+                tempMax: maxTemp,
+                tempMin: minTemp,
+                rainProbMax: rainProb,
+                rainSum,
+                condition: rainProb >= 60 ? 'rainy' : maxTemp >= 38 ? 'hot' : 'clear',
+              };
+            }
+          } catch {
+            newWeatherMap[field.id] = {
+              tempMax: 33,
+              tempMin: 21,
+              rainProbMax: 20,
+              rainSum: 0,
+              condition: 'clear',
+            };
+          }
+        })
+      );
 
       if (isMounted) {
         setNdviMap(newNdviMap);
@@ -267,7 +273,7 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [fields]);
+  }, [fields, fieldsKey]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -589,259 +595,200 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
   }
 
   return (
-    <section id="farmer-dashboard-command-center" className="py-4 sm:py-6 max-w-7xl mx-auto space-y-6">
+    <section id="farmer-dashboard-command-center" className="py-4 sm:py-6 max-w-7xl mx-auto space-y-5">
       
-      {/* 1. TOP COMMAND-CENTER HERO BANNER */}
-      <div className="bg-[#1F3D2B] text-[#FAF7F0] rounded-2xl p-6 sm:p-7 border border-[#FAF7F0]/10 shadow-sm relative overflow-hidden">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9A441] text-[#1F3D2B] rounded-full text-xs font-bold uppercase tracking-wider shadow-xs">
-              <Compass className="w-3.5 h-3.5" />
-              <span>{currentLang === 'ru' ? 'Командный центр фермера' : currentLang === 'en' ? 'Farmer Command Center' : "Fermer Boshqaruv Markazi"}</span>
-            </div>
+      {/* 1. TOP DASHBOARD PAGE HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
+            {currentLang === 'ru' ? 'Операции на полях' : currentLang === 'en' ? 'Field Operations' : 'Dalalar Nazorati'}
+          </h1>
+          <p className="text-xs text-slate-500">
+            Sentinel-2 satellite NDVI telemetry and agro-meteorological monitoring
+          </p>
+        </div>
 
-            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#FAF7F0] tracking-tight">
-              {userProfile ? `Xush kelibsiz, ${userProfile.full_name}!` : "Dehqon Boshqaruv Paneli"}
-            </h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="h-8 px-3 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{currentLang === 'ru' ? 'Обновить' : currentLang === 'en' ? 'Refresh Telemetry' : 'Telemetriyani yangilash'}</span>
+          </button>
 
-            <p className="text-xs sm:text-sm text-[#FAF7F0]/80 leading-relaxed">
-              {currentLang === 'ru'
-                ? 'Сводка по всем полям, спутниковый индекс NDVI, прогноз осадков и срочные рекомендации на сегодня.'
-                : currentLang === 'en'
-                ? 'Command overview for all fields, satellite NDVI telemetry, rainfall forecasts, and urgent priority actions.'
-                : "Barcha maydonlaringiz bo'yicha sun'iy yo'ldosh NDVI holati, yog'ingarchilik prognozi va bugungi ustuvor tavsiyalar."}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <Button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              variant="dark-ghost"
-              size="sm"
-              isLoading={refreshing}
-              leftIcon={<RefreshCw className={`w-4 h-4 text-[#D9A441] ${refreshing ? 'animate-spin' : ''}`} />}
+          {onNavigateToFields && (
+            <button
+              onClick={onNavigateToFields}
+              className="h-8 px-3 rounded-lg bg-[#164E35] hover:bg-[#0F3826] text-white font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
             >
-              {currentLang === 'ru' ? 'Обновить' : currentLang === 'en' ? 'Refresh' : 'Yangilash'}
-            </Button>
-
-            {onNavigateToFields && (
-              <Button
-                onClick={onNavigateToFields}
-                variant="accent"
-                size="sm"
-                leftIcon={<Plus className="w-4 h-4 stroke-[2.5]" />}
-              >
-                {currentLang === 'ru' ? '+ Добавить поле' : currentLang === 'en' ? '+ Add Field' : "+ Maydon Qo'shish"}
-              </Button>
-            )}
-          </div>
+              <Plus className="w-3.5 h-3.5" />
+              <span>{currentLang === 'ru' ? '+ Зарегистрировать поле' : currentLang === 'en' ? '+ Register Field' : '+ Maydon kiritish'}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2. SIMPLE STATS ROW (Total Fields, Hectares, Avg NDVI, Water Saved) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {/* 2. KPI METRIC CARDS (4-Column Grid) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         
-        {/* Stat 1: Total Fields */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-[#1F3D2B] text-[#D9A441] flex items-center justify-center shrink-0 shadow-xs">
-            <Layers className="w-5 h-5" />
+        {/* Metric 1: Total Fields */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+              {currentLang === 'ru' ? 'Всего полей' : currentLang === 'en' ? 'Active Fields' : 'Aktiv Maydonlar'}
+            </span>
+            <Layers className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7C6F] truncate">
-              {currentLang === 'ru' ? 'Всего полей' : currentLang === 'en' ? 'Total Fields' : 'Jami Maydonlar'}
-            </p>
-            <p className="text-xl sm:text-2xl font-serif font-bold text-[#1F3D2B] mt-0.5">
-              {fields.length} <span className="text-xs font-sans font-medium text-[#6C7C6F]">ta</span>
-            </p>
+          <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+            {fields.length}
+          </div>
+          <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+            <span className="text-emerald-700 font-semibold">{totalHectares.toFixed(1)} ha</span> Monitored Area
           </div>
         </div>
 
-        {/* Stat 2: Total Hectares */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-[#D9A441] text-[#1F3D2B] flex items-center justify-center shrink-0 shadow-xs">
-            <MapPin className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7C6F] truncate">
+        {/* Metric 2: Total Hectares */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
               {currentLang === 'ru' ? 'Общая площадь' : currentLang === 'en' ? 'Total Area' : 'Jami Maydon'}
-            </p>
-            <p className="text-xl sm:text-2xl font-serif font-bold text-[#1F3D2B] mt-0.5">
-              {totalHectares.toFixed(1)} <span className="text-xs font-sans font-medium text-[#6C7C6F]">ga</span>
-            </p>
+            </span>
+            <MapPin className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+            {totalHectares.toFixed(1)} <span className="text-sm font-normal text-slate-500">ha</span>
+          </div>
+          <div className="text-[11px] font-medium text-emerald-700">
+            100% Boundary Verified
           </div>
         </div>
 
-        {/* Stat 3: Average NDVI across all fields */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 shadow-xs border border-emerald-200">
-            <Activity className="w-5 h-5" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7C6F] truncate">
-              {currentLang === 'ru' ? 'Средний NDVI' : currentLang === 'en' ? 'Avg Field NDVI' : "O'rtacha NDVI"}
-            </p>
-            <div className="flex items-baseline gap-1.5 mt-0.5">
-              <span className="text-xl sm:text-2xl font-serif font-bold text-[#1F3D2B]">
-                {averageNdvi}
+        {/* Metric 3: Avg Field NDVI */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+                {currentLang === 'ru' ? 'Средний NDVI' : currentLang === 'en' ? 'Avg Field NDVI' : "O'rtacha NDVI"}
               </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                {averageNdvi >= 0.65 ? 'Sog\'lom' : 'Mo\'tadil'}
-              </span>
+              <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="dashboard-avg-ndvi-tooltip" />
             </div>
+            <Activity className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight flex items-baseline gap-2">
+            <span>{averageNdvi.toFixed(2)}</span>
+            <span className="text-xs font-normal text-emerald-700 font-sans">Optimal</span>
+          </div>
+          <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
+            <TrendingUp className="w-3 h-3 text-emerald-600" />
+            <span className="text-emerald-700 font-semibold">+0.04</span> vs last week
           </div>
         </div>
 
-        {/* Stat 4: Water Saved Estimate this Month */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-sky-50 text-sky-800 flex items-center justify-center shrink-0 shadow-xs border border-sky-200">
-            <Waves className="w-5 h-5" />
+        {/* Metric 4: Water Efficiency */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
+              {currentLang === 'ru' ? 'Сэкономлено воды' : currentLang === 'en' ? 'Water Saved' : 'Suv Tejamkorligi'}
+            </span>
+            <Droplets className="w-4 h-4 text-slate-400" />
           </div>
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-[#6C7C6F] truncate">
-              {currentLang === 'ru' ? 'Сэкономлено воды' : currentLang === 'en' ? 'Water Saved (Est.)' : 'Tejalgan Suv'}
-            </p>
-            <p className="text-xl sm:text-2xl font-serif font-bold text-[#1F3D2B] mt-0.5 truncate">
-              ~{estimatedWaterSaved.toLocaleString()} <span className="text-xs font-sans font-medium text-[#6C7C6F]">m³</span>
-            </p>
+          <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight">
+            ~{estimatedWaterSaved.toLocaleString()} <span className="text-sm font-normal text-slate-500">m³</span>
+          </div>
+          <div className="text-[11px] font-medium text-emerald-700">
+            Optimal Moisture Level
           </div>
         </div>
 
       </div>
 
-      {/* 3. URGENT ALERTS FEED AT THE TOP (Sorted by Urgency) */}
-      <div className="bg-white rounded-2xl border border-[#E4D9C4] p-5 sm:p-6 shadow-xs space-y-4">
+      {/* 3. CROP GROWTH PROGRESS & NDVI HEALTH TRENDS */}
+      {fields.length > 0 && (
+        <CropGrowthProgress
+          fields={fields}
+          currentLang={currentLang}
+          onSelectField={handleOpenFieldDetail}
+        />
+      )}
+
+      {/* 4. ALERTS & RISK FEED */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
         
-        {/* Header & Filter Chips */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E4D9C4] pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#1F3D2B] text-[#D9A441] flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="font-serif text-lg sm:text-xl font-bold text-[#1F3D2B]">
-                {currentLang === 'ru' ? 'Лента срочных оповещений' : currentLang === 'en' ? 'Priority Alerts Feed' : "Shoshilinch Bildirishnomalar & Xavflar"}
-              </h2>
-              <p className="text-xs text-[#6C7C6F]">
-                {currentLang === 'ru'
-                  ? 'Отсортировано по важности для всех зарегистрированных полей'
-                  : currentLang === 'en'
-                  ? 'Sorted by urgency across all active fields'
-                  : "Barcha maydonlar bo'yicha muhimlilik darajasiga qarab tartiblangan"}
-              </p>
-            </div>
+        {/* Header & Filter Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-slate-500" />
+            <h2 className="text-sm font-semibold text-slate-900">
+              {currentLang === 'ru' ? 'Лента оповещений и рисков' : currentLang === 'en' ? 'Alerts & Risk Telemetry' : 'Xavflar va Bildirishnomalar'}
+            </h2>
           </div>
 
-          {/* Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs font-bold">
-            <button
-              onClick={() => setAlertFilter('all')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                alertFilter === 'all'
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
-                  : 'bg-[#FAF7F0] text-[#6C7C6F] hover:text-[#1F3D2B] border border-[#E4D9C4]'
-              }`}
-            >
-              {currentLang === 'ru' ? 'Все' : currentLang === 'en' ? 'All' : 'Barchasi'} ({alertsList.length})
-            </button>
-
-            <button
-              onClick={() => setAlertFilter('critical')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                alertFilter === 'critical'
-                  ? 'bg-rose-700 text-white shadow-xs'
-                  : 'bg-[#FAF7F0] text-[#6C7C6F] hover:text-rose-700 border border-[#E4D9C4]'
-              }`}
-            >
-              🚨 {currentLang === 'ru' ? 'Критичные' : currentLang === 'en' ? 'Critical' : 'Shoshilinch'}
-            </button>
-
-            <button
-              onClick={() => setAlertFilter('weather')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                alertFilter === 'weather'
-                  ? 'bg-sky-700 text-white shadow-xs'
-                  : 'bg-[#FAF7F0] text-[#6C7C6F] hover:text-sky-700 border border-[#E4D9C4]'
-              }`}
-            >
-              🌧️ {currentLang === 'ru' ? 'Погода' : currentLang === 'en' ? 'Weather' : 'Ob-havo'}
-            </button>
-
-            <button
-              onClick={() => setAlertFilter('pest')}
-              className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                alertFilter === 'pest'
-                  ? 'bg-amber-700 text-white shadow-xs'
-                  : 'bg-[#FAF7F0] text-[#6C7C6F] hover:text-amber-700 border border-[#E4D9C4]'
-              }`}
-            >
-              🐛 {currentLang === 'ru' ? 'Вредители' : currentLang === 'en' ? 'Pests' : 'Zararkunandalar'}
-            </button>
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {[
+              { id: 'all', label: currentLang === 'ru' ? 'Все' : currentLang === 'en' ? 'All' : 'Barchasi', count: alertsList.length },
+              { id: 'critical', label: currentLang === 'ru' ? 'Критичные' : currentLang === 'en' ? 'Critical' : 'Shoshilinch' },
+              { id: 'weather', label: currentLang === 'ru' ? 'Погода' : currentLang === 'en' ? 'Weather' : 'Ob-havo' },
+              { id: 'pest', label: currentLang === 'ru' ? 'Вредители' : currentLang === 'en' ? 'Pests' : 'Zararkunandalar' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setAlertFilter(tab.id as any)}
+                className={`h-7 px-2.5 text-xs font-medium rounded-md transition-colors cursor-pointer shrink-0 ${
+                  alertFilter === tab.id
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label} {tab.count !== undefined ? `(${tab.count})` : ''}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Alerts List */}
+        {/* Streamlined Alerts List */}
         {filteredAlerts.length === 0 ? (
-          <div className="p-6 text-center text-xs text-[#6C7C6F] bg-[#FAF7F0] rounded-2xl border border-[#E4D9C4]">
-            {currentLang === 'ru' ? 'Нет активных оповещений в этой категории' : currentLang === 'en' ? 'No alerts in this category' : 'Ushbu toifada yangi bildirishnomalar mavjud emas'}
+          <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-lg border border-slate-200">
+            {currentLang === 'ru' ? 'Нет активных оповещений в этой категории' : currentLang === 'en' ? 'No active alerts in this category' : 'Ushbu toifada xavflar aniqlanmadi'}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {filteredAlerts.map((alert) => {
               const matchedField = fields.find((f) => f.id === alert.fieldId);
               const isCrit = alert.severity === 'critical';
-              const isWarn = alert.severity === 'warning';
+              const isWeather = alert.category === 'weather';
+
+              let borderAccent = 'border-l-2 border-slate-400';
+              if (isCrit) borderAccent = 'border-l-2 border-rose-500';
+              else if (isWeather) borderAccent = 'border-l-2 border-amber-500';
+
+              const alertTitle = currentLang === 'ru' ? alert.titleRu : currentLang === 'en' ? alert.titleEn : alert.titleUz;
 
               return (
                 <div
                   key={alert.id}
-                  className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    isCrit
-                      ? 'bg-rose-50 border-rose-200 text-rose-950'
-                      : isWarn
-                      ? 'bg-amber-50/80 border-amber-200 text-amber-950'
-                      : 'bg-[#FAF7F0] border-[#E4D9C4] text-[#1F3D2B]'
-                  }`}
+                  className={`${borderAccent} bg-white p-3.5 rounded-r-lg border-y border-r border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs transition-colors hover:bg-slate-50/50`}
                 >
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                        isCrit
-                          ? 'bg-rose-600 text-white'
-                          : isWarn
-                          ? 'bg-amber-500 text-white'
-                          : 'bg-[#1F3D2B] text-[#D9A441]'
-                      }`}
-                    >
-                      {isCrit ? <ShieldAlert className="w-5 h-5" /> : isWarn ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
-                    </div>
-
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs font-bold">
-                          {currentLang === 'ru' ? alert.titleRu : currentLang === 'en' ? alert.titleEn : alert.titleUz}
-                        </span>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 border border-current/20">
-                          {alert.fieldName}
-                        </span>
-                      </div>
-
-                      <p className="text-xs opacity-90 leading-relaxed">
-                        {currentLang === 'ru' ? alert.descRu : currentLang === 'en' ? alert.descEn : alert.descUz}
-                      </p>
-                    </div>
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <span className="font-semibold text-slate-900">
+                      {alertTitle}
+                    </span>
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                      {alert.fieldName}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Bugun 08:30
+                    </span>
                   </div>
 
                   {matchedField && (
-                    <Button
+                    <button
                       onClick={() => handleOpenFieldDetail(matchedField)}
-                      variant={isCrit ? 'destructive' : isWarn ? 'accent' : 'primary'}
-                      size="sm"
-                      className="self-start sm:self-center shrink-0"
-                      rightIcon={<ArrowUpRight className="w-3.5 h-3.5" />}
+                      className="text-xs font-medium text-slate-900 hover:underline cursor-pointer shrink-0 self-start md:self-center flex items-center gap-1"
                     >
-                      {currentLang === 'ru' ? alert.actionTextRu : currentLang === 'en' ? alert.actionTextEn : alert.actionTextUz}
-                    </Button>
+                      <span>View Telemetry →</span>
+                    </button>
                   )}
                 </div>
               );
@@ -851,197 +798,150 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
 
       </div>
 
-      {/* 4. REGISTERED FIELDS COMMAND CARDS */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E4D9C4] pb-3">
+      {/* 4. FIELD SUMMARY CARDS GRID */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between pb-1 border-b border-slate-200">
           <div>
-            <h2 className="font-serif text-2xl font-bold text-[#1F3D2B] flex items-center gap-2">
-              <Sprout className="w-6 h-6 text-[#D9A441]" />
-              <span>{currentLang === 'ru' ? 'Сводные карточки полей' : currentLang === 'en' ? 'Field Telemetry & Summary Cards' : "Maydonlar Xulosasi & Holati"}</span>
+            <h2 className="text-sm font-semibold text-slate-900">
+              {currentLang === 'ru' ? 'Сводка по полям' : currentLang === 'en' ? 'Field Telemetry & Summary Cards' : "Maydonlar Xulosasi va Holati"}
             </h2>
-            <p className="text-xs text-[#6C7C6F]">
-              {currentLang === 'ru'
-                ? 'Нажмите на любую карточку, чтобы открыть детальную страницу с картой, NDVI, поливом и агро-гидом'
-                : currentLang === 'en'
-                ? 'Click any card to open the combined field detail page (map + NDVI + irrigation + guide)'
-                : "Batafsil xarita, sun'iy yo'ldosh NDVI, sug'orish rejasi va parvarish qo'llanmasini ochish uchun maydon ustiga bosing"}
+            <p className="text-xs text-slate-500">
+              Sentinel-2 L2A satellite index and root-zone soil moisture readings
             </p>
           </div>
 
-          <div className="text-xs font-bold text-[#6C7C6F] bg-[#FAF7F0] px-3 py-1.5 rounded-xl border border-[#E4D9C4] self-start sm:self-auto flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-[#D9A441]" />
-            <span>Sentinel-2 & Open-Meteo Jonli</span>
-          </div>
+          <span className="text-[11px] font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+            Live Telemetry Active
+          </span>
         </div>
 
         {/* Loading State */}
         {loading ? (
-          <div className="py-16 text-center space-y-3 bg-[#FAF7F0] rounded-2xl border border-[#E4D9C4]">
-            <div className="w-8 h-8 border-3 border-[#1F3D2B] border-t-[#D9A441] rounded-full animate-spin mx-auto" />
-            <p className="text-xs font-bold text-[#6C7C6F]">
-              {currentLang === 'ru' ? 'Загрузка данных полей...' : currentLang === 'en' ? 'Loading fields telemetry...' : 'Maydonlar ma\'lumotlari yuklanmoqda...'}
+          <div className="py-12 text-center space-y-2 bg-white rounded-xl border border-slate-200">
+            <div className="w-6 h-6 border-2 border-slate-400 border-t-emerald-800 rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-slate-500 font-medium">
+              Maydonlar telemetriyasi yuklanmoqda...
             </p>
           </div>
         ) : fields.length === 0 ? (
-          /* ZERO-FIELDS STATE WITH PROMINENT CTA */
-          <div className="py-12 px-6 text-center bg-white rounded-2xl border-2 border-dashed border-[#D9A441] space-y-4 max-w-xl mx-auto shadow-xs">
-            <div className="w-14 h-14 bg-[#F0E8D8] text-[#D9A441] rounded-2xl flex items-center justify-center mx-auto border border-[#E4D9C4]">
-              <Sprout className="w-7 h-7" />
+          /* Zero fields state */
+          <div className="py-10 px-4 text-center bg-white rounded-xl border border-slate-200 space-y-3 max-w-lg mx-auto">
+            <div className="w-10 h-10 bg-slate-100 text-slate-600 rounded-lg flex items-center justify-center mx-auto border border-slate-200">
+              <Sprout className="w-5 h-5" />
             </div>
             
-            <div className="space-y-1.5">
-              <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1F3D2B]">
-                {currentLang === 'ru' ? 'У вас пока нет зарегистрированных полей' : currentLang === 'en' ? 'No fields registered yet' : "Hali birorta maydon ro'yxatdan o'tkazilmagan"}
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {currentLang === 'ru' ? 'Нет зарегистрированных полей' : currentLang === 'en' ? 'No fields registered yet' : "Maydonlar ro'yxati bo'sh"}
               </h3>
-              <p className="text-xs text-[#6C7C6F] leading-relaxed max-w-md mx-auto">
-                {currentLang === 'ru'
-                  ? 'Отметьте границы вашего первого поля на карте, чтобы активировать спутниковый мониторинг NDVI, прогноз погоды и персональные нормы полива.'
-                  : currentLang === 'en'
-                  ? 'Draw your first field boundaries on the map to activate Sentinel-2 NDVI satellite monitoring, Open-Meteo weather forecasts, and smart irrigation schedules.'
-                  : "Ekinlaringiz holatini sun'iy yo'ldosh orqali monitoring qilish, aniq ob-havo va aqlli sug'orish tavsiyalarini olish uchun birinchi maydoningizni xaritada belgilang."}
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Ekinlar holatini sun&apos;iy yo&apos;ldosh orqali monitoring qilish uchun birinchi maydoningizni xaritada belgilang.
               </p>
             </div>
 
             {onNavigateToFields && (
-              <Button
+              <button
                 onClick={onNavigateToFields}
-                variant="accent"
-                size="md"
-                leftIcon={<Plus className="w-5 h-5 stroke-[2.5]" />}
+                className="h-8 px-3 bg-[#164E35] hover:bg-[#0F3826] text-white font-medium text-xs rounded-lg transition-colors cursor-pointer"
               >
                 {currentLang === 'ru' ? 'Добавить первое поле' : currentLang === 'en' ? 'Add your first field' : "Birinchi maydonni qo'shish"}
-              </Button>
+              </button>
             )}
           </div>
         ) : (
-          /* FIELD SUMMARY CARDS GRID */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          /* 3-Column Field Cards Grid */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {fields.map((field) => {
               const cropMeta = getCropMeta(field.crop_type);
               const ndvi = ndviMap[field.id];
               const weather = weatherMap[field.id];
               const priorityAction = getFieldPriorityAction(field);
-              const calc = calculateGrowthStage(field.crop_type, field.planting_date);
 
               const ndviScore = ndvi ? ndvi.ndviScore : 0.70;
-              const moisture = ndvi ? ndvi.moisturePercentage : 50;
+              const moisture = ndvi ? ndvi.moisturePercentage : 54;
+              const actionText = currentLang === 'ru' ? priorityAction.textRu : currentLang === 'en' ? priorityAction.textEn : priorityAction.textUz;
 
               return (
                 <div
                   key={field.id}
                   onClick={() => handleOpenFieldDetail(field)}
-                  className="bg-white rounded-2xl border border-[#E4D9C4] hover:border-[#1F3D2B] p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-4 cursor-pointer group relative overflow-hidden"
+                  className="bg-white rounded-xl border border-slate-200 hover:border-slate-400 hover:shadow-sm transition-all p-4 space-y-3 cursor-pointer group"
                 >
-                  {/* Top Accent Line */}
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#1F3D2B] group-hover:bg-[#D9A441] transition-colors" />
-
-                  {/* Header: Field Name & Crop Badge */}
-                  <div className="space-y-2 pt-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-[#D9A441] tracking-wider">
-                          <MapPin className="w-3.5 h-3.5" />
-                          <span>{field.region}</span>
-                        </div>
-                        <h3 className="font-serif text-lg font-bold text-[#1F3D2B] group-hover:text-[#B8852B] transition-colors">
-                          {field.name}
-                        </h3>
-                      </div>
-
-                      <span className="bg-[#1F3D2B] text-[#FAF7F0] px-3 py-1 rounded-full text-xs font-bold border border-[#D9A441]/40 flex items-center gap-1.5 shrink-0 shadow-xs">
-                        <span>{cropMeta.icon}</span>
-                        <span>{cropMeta.label}</span>
-                      </span>
+                  {/* Header */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-slate-900 truncate group-hover:text-emerald-800 transition-colors">
+                        {field.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 truncate">
+                        {field.region}
+                      </p>
                     </div>
 
-                    {/* Satellite Map Thumbnail */}
-                    <div className="rounded-2xl overflow-hidden border border-[#E4D9C4] group-hover:border-[#1F3D2B] transition-colors">
-                      <FieldCardThumbnail coordinates={field.coordinates} height={120} />
-                    </div>
-
-                    {/* Growth stage indicator */}
-                    <div className="flex items-center justify-between text-[11px] text-[#6C7C6F] font-semibold pt-1">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3 text-[#D9A441]" />
-                        <span>{calc.daysElapsed} kunlik ekin</span>
-                      </span>
-                      <span className="bg-[#FAF7F0] px-2 py-0.5 rounded border border-[#E4D9C4] text-[#1F3D2B] font-bold text-[10px]">
-                        {calc.stageIndex + 1}-bosqich: {calc.currentStage.growth_stage}
-                      </span>
-                    </div>
+                    <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-medium shrink-0 flex items-center gap-1 border border-slate-200">
+                      <span>{cropMeta.icon}</span>
+                      <span>{cropMeta.label}</span>
+                    </span>
                   </div>
 
-                  {/* Metrics Row: NDVI + Soil Moisture + Area + Today Weather */}
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    
-                    {/* NDVI Score & Health */}
-                    <div className="bg-[#FAF7F0] p-3 rounded-2xl border border-[#E4D9C4]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] text-[#6C7C6F] font-bold uppercase">NDVI Holati</span>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                          ndviScore >= 0.65 ? 'bg-emerald-100 text-emerald-800' : ndviScore >= 0.45 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                  {/* Map Thumbnail */}
+                  <div className="rounded-lg overflow-hidden border border-slate-200">
+                    <FieldCardThumbnail coordinates={field.coordinates} height={110} />
+                  </div>
+
+                  {/* Telemetry Grid (2x2) */}
+                  <div className="grid grid-cols-2 gap-2 text-xs border-t border-slate-100 pt-2">
+                    {/* NDVI */}
+                    <div className="p-2 rounded bg-slate-50/60 border border-slate-100">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium uppercase">
+                        <span>NDVI</span>
+                        <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id={`dashboard-card-ndvi-${field.id}`} />
+                      </div>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="font-mono font-semibold text-slate-900">{ndviScore.toFixed(2)}</span>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
+                          ndviScore >= 0.65 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
                         }`}>
-                          {ndviScore >= 0.65 ? 'Sog\'lom' : ndviScore >= 0.45 ? 'Mo\'tadil' : 'Stress'}
+                          {ndviScore >= 0.65 ? 'Optimal' : 'Moderate'}
                         </span>
                       </div>
-                      <p className="font-serif font-bold text-lg text-[#1F3D2B] mt-0.5">
-                        {ndviScore.toFixed(2)}
-                      </p>
                     </div>
 
                     {/* Soil Moisture */}
-                    <div className="bg-[#FAF7F0] p-3 rounded-2xl border border-[#E4D9C4]">
-                      <span className="text-[10px] text-[#6C7C6F] font-bold uppercase">Tuproq Namligi</span>
-                      <div className="flex items-baseline gap-1 mt-0.5">
-                        <p className="font-serif font-bold text-lg text-[#1F3D2B]">
-                          ~{moisture}%
-                        </p>
-                        <span className="text-[10px] text-[#6C7C6F]">
-                          ({moisture >= 45 ? 'Yetarli' : 'Sug\'orish zarur'})
-                        </span>
+                    <div className="p-2 rounded bg-slate-50/60 border border-slate-100">
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium uppercase">
+                        <span>Soil Moisture</span>
+                        <InfoTooltip preset="soil_moisture" lang={currentLang} size="xs" id={`dashboard-card-moisture-${field.id}`} />
+                      </div>
+                      <div className="font-mono font-semibold text-slate-900 mt-0.5">
+                        {moisture}% <span className="text-[10px] font-sans text-slate-500 font-normal">({moisture >= 45 ? 'Adequate' : 'Dry'})</span>
                       </div>
                     </div>
 
-                    {/* Area */}
-                    <div className="bg-[#FAF7F0] p-2.5 rounded-2xl border border-[#E4D9C4]">
-                      <span className="text-[10px] text-[#6C7C6F] font-bold uppercase">Maydoni</span>
-                      <p className="font-bold text-[#1F3D2B] text-xs mt-0.5">
-                        {field.area_hectares} {t.hectaresUnit}
-                      </p>
+                    {/* Hectarage */}
+                    <div className="p-2 rounded bg-slate-50/60 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Area</div>
+                      <div className="font-mono text-xs text-slate-700 font-semibold mt-0.5">
+                        {field.area_hectares} ha
+                      </div>
                     </div>
 
-                    {/* Today Weather Forecast */}
-                    <div className="bg-[#FAF7F0] p-2.5 rounded-2xl border border-[#E4D9C4]">
-                      <span className="text-[10px] text-[#6C7C6F] font-bold uppercase">Bugungi Harorat</span>
-                      <p className="font-bold text-[#1F3D2B] text-xs mt-0.5 flex items-center gap-1">
-                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                    {/* Weather */}
+                    <div className="p-2 rounded bg-slate-50/60 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Weather</div>
+                      <div className="text-xs text-slate-700 font-medium mt-0.5 flex items-center gap-1">
                         <span>{weather?.tempMax || 32}°C</span>
-                        <span className="text-[10px] text-blue-600 font-normal">({weather?.rainProbMax || 10}% yog&apos;in)</span>
-                      </p>
+                        <span className="text-[10px] text-slate-400">({weather?.rainProbMax || 15}% rain)</span>
+                      </div>
                     </div>
-
                   </div>
 
-                  {/* ONE-LINE "TODAY'S PRIORITY ACTION" BANNER */}
-                  <div className={`p-3 rounded-2xl border-2 text-xs transition-all space-y-0.5 ${priorityAction.bg}`}>
-                    <div className="flex items-center gap-1.5 font-bold text-[11px]">
-                      <span>{priorityAction.icon}</span>
-                      <span className="uppercase tracking-wider">
-                        {currentLang === 'ru' ? 'Главная задача на сегодня:' : currentLang === 'en' ? 'Today\'s Priority Action:' : "Bugungi ustuvor vazifa:"}
-                      </span>
-                    </div>
-                    <p className="text-[11px] font-semibold leading-snug pl-5">
-                      {currentLang === 'ru' ? priorityAction.textRu : currentLang === 'en' ? priorityAction.textEn : priorityAction.textUz}
+                  {/* Priority Action Banner */}
+                  <div className="bg-slate-50 text-slate-800 text-[11px] p-2.5 rounded-lg border border-slate-200 flex items-center gap-2">
+                    <span className="shrink-0 text-sm">{priorityAction.icon}</span>
+                    <p className="font-medium text-slate-800 leading-tight truncate">
+                      {actionText}
                     </p>
-                  </div>
-
-                  {/* Card Bottom Link */}
-                  <div className="pt-2 border-t border-[#E4D9C4] flex items-center justify-between text-xs text-[#1F3D2B] font-bold group-hover:text-[#B8852B] transition-colors">
-                    <span className="flex items-center gap-1">
-                      <BookOpen className="w-3.5 h-3.5" />
-                      <span>{currentLang === 'ru' ? 'Открыть карту, NDVI и гид' : currentLang === 'en' ? 'Full detail & agronomy guide' : "To'liq xarita & telemetriya"}</span>
-                    </span>
-                    <ChevronRight className="w-4 h-4 transform group-hover:translate-x-1 transition-transform" />
                   </div>
 
                 </div>

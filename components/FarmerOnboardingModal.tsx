@@ -144,45 +144,45 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-[#FAF7F0] rounded-3xl max-w-lg w-full p-6 sm:p-8 border-2 border-[#1F3D2B] shadow-2xl relative space-y-6">
+    <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div className="bg-white rounded-xl max-w-md w-full p-6 border border-slate-200 shadow-xl relative space-y-5">
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 text-[#6C7C6F] hover:text-[#1F3D2B] rounded-full hover:bg-[#F0E8D8] transition-colors"
+          className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Modal Title & Step Indicator */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider bg-[#F0E8D8] text-[#1F3D2B] px-3 py-1 rounded-full border border-[#E4D9C4]">
+            <span className="text-[11px] font-semibold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
               {t.stepCounter} {step} / 3
             </span>
             <div className="flex gap-1.5">
               {[1, 2, 3].map((s) => (
                 <div
                   key={s}
-                  className={`h-2 rounded-full transition-all duration-300 ${
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
                     s === step
-                      ? 'w-6 bg-[#D9A441]'
+                      ? 'w-5 bg-emerald-800'
                       : s < step
-                      ? 'w-2 bg-[#1F3D2B]'
-                      : 'w-2 bg-[#E4D9C4]'
+                      ? 'w-2 bg-emerald-600'
+                      : 'w-2 bg-slate-200'
                   }`}
                 />
               ))}
             </div>
           </div>
 
-          <h3 className="font-serif text-2xl font-bold text-[#1F3D2B]">
+          <h3 className="text-lg font-bold text-slate-900">
             {step === 1 && t.onboardingStep1Title}
             {step === 2 && t.onboardingStep2Title}
             {step === 3 && t.onboardingStep3Title}
           </h3>
-          <p className="text-xs text-[#6C7C6F] font-medium">
+          <p className="text-xs text-slate-500 font-medium">
             {step === 1 && t.onboardingStep1Sub}
             {step === 2 && t.onboardingStep2Sub}
             {step === 3 && t.onboardingStep3Sub}
@@ -191,7 +191,7 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl text-rose-800 text-xs font-semibold flex items-center gap-2">
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 text-xs font-medium flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
             <span>{errorMsg}</span>
           </div>
@@ -199,34 +199,34 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
 
         {/* STEP 1: Farmer Name & Region */}
         {step === 1 && (
-          <div className="space-y-4 pt-1">
+          <div className="space-y-3.5 pt-1">
             <div>
-              <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {t.fullName} *
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-3.5" />
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   required
                   placeholder="Masalan: Karimjon Rahimov"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-white border border-[#E4D9C4] rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {t.region} *
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-3.5 pointer-events-none" />
+                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
                 <select
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
-                  className="w-full bg-white border border-[#E4D9C4] rounded-xl pl-10 pr-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
                 >
                   {REGIONS_LIST.map((reg) => (
                     <option key={reg} value={reg}>
@@ -241,34 +241,34 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
 
         {/* STEP 2: Farm Type */}
         {step === 2 && (
-          <div className="space-y-3 pt-1">
+          <div className="space-y-2.5 pt-1">
             {/* Smallholder Card */}
             <button
               type="button"
               onClick={() => setFarmType('smallholder')}
-              className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 ${
+              className={`w-full text-left p-3.5 rounded-lg border transition-all flex items-start gap-3 cursor-pointer ${
                 farmType === 'smallholder'
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] border-[#D9A441] shadow-md'
-                  : 'bg-white text-[#1F3D2B] border-[#E4D9C4] hover:border-[#1F3D2B]/40'
+                  ? 'bg-emerald-50 text-emerald-950 border-emerald-300 shadow-2xs'
+                  : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <div className={`p-2.5 rounded-xl ${
-                farmType === 'smallholder' ? 'bg-[#D9A441] text-[#1F3D2B]' : 'bg-[#F0E8D8] text-[#1F3D2B]'
+              <div className={`p-2 rounded-md shrink-0 ${
+                farmType === 'smallholder' ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
               }`}>
-                <Sprout className="w-6 h-6" />
+                <Sprout className="w-5 h-5" />
               </div>
 
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-serif text-base font-bold">
+                  <h4 className="text-xs font-semibold">
                     {t.farmTypeSmallholderTitle}
                   </h4>
                   {farmType === 'smallholder' && (
-                    <Check className="w-5 h-5 text-[#D9A441]" />
+                    <Check className="w-4 h-4 text-emerald-700" />
                   )}
                 </div>
-                <p className={`text-xs mt-1 leading-relaxed ${
-                  farmType === 'smallholder' ? 'text-[#E4D9C4]' : 'text-[#6C7C6F]'
+                <p className={`text-[11px] mt-0.5 leading-relaxed ${
+                  farmType === 'smallholder' ? 'text-emerald-800' : 'text-slate-500'
                 }`}>
                   {t.farmTypeSmallholderDesc}
                 </p>
@@ -279,29 +279,29 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
             <button
               type="button"
               onClick={() => setFarmType('commercial')}
-              className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-start gap-3.5 ${
+              className={`w-full text-left p-3.5 rounded-lg border transition-all flex items-start gap-3 cursor-pointer ${
                 farmType === 'commercial'
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] border-[#D9A441] shadow-md'
-                  : 'bg-white text-[#1F3D2B] border-[#E4D9C4] hover:border-[#1F3D2B]/40'
+                  ? 'bg-emerald-50 text-emerald-950 border-emerald-300 shadow-2xs'
+                  : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
               }`}
             >
-              <div className={`p-2.5 rounded-xl ${
-                farmType === 'commercial' ? 'bg-[#D9A441] text-[#1F3D2B]' : 'bg-[#F0E8D8] text-[#1F3D2B]'
+              <div className={`p-2 rounded-md shrink-0 ${
+                farmType === 'commercial' ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-600'
               }`}>
-                <Tractor className="w-6 h-6" />
+                <Tractor className="w-5 h-5" />
               </div>
 
-              <div className="flex-1">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-serif text-base font-bold">
+                  <h4 className="text-xs font-semibold">
                     {t.farmTypeCommercialTitle}
                   </h4>
                   {farmType === 'commercial' && (
-                    <Check className="w-5 h-5 text-[#D9A441]" />
+                    <Check className="w-4 h-4 text-emerald-700" />
                   )}
                 </div>
-                <p className={`text-xs mt-1 leading-relaxed ${
-                  farmType === 'commercial' ? 'text-[#E4D9C4]' : 'text-[#6C7C6F]'
+                <p className={`text-[11px] mt-0.5 leading-relaxed ${
+                  farmType === 'commercial' ? 'text-emerald-800' : 'text-slate-500'
                 }`}>
                   {t.farmTypeCommercialDesc}
                 </p>
@@ -313,7 +313,7 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
         {/* STEP 3: Primary Crops Grown */}
         {step === 3 && (
           <div className="space-y-3 pt-1">
-            <div className="grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto p-1">
+            <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto p-0.5">
               {CROP_OPTIONS.map((crop) => {
                 const isSelected = selectedCrops.includes(crop.id);
                 const labelName = t[crop.nameKey as keyof typeof t] || crop.id;
@@ -323,39 +323,39 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
                     key={crop.id}
                     type="button"
                     onClick={() => toggleCrop(crop.id)}
-                    className={`p-3 rounded-xl text-left border-2 font-bold text-xs flex items-center justify-between transition-all ${
+                    className={`p-2.5 rounded-lg text-left border font-medium text-xs flex items-center justify-between transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-[#1F3D2B] text-[#FAF7F0] border-[#D9A441]'
-                        : 'bg-white text-[#1F3D2B] border-[#E4D9C4] hover:border-[#1F3D2B]/40'
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-semibold'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                     }`}
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="text-base">{crop.icon}</span>
+                    <span className="flex items-center gap-2 truncate">
+                      <span className="text-sm">{crop.icon}</span>
                       <span className="truncate">{labelName}</span>
                     </span>
 
                     {isSelected && (
-                      <CheckCircle2 className="w-4 h-4 text-[#D9A441] shrink-0" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                     )}
                   </button>
                 );
               })}
             </div>
-            <p className="text-[11px] text-[#6C7C6F] italic text-center">
+            <p className="text-[11px] text-slate-500 italic text-center">
               * Istalgan paytda profil sozlamalarida ekin turlarini o&apos;zgartirishingiz mumkin.
             </p>
           </div>
         )}
 
         {/* Modal Bottom Action Controls */}
-        <div className="pt-4 border-t border-[#E4D9C4] flex items-center justify-between gap-3">
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
           {step > 1 ? (
             <button
               type="button"
               onClick={handlePrevStep}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[#1F3D2B] text-[#1F3D2B] font-bold text-xs hover:bg-[#F0E8D8] transition-colors"
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 text-slate-700 font-medium text-xs hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
               <span>{t.btnBack}</span>
             </button>
           ) : (
@@ -366,19 +366,19 @@ export const FarmerOnboardingModal: React.FC<FarmerOnboardingModalProps> = ({
             <button
               type="button"
               onClick={handleNextStep}
-              className="flex items-center gap-1.5 bg-[#1F3D2B] hover:bg-[#14281C] text-[#FAF7F0] font-bold text-xs px-6 py-3 rounded-xl shadow-md transition-all ml-auto"
+              className="flex items-center gap-1.5 h-8 bg-[#164E35] hover:bg-[#0F3826] text-white font-medium text-xs px-4 rounded-lg transition-colors ml-auto cursor-pointer"
             >
               <span>{t.btnNext}</span>
-              <ChevronRight className="w-4 h-4 text-[#D9A441]" />
+              <ChevronRight className="w-3.5 h-3.5 text-emerald-200" />
             </button>
           ) : (
             <button
               type="button"
               onClick={handleFinish}
               disabled={saving}
-              className="flex items-center gap-2 bg-[#D9A441] hover:bg-[#B8852B] text-[#1F3D2B] hover:text-[#FAF7F0] font-bold text-xs px-6 py-3 rounded-xl shadow-md transition-all ml-auto disabled:opacity-50"
+              className="flex items-center gap-1.5 h-8 bg-[#164E35] hover:bg-[#0F3826] text-white font-medium text-xs px-4 rounded-lg transition-colors ml-auto disabled:opacity-50 cursor-pointer"
             >
-              <Check className="w-4 h-4" />
+              <Check className="w-3.5 h-3.5 text-emerald-200" />
               <span>{saving ? 'Saqlanmoqda...' : t.btnFinish}</span>
             </button>
           )}

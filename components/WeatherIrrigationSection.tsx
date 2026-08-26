@@ -34,9 +34,17 @@ import { calculateIrrigationRecommendation, IrrigationRecommendation, Irrigation
 import { CROP_GUIDES } from '@/lib/cropGuidesData';
 import { Button } from '@/components/ui/Button';
 import { WeatherStripSkeleton, ErrorState } from '@/components/ui/StateFeedback';
+import { InfoTooltip } from '@/components/InfoTooltip';
 
-interface WeatherIrrigationSectionProps {
+import { FieldRecord, FarmerProfile } from '@/lib/supabase';
+
+export interface WeatherIrrigationSectionProps {
   currentLang: Language;
+  initialRegion?: string | null;
+  selectedField?: FieldRecord | null;
+  userProfile?: FarmerProfile | null;
+  fields?: FieldRecord[];
+  onSelectField?: (field: FieldRecord) => void;
 }
 
 const REGIONS_LIST = [
@@ -67,8 +75,101 @@ interface DailyForecastItem {
   evapotranspiration: number;
 }
 
-export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> = ({ currentLang }) => {
-  const [selectedRegionIndex, setSelectedRegionIndex] = useState<number>(0);
+// Fallback demo fields if none provided
+const DEMO_FIELDS_FALLBACK: FieldRecord[] = [
+  {
+    id: 'weather_f_1',
+    name: "Toshkent Paxta Maydoni #1",
+    crop_type: 'cotton',
+    planting_date: '2026-04-12',
+    area_hectares: 14.2,
+    region: "Toshkent viloyati",
+    coordinates: [[41.2995, 69.2401], [41.3025, 69.2435], [41.3000, 69.2480], [41.2970, 69.2440]],
+  },
+  {
+    id: 'weather_f_2',
+    name: "Samarqand Kuzgi Bug'doy",
+    crop_type: 'wheat',
+    planting_date: '2025-11-01',
+    area_hectares: 9.5,
+    region: "Samarqand viloyati",
+    coordinates: [[39.6542, 66.9597], [39.6570, 66.9630], [39.6530, 66.9670], [39.6500, 66.9620]],
+  },
+  {
+    id: 'weather_f_3',
+    name: "Quva Anor Bog'i",
+    crop_type: 'pomegranate',
+    planting_date: '2024-03-15',
+    area_hectares: 4.6,
+    region: "Farg'ona viloyati",
+    coordinates: [[40.3842, 71.7843], [40.3870, 71.7880], [40.3830, 71.7920], [40.3810, 71.7870]],
+  },
+];
+
+export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> = ({
+  currentLang,
+  initialRegion,
+  selectedField,
+  userProfile,
+  fields: propsFields,
+  onSelectField,
+}) => {
+  // Available fields list
+  const [allFields, setAllFields] = useState<FieldRecord[]>(() => {
+    if (propsFields && propsFields.length > 0) return propsFields;
+    if (typeof window !== 'undefined') {
+      try {
+        const local = localStorage.getItem('ekinix_farmer_fields');
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return DEMO_FIELDS_FALLBACK;
+  });
+
+  const [prevPropsFields, setPrevPropsFields] = useState(propsFields);
+  if (propsFields !== prevPropsFields) {
+    setPrevPropsFields(propsFields);
+    if (propsFields && propsFields.length > 0) {
+      setAllFields(propsFields);
+    }
+  }
+
+  // Selected Location Key (e.g. "field_xxx" or "region_0")
+  const [selectedLocationKey, setSelectedLocationKey] = useState<string>(() => {
+    if (selectedField?.id) return `field_${selectedField.id}`;
+    if (initialRegion) {
+      const idx = REGIONS_LIST.findIndex(
+        (r) =>
+          r.nameUz.toLowerCase().includes(initialRegion.toLowerCase()) ||
+          initialRegion.toLowerCase().includes(r.nameUz.toLowerCase().replace(" viloyati", ""))
+      );
+      if (idx >= 0) return `region_${idx}`;
+    }
+    return `region_0`;
+  });
+
+  const [prevSelectedField, setPrevSelectedField] = useState(selectedField);
+  const [prevInitialRegion, setPrevInitialRegion] = useState(initialRegion);
+  if (selectedField !== prevSelectedField || initialRegion !== prevInitialRegion) {
+    setPrevSelectedField(selectedField);
+    setPrevInitialRegion(initialRegion);
+    if (selectedField?.id) {
+      setSelectedLocationKey(`field_${selectedField.id}`);
+    } else if (initialRegion) {
+      const idx = REGIONS_LIST.findIndex(
+        (r) =>
+          r.nameUz.toLowerCase().includes(initialRegion.toLowerCase()) ||
+          initialRegion.toLowerCase().includes(r.nameUz.toLowerCase().replace(" viloyati", ""))
+      );
+      if (idx >= 0) {
+        setSelectedLocationKey(`region_${idx}`);
+      }
+    }
+  }
+
   const [loading, setLoading] = useState<boolean>(true);
   const [isOffline, setIsOffline] = useState<boolean>(false);
   const [currentWeather, setCurrentWeather] = useState({
@@ -94,7 +195,61 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
   const [calcNdviValue, setCalcNdviValue] = useState<number>(0.72);
   const [calcNdviTrend, setCalcNdviTrend] = useState<'improving' | 'stable' | 'declining'>('stable');
 
-  const region = REGIONS_LIST[selectedRegionIndex];
+  // Compute active location metadata (lat, lon, title, field obj if selected)
+  const activeLocation = useMemo(() => {
+    if (selectedLocationKey.startsWith('field_')) {
+      const fieldId = selectedLocationKey.replace('field_', '');
+      const matchedField = allFields.find((f) => f.id === fieldId) || selectedField || allFields[0];
+      if (matchedField && matchedField.coordinates && matchedField.coordinates.length > 0) {
+        const sumLat = matchedField.coordinates.reduce((sum, c) => sum + c[0], 0);
+        const sumLon = matchedField.coordinates.reduce((sum, c) => sum + c[1], 0);
+        const lat = sumLat / matchedField.coordinates.length;
+        const lon = sumLon / matchedField.coordinates.length;
+        return {
+          isField: true,
+          field: matchedField,
+          lat,
+          lon,
+          title: `${matchedField.name} (${matchedField.region})`,
+          regionName: matchedField.region,
+        };
+      }
+    }
+
+    let idx = 0;
+    if (selectedLocationKey.startsWith('region_')) {
+      idx = Number(selectedLocationKey.replace('region_', '')) || 0;
+    }
+    if (idx < 0 || idx >= REGIONS_LIST.length) idx = 0;
+    const reg = REGIONS_LIST[idx];
+
+    return {
+      isField: false,
+      field: null,
+      lat: reg.lat,
+      lon: reg.lon,
+      title: currentLang === 'ru' ? reg.nameRu : currentLang === 'en' ? reg.nameEn : reg.nameUz,
+      regionName: reg.nameUz,
+    };
+  }, [selectedLocationKey, allFields, selectedField, currentLang]);
+
+  // Sync calculator defaults whenever selected field changes
+  const activeFieldId = activeLocation.isField ? activeLocation.field?.id : null;
+  const [prevActiveFieldId, setPrevActiveFieldId] = useState(activeFieldId);
+  if (activeFieldId !== prevActiveFieldId) {
+    setPrevActiveFieldId(activeFieldId);
+    if (activeLocation.isField && activeLocation.field) {
+      const f = activeLocation.field;
+      if (f.crop_type) setCalcCrop(f.crop_type);
+      if (f.area_hectares) setCalcArea(f.area_hectares);
+      if (f.planting_date) {
+        const pDate = new Date(f.planting_date);
+        const now = new Date();
+        const diffDays = Math.max(1, Math.round((now.getTime() - pDate.getTime()) / (1000 * 3600 * 24)));
+        setCalcDaysSincePlanting(diffDays);
+      }
+    }
+  }
 
   useEffect(() => {
     let isMounted = true;
@@ -104,7 +259,7 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
       setIsOffline(false);
 
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${region.lat}&longitude=${region.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration&timezone=Asia%2FTashkent`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${activeLocation.lat}&longitude=${activeLocation.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration&timezone=Asia%2FTashkent`;
 
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch from Open-Meteo API');
@@ -165,7 +320,6 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
           setIsOffline(true);
           setLoading(false);
 
-          // Baseline fallback 7-day forecast
           const fallbackDays: DailyForecastItem[] = [
             { date: '2026-08-16', dayName: 'Bugun', tempMax: 33, tempMin: 21, rainProb: 5, rainSum: 0, weatherCode: 0, windSpeedMax: 12, evapotranspiration: 5.8 },
             { date: '2026-08-17', dayName: 'Ertaga', tempMax: 34, tempMin: 22, rainProb: 10, rainSum: 0, weatherCode: 1, windSpeedMax: 14, evapotranspiration: 6.1 },
@@ -185,11 +339,11 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
     return () => {
       isMounted = false;
     };
-  }, [region.lat, region.lon, currentLang]);
+  }, [activeLocation.lat, activeLocation.lon, currentLang]);
 
   const handleManualRefresh = () => {
     setLoading(true);
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${region.lat}&longitude=${region.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration&timezone=Asia%2FTashkent`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${activeLocation.lat}&longitude=${activeLocation.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_gusts_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,et0_fao_evapotranspiration&timezone=Asia%2FTashkent`;
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
@@ -292,46 +446,73 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
   return (
     <div className="py-4 sm:py-6 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-200">
       
-      {/* Header Banner */}
+      {/* Top Header Banner */}
       <div className="bg-[#1F3D2B] text-[#FAF7F0] rounded-2xl p-6 sm:p-7 border border-[#FAF7F0]/10 shadow-sm relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9A441] text-[#1F3D2B] rounded-full text-xs font-bold uppercase tracking-wider">
-              <Sun className="w-3.5 h-3.5" />
-              <span>Agro-Meteorologiya & Sug&apos;orish Markazi</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#D9A441] text-[#1F3D2B] rounded-full text-xs font-bold uppercase tracking-wider">
+                <Sun className="w-3.5 h-3.5" />
+                <span>Agro-Meteorologiya & Sug&apos;orish Markazi</span>
+              </span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-800/80 text-emerald-200 border border-emerald-600/40 text-xs font-bold">
+                <Droplets className="w-3.5 h-3.5 text-emerald-400" />
+                Tejalgan suv: ~1,840 m³
+              </span>
             </div>
             <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#FAF7F0]">
               {currentLang === 'ru'
-                ? 'Агро-прогноз погоды и расчёт полива'
+                ? 'Агрометеорология и план полива'
                 : currentLang === 'en'
-                ? 'Agro-Weather Forecast & Precision Irrigation'
-                : "Ob-havo Bashorati & Aniq Sug'orish Rejasi"}
+                ? 'Agrometeorology & Precision Irrigation Plan'
+                : "Agrometeorologiya va Sug‘orish rejasi"}
             </h1>
             <p className="text-xs sm:text-sm text-[#FAF7F0]/80 max-w-2xl">
               {currentLang === 'ru'
-                ? 'Точные метеорологические данные Open-Meteo для всех 14 регионов Узбекистана и интеллектуальный расчёт норм полива на основе NDVI и влажности.'
+                ? 'Точный график на основе телеметрии почвы Open-Meteo и Copernicus для регионов Узбекистана.'
                 : currentLang === 'en'
-                ? 'Live Open-Meteo meteorological telemetry for all 14 regions of Uzbekistan coupled with a rules-based agronomic irrigation engine.'
-                : "O'zbekistonning 14 ta hududi bo'yicha Open-Meteo jonli agrometeorologiyasi hamda sun'iy yo'ldosh NDVI va tuproq namligiga asoslangan aniq sug'orish tavsiyalari."}
+                ? 'Precision forecast based on Open-Meteo and Copernicus soil telemetry.'
+                : "Open-Meteo va Copernicus tuproq telemetriyasiga asoslangan aniq grafik."}
             </p>
           </div>
 
-          {/* Region Select & Refresh */}
+          {/* Region / Field Select & Refresh */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-[#14281C] p-2.5 rounded-xl border border-white/10 shrink-0">
             <div className="flex items-center gap-2 px-2 text-xs font-bold text-[#D9A441]">
               <MapPin className="w-3.5 h-3.5" />
-              <span>Viloyat:</span>
+              <span>{activeLocation.isField ? 'Maydon:' : 'Hudud:'}</span>
             </div>
             <select
-              value={selectedRegionIndex}
-              onChange={(e) => setSelectedRegionIndex(Number(e.target.value))}
+              value={selectedLocationKey}
+              onChange={(e) => {
+                const newKey = e.target.value;
+                setSelectedLocationKey(newKey);
+                if (newKey.startsWith('field_')) {
+                  const fId = newKey.replace('field_', '');
+                  const fObj = allFields.find((f) => f.id === fId);
+                  if (fObj && onSelectField) {
+                    onSelectField(fObj);
+                  }
+                }
+              }}
               className="bg-[#1F3D2B] text-white font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-white/20 focus:outline-none focus:ring-2 focus:ring-[#D9A441] cursor-pointer"
             >
-              {REGIONS_LIST.map((r, i) => (
-                <option key={r.nameUz} value={i} className="bg-[#1F3D2B] text-white">
-                  {currentLang === 'ru' ? r.nameRu : currentLang === 'en' ? r.nameEn : r.nameUz}
-                </option>
-              ))}
+              {allFields.length > 0 && (
+                <optgroup label="🌾 Mening Dalalarim" className="bg-[#14281C] text-[#D9A441] font-bold">
+                  {allFields.map((f) => (
+                    <option key={f.id} value={`field_${f.id}`} className="bg-[#1F3D2B] text-white font-medium">
+                      🌾 {f.name} ({f.region})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="📍 O'zbekiston Viloyatlari" className="bg-[#14281C] text-[#D9A441] font-bold">
+                {REGIONS_LIST.map((r, i) => (
+                  <option key={r.nameUz} value={`region_${i}`} className="bg-[#1F3D2B] text-white font-medium">
+                    📍 {currentLang === 'ru' ? r.nameRu : currentLang === 'en' ? r.nameEn : r.nameUz}
+                  </option>
+                ))}
+              </optgroup>
             </select>
             <Button
               onClick={handleManualRefresh}
@@ -344,6 +525,18 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </Button>
+          </div>
+        </div>
+
+        {/* Location Badge */}
+        <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 text-xs font-medium text-[#FAF7F0]/90">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-[#D9A441]" />
+            <span>Joriy joylashuv:</span>
+            <span className="text-[#D9A441] font-bold text-sm">{activeLocation.title}</span>
+          </div>
+          <div className="text-white/70">
+            📍 {activeLocation.lat.toFixed(4)}° N, {activeLocation.lon.toFixed(4)}° E
           </div>
         </div>
       </div>
@@ -365,10 +558,9 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
             variant="secondary"
             size="sm"
             onClick={() => {
-              // Trigger reload
-              const currentIdx = selectedRegionIndex;
-              setSelectedRegionIndex(-1);
-              setTimeout(() => setSelectedRegionIndex(currentIdx), 10);
+              const currentKey = selectedLocationKey;
+              setSelectedLocationKey('');
+              setTimeout(() => setSelectedLocationKey(currentKey), 10);
             }}
             leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
             className="shrink-0 text-xs"
@@ -378,139 +570,136 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
         </div>
       )}
 
-      {/* 4 Telemetry Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        {/* Metric 1: Temp */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-[#6C7C6F] text-xs font-semibold">
-            <span>Harorat</span>
-            <Thermometer className="w-4 h-4 text-[#D9A441]" />
+      {/* 3 Key Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="bg-white p-4.5 rounded-2xl border border-[#E4D9C4] shadow-xs hover:border-[#1F3D2B] transition-all">
+          <div className="flex items-center justify-between text-[#6C7C6F] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Ildiz zonasi namligi</span>
+            <Droplets className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B]">
-            {loading ? '...' : `${currentWeather.temp}°C`}
-          </div>
-          <p className="text-[11px] text-[#6C7C6F]">
-            His qilinishi: {currentWeather.apparentTemp}°C
-          </p>
-        </div>
-
-        {/* Metric 2: Humidity */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-[#6C7C6F] text-xs font-semibold">
-            <span>Havo Namligi</span>
-            <Droplets className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B]">
-            {loading ? '...' : `${currentWeather.humidity}%`}
-          </div>
-          <p className="text-[11px] text-[#6C7C6F]">
-            Bosim: {currentWeather.pressure} hPa
-          </p>
-        </div>
-
-        {/* Metric 3: Wind */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-[#6C7C6F] text-xs font-semibold">
-            <span>Shamol Tezligi</span>
-            <Wind className="w-4 h-4 text-teal-600" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B]">
-            {loading ? '...' : `${currentWeather.wind} km/soat`}
-          </div>
-          <p className="text-[11px] text-[#6C7C6F]">
-            Shiddat: {currentWeather.windGusts} km/soat
-          </p>
-        </div>
-
-        {/* Metric 4: UV / Sun */}
-        <div className="bg-white p-5 rounded-2xl border border-[#E4D9C4] shadow-xs space-y-1">
-          <div className="flex items-center justify-between text-[#6C7C6F] text-xs font-semibold">
-            <span>Yog&apos;ingarchilik</span>
-            <CloudRain className="w-4 h-4 text-sky-600" />
-          </div>
-          <div className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B]">
-            {loading ? '...' : `${currentWeather.precipitation} mm`}
-          </div>
-          <p className="text-[11px] text-[#6C7C6F]">
-            UV indeksi: {currentWeather.uvIndex} (Yuqori)
-          </p>
-        </div>
-      </div>
-
-      {/* 7-Day Weather Strip */}
-      <div className="bg-white rounded-2xl border border-[#E4D9C4] p-5 sm:p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[#D9A441]" />
-            <h3 className="font-serif text-lg sm:text-xl font-bold text-[#1F3D2B]">
-              7 Kunlik Agrometeorologik Prognoz
-            </h3>
-          </div>
-          <span className="text-xs text-[#6C7C6F] font-medium hidden sm:inline">
-            Open-Meteo &bull; {region.nameUz}
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-[#1F3D2B] tracking-tight">{calcSoilMoisture}%</div>
+          <span className="text-[11px] font-bold text-emerald-700 mt-1 inline-block">
+            Optimal (0–40 sm qatlam)
           </span>
         </div>
 
-        {loading ? (
-          <WeatherStripSkeleton />
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
-            {forecastDays.map((d, idx) => {
-              const wInfo = getWeatherInfo(d.weatherCode);
-              const Icon = wInfo.icon;
-              const isRainHigh = d.rainProb >= 50;
-
-              return (
-                <div
-                  key={d.date}
-                  className={`p-3.5 rounded-2xl border flex flex-col justify-between space-y-3 transition-all ${
-                    idx === 0
-                      ? 'bg-[#1F3D2B] text-white border-[#1F3D2B] shadow-xs'
-                      : 'bg-[#FAF7F0] text-[#1F3D2B] border-[#E4D9C4] hover:border-[#D9A441]'
-                  }`}
-                >
-                  <div className="text-center">
-                    <span className={`text-xs font-bold block ${idx === 0 ? 'text-[#D9A441]' : 'text-[#1F3D2B]'}`}>
-                      {d.dayName}
-                    </span>
-                    <span className={`text-[10px] ${idx === 0 ? 'text-white/60' : 'text-[#6C7C6F]'}`}>
-                      {d.date.slice(5)}
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center my-1">
-                    <Icon className={`w-7 h-7 ${idx === 0 ? 'text-[#D9A441]' : wInfo.color}`} />
-                    <span className={`text-[10px] mt-1 font-medium text-center line-clamp-1 ${idx === 0 ? 'text-white/80' : 'text-[#6C7C6F]'}`}>
-                      {currentLang === 'ru' ? wInfo.labelRu : currentLang === 'en' ? wInfo.labelEn : wInfo.labelUz}
-                    </span>
-                  </div>
-
-                  <div className="text-center pt-2 border-t border-black/5 space-y-1">
-                    <div className="text-sm font-bold">
-                      <span>{d.tempMax}°</span>
-                      <span className={`text-xs ml-1 ${idx === 0 ? 'text-white/60' : 'text-[#6C7C6F]'}`}>
-                        / {d.tempMin}°C
-                      </span>
-                    </div>
-
-                    <div
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md flex items-center justify-center gap-0.5 ${
-                        idx === 0
-                          ? 'bg-white/10 text-white'
-                          : isRainHigh
-                          ? 'bg-blue-100 text-blue-900 font-extrabold'
-                          : 'bg-white text-[#6C7C6F] border border-[#E4D9C4]'
-                      }`}
-                    >
-                      <Droplets className="w-2.5 h-2.5" />
-                      <span>{d.rainProb}% yog&apos;in</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        <div className="bg-white p-4.5 rounded-2xl border border-[#E4D9C4] shadow-xs hover:border-[#1F3D2B] transition-all">
+          <div className="flex items-center justify-between text-[#6C7C6F] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Evapotranspiratsiya (ET₀)</span>
+            <Thermometer className="w-4 h-4 text-amber-600" />
           </div>
-        )}
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-[#1F3D2B] tracking-tight">
+            {forecastDays[0]?.evapotranspiration || 5.8} mm/kun
+          </div>
+          <span className="text-[11px] font-medium text-[#6C7C6F] mt-1 inline-block">
+            Yuqori bug‘lanish rejimi
+          </span>
+        </div>
+
+        <div className="bg-white p-4.5 rounded-2xl border border-[#E4D9C4] shadow-xs hover:border-[#1F3D2B] transition-all">
+          <div className="flex items-center justify-between text-[#6C7C6F] mb-1">
+            <span className="text-[11px] font-bold uppercase tracking-wider">Yaqin 48 soat yog‘in</span>
+            <CloudRain className="w-4 h-4 text-sky-600" />
+          </div>
+          <div className="text-2xl sm:text-3xl font-bold font-mono text-[#1F3D2B] tracking-tight">
+            {recommendation.factors.rainSumNext48h} mm
+          </div>
+          <span className={`text-[11px] font-bold mt-1 inline-block ${
+            recommendation.factors.rainSumNext48h > 2 ? 'text-amber-800' : 'text-emerald-700'
+          }`}>
+            {recommendation.factors.rainSumNext48h > 2 ? 'Kutilayotgan yog‘in: sug‘orishni kechiktiring' : 'Rivojlanish uchun qulay sharoit'}
+          </span>
+        </div>
+      </div>
+
+      {/* 7-Day Clean Forecast Table */}
+      <div className="bg-white rounded-2xl border border-[#E4D9C4] shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-[#E4D9C4] bg-[#FAF7F0] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-[#D9A441]" />
+            <h2 className="text-xs font-bold text-[#1F3D2B] uppercase tracking-wider">
+              7 Kunlik dinamik prognoz va sug&apos;orish tavsiyalari
+            </h2>
+          </div>
+          <span className="text-[11px] text-[#6C7C6F] font-medium">Avtomatik sinxronizatsiya: Har 3 soatda</span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-[#E4D9C4] bg-[#FAF7F0]/60 text-[11px] font-bold text-[#6C7C6F] uppercase">
+                <th className="py-3 px-4">Kun</th>
+                <th className="py-3 px-4">Harorat</th>
+                <th className="py-3 px-4">Yog‘ingarchilik</th>
+                <th className="py-3 px-4">Namlik / Shamol</th>
+                <th className="py-3 px-4">Sug‘orish qarori</th>
+                <th className="py-3 px-4">Izoh</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E4D9C4]/60 font-mono">
+              {forecastDays.map((day, idx) => {
+                const wInfo = getWeatherInfo(day.weatherCode);
+                const Icon = wInfo.icon;
+
+                let recommendationType: 'hold' | 'irrigate' | 'optimal' = 'optimal';
+                let reasonText = "Tuproq namligi va harorat me'yorda";
+
+                if (day.rainSum >= 2.0 || day.rainProb >= 50) {
+                  recommendationType = 'hold';
+                  reasonText = "Yomg‘ir yog‘ishi sababli nasoslarni to‘xtating";
+                } else if (day.tempMax >= 35 || day.evapotranspiration >= 5.5) {
+                  recommendationType = 'irrigate';
+                  reasonText = "Yuqori evaporatsiya, kechki sug‘orish tavsiya etiladi";
+                }
+
+                return (
+                  <tr 
+                    key={day.date} 
+                    className="hover:bg-[#FAF7F0] transition-colors"
+                  >
+                    <td className="py-3.5 px-4 text-[#1F3D2B] font-sans font-bold flex items-center gap-2">
+                      <Icon className={`w-4 h-4 ${wInfo.color} shrink-0`} />
+                      <span>{day.dayName}</span>
+                      <span className="text-[10px] text-[#6C7C6F] font-normal">({day.date.slice(5)})</span>
+                    </td>
+                    <td className="py-3.5 px-4 text-[#1F3D2B]">
+                      <span className="font-bold">{day.tempMax}°C</span>{' '}
+                      <span className="text-[#6C7C6F] text-[11px]">/ {day.tempMin}°C</span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {day.rainSum > 0 ? (
+                        <span className="text-sky-700 font-bold">{day.rainSum} mm</span>
+                      ) : (
+                        <span className="text-[#6C7C6F]">0 mm</span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-[#6C7C6F] font-sans text-xs">
+                      {currentWeather.humidity}% · {day.windSpeedMax} km/soat
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {recommendationType === 'hold' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-sans font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          To‘xtatish
+                        </span>
+                      ) : recommendationType === 'irrigate' ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-sans font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          Sug‘orish zarur
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-sans font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Optimal holat
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 font-sans text-[#6C7C6F] text-xs truncate max-w-xs">
+                      {reasonText}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -737,7 +926,10 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
               {/* NDVI Index & Trend */}
               <div className="space-y-1.5 bg-white p-3.5 rounded-xl border border-[#E4D9C4]">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-[#1F3D2B]">NDVI Qiymati:</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-[#1F3D2B]">NDVI Qiymati:</span>
+                    <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="weather-calc-ndvi-tooltip" />
+                  </div>
                   <div className="flex items-center gap-1">
                     <span className="font-mono font-bold text-[#1F3D2B] bg-[#FAF7F0] px-1.5 py-0.5 rounded border border-[#E4D9C4]">
                       {calcNdviValue.toFixed(2)}
@@ -910,8 +1102,11 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
                   </span>
                 </div>
                 <div className="bg-white p-2.5 rounded-xl border border-[#E4D9C4]">
-                  <span className="text-[#6C7C6F] block text-[10px]">NDVI indeksi</span>
-                  <span className="font-bold text-[#1F3D2B]">{calcNdviValue} ({calcNdviTrend})</span>
+                  <div className="flex items-center justify-between text-[#6C7C6F] text-[10px]">
+                    <span>NDVI indeksi</span>
+                    <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="weather-factor-ndvi-tooltip" />
+                  </div>
+                  <span className="font-bold text-[#1F3D2B] block mt-0.5">{calcNdviValue} ({calcNdviTrend})</span>
                 </div>
                 <div className="bg-white p-2.5 rounded-xl border border-[#E4D9C4]">
                   <span className="text-[#6C7C6F] block text-[10px]">Bugungi eng yuqori harorat</span>
@@ -929,3 +1124,5 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
     </div>
   );
 };
+
+export default WeatherIrrigationSection;

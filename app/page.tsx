@@ -14,6 +14,7 @@ import { ServicePlansSection } from '@/components/ServicePlansSection';
 import { GovernmentProgramsSection } from '@/components/GovernmentProgramsSection';
 import { WeatherIrrigationSection } from '@/components/WeatherIrrigationSection';
 import { MarketplaceSection } from '@/components/MarketplaceSection';
+import { ChatSection } from '@/components/ChatSection';
 import { CropGuideSection } from '@/components/CropGuideSection';
 import { AuthModal } from '@/components/AuthModal';
 import { FarmerOnboardingModal } from '@/components/FarmerOnboardingModal';
@@ -21,7 +22,7 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { TelegramNotificationModal } from '@/components/TelegramNotificationModal';
 import { SupabaseSetupModal } from '@/components/SupabaseSetupModal';
 import { Footer } from '@/components/Footer';
-import { FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { FarmerProfile, FieldRecord, MarketplaceListing, isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export default function Home() {
   const [currentLang, setCurrentLang] = useState<Language>('uz');
@@ -34,8 +35,38 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [telegramModalOpen, setTelegramModalOpen] = useState<boolean>(false);
   const [userProfile, setUserProfile] = useState<FarmerProfile | null>(null);
+  const [activeSelectedField, setActiveSelectedField] = useState<FieldRecord | null>(null);
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [selectedChatListing, setSelectedChatListing] = useState<MarketplaceListing | null>(null);
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   const t = translations[currentLang];
+
+  // Read URL search params on mount for deep linking (e.g. ?tab=marketplace&listing=XYZ or ?tab=chat&chatId=ABC)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (typeof window === 'undefined') return;
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const tabParam = params.get('tab');
+        const listingParam = params.get('listing');
+        const chatParam = params.get('chatId');
+
+        if (tabParam && ['dashboard', 'fields', 'agronomist', 'plans', 'subsidies', 'weather', 'marketplace', 'chat', 'guides'].includes(tabParam)) {
+          setActiveTab(tabParam as NavTabId);
+        }
+        if (listingParam) {
+          setSelectedListingId(listingParam);
+        }
+        if (chatParam) {
+          setSelectedChatId(chatParam);
+        }
+      } catch {
+        // ignore
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Invalidate Leaflet maps when navigating to map-dependent tabs
   useEffect(() => {
@@ -111,7 +142,7 @@ export default function Home() {
     const handleSwitchTabEvent = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       const targetTab = customEvent.detail;
-      if (['dashboard', 'fields', 'agronomist', 'plans', 'subsidies', 'weather', 'marketplace', 'guides'].includes(targetTab)) {
+      if (['dashboard', 'fields', 'agronomist', 'plans', 'subsidies', 'weather', 'marketplace', 'chat', 'guides'].includes(targetTab)) {
         setActiveTab(targetTab as NavTabId);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -258,7 +289,7 @@ export default function Home() {
       />
 
       {/* 2. IN-APP CONTENT AREA (OFFSET ON DESKTOP BY SIDEBAR WIDTH) */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72">
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
         
         {/* Streamlined In-App Top Header */}
         <Header
@@ -351,6 +382,10 @@ export default function Home() {
             <div className="animate-in fade-in duration-200">
               <WeatherIrrigationSection
                 currentLang={currentLang}
+                initialRegion={userProfile?.region}
+                selectedField={activeSelectedField}
+                userProfile={userProfile}
+                onSelectField={(field) => setActiveSelectedField(field)}
               />
             </div>
           )}
@@ -361,6 +396,25 @@ export default function Home() {
               <MarketplaceSection
                 currentLang={currentLang}
                 userProfile={userProfile}
+                selectedListingId={selectedListingId}
+                onStartChat={(listing) => {
+                  setSelectedChatListing(listing);
+                  setActiveTab('chat');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            </div>
+          )}
+
+          {/* TAB: DIRECT CHAT & B2B NEGOTIATIONS */}
+          {activeTab === 'chat' && (
+            <div className="animate-in fade-in duration-200">
+              <ChatSection
+                currentLang={currentLang}
+                userProfile={userProfile}
+                initialListing={selectedChatListing}
+                initialChatId={selectedChatId}
+                onNavigateToMarketplace={() => handleTabSelect('marketplace')}
               />
             </div>
           )}
@@ -398,6 +452,7 @@ export default function Home() {
         currentLang={currentLang}
         onLanguageChange={setCurrentLang}
         userProfile={userProfile}
+        onOpenTelegramModal={() => setTelegramModalOpen(true)}
         onUpdateProfile={(updated) => {
           if (userProfile) {
             setUserProfile({ ...userProfile, ...updated });

@@ -4,7 +4,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 export type ButtonVariant = 'primary' | 'accent' | 'secondary' | 'destructive' | 'ghost' | 'dark-ghost';
-export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm';
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm' | 'icon-md';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -16,26 +16,27 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-[#1F3D2B] hover:bg-[#162E20] text-[#FAF7F0] border border-[#1F3D2B] shadow-xs hover:shadow-sm focus-visible:ring-[#1F3D2B]/30',
+    'bg-[#164E35] text-white hover:bg-[#0F3826] shadow-xs border border-transparent focus-visible:ring-[#164E35]/30',
   accent:
-    'bg-[#D9A441] hover:bg-[#C59132] text-[#1F3D2B] border border-[#D9A441] shadow-xs hover:shadow-sm focus-visible:ring-[#D9A441]/40',
+    'bg-slate-900 text-white hover:bg-slate-800 shadow-xs border border-transparent focus-visible:ring-slate-700/30',
   secondary:
-    'bg-white hover:bg-[#F5EFE6] text-[#1F3D2B] border border-[#E4D9C4] shadow-xs hover:shadow-sm hover:border-[#D4C4A8] focus-visible:ring-[#1F3D2B]/20',
+    'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 shadow-xs focus-visible:ring-slate-300',
   destructive:
-    'bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 shadow-xs focus-visible:ring-rose-400/30',
+    'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 shadow-xs focus-visible:ring-rose-300',
   ghost:
-    'bg-transparent hover:bg-[#1F3D2B]/5 text-[#5C6B5F] hover:text-[#1F3D2B] border border-transparent focus-visible:ring-[#1F3D2B]/20',
+    'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-transparent focus-visible:ring-slate-300',
   'dark-ghost':
-    'bg-transparent hover:bg-white/10 text-[#FAF7F0]/80 hover:text-white border border-transparent focus-visible:ring-white/20',
+    'text-slate-300 hover:text-white hover:bg-white/10 border border-transparent focus-visible:ring-white/20',
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
-  xs: 'px-2.5 py-1 text-xs rounded-lg gap-1.5 font-medium min-h-[30px]',
-  sm: 'px-3.5 py-1.5 text-xs sm:text-sm rounded-xl gap-1.5 font-bold min-h-[36px]',
-  md: 'px-4 py-2.5 text-sm rounded-xl gap-2 font-bold min-h-[42px]',
-  lg: 'px-5 py-3 text-base rounded-xl gap-2.5 font-bold min-h-[48px]',
-  icon: 'p-2 rounded-xl min-w-[40px] min-h-[40px] flex items-center justify-center',
-  'icon-sm': 'p-1.5 rounded-lg min-w-[32px] min-h-[32px] flex items-center justify-center',
+  xs: 'h-7 px-2.5 text-xs font-medium rounded-lg gap-1',
+  sm: 'h-8 px-3 text-xs font-medium rounded-lg gap-1.5',
+  md: 'h-9 px-3.5 text-xs sm:text-sm font-medium rounded-lg gap-2',
+  lg: 'h-10 px-4 text-sm font-medium rounded-lg gap-2',
+  icon: 'w-9 h-9 rounded-lg p-0 flex items-center justify-center shrink-0',
+  'icon-sm': 'w-8 h-8 rounded-lg p-0 flex items-center justify-center shrink-0',
+  'icon-md': 'w-9 h-9 rounded-lg p-0 flex items-center justify-center shrink-0',
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -58,8 +59,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || isLoading}
         className={cn(
-          'inline-flex items-center justify-center whitespace-nowrap transition-all duration-150 select-none cursor-pointer',
-          'active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed',
+          'inline-flex items-center justify-center whitespace-nowrap transition-colors duration-150 select-none cursor-pointer',
+          'disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1',
           variantStyles[variant],
           sizeStyles[size],
@@ -68,7 +69,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {isLoading ? (
-          <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-1.5" />
+          <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
         ) : (
           leftIcon && <span className="shrink-0">{leftIcon}</span>
         )}
@@ -80,3 +81,4 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 
 Button.displayName = 'Button';
+

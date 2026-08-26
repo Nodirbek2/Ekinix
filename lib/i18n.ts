@@ -6,6 +6,7 @@ export interface Translations {
   fields: string;
   weatherIrrigation: string;
   marketplace: string;
+  chat: string;
   guides: string;
   login: string;
   register: string;
@@ -182,6 +183,7 @@ export const translations: Record<Language, Translations> = {
     fields: "Maydonlar",
     weatherIrrigation: "Ob-havo va Sug'orish",
     marketplace: "Hosil bozori",
+    chat: "Xabarlar",
     guides: "Dehqonchilik qo'llanmasi",
     login: "Kirish",
     register: "Ro'yxatdan o'tish",
@@ -344,6 +346,7 @@ export const translations: Record<Language, Translations> = {
     fields: "Поля",
     weatherIrrigation: "Погода и Полив",
     marketplace: "Рынок Урожая",
+    chat: "Сообщения",
     guides: "Справочник",
     login: "Войти",
     register: "Регистрация",
@@ -506,6 +509,7 @@ export const translations: Record<Language, Translations> = {
     fields: "Fields",
     weatherIrrigation: "Weather & Irrigation",
     marketplace: "Crop Market",
+    chat: "Messages",
     guides: "Agri Guides",
     login: "Sign In",
     register: "Register",

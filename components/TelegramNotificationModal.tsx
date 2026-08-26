@@ -27,6 +27,7 @@ import {
 import { Language, translations } from '@/lib/i18n';
 import { FarmerProfile, FieldRecord } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
+import { InfoTooltip } from '@/components/InfoTooltip';
 
 interface TelegramNotificationModalProps {
   isOpen: boolean;
@@ -381,7 +382,7 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
 
       const data = await res.json();
       // Generate bot reply in chat
-      let replyText = '';
+      let replyText = data?.replyText || '';
       let replyButtons: string[] = [
         "⛅ Bugungi ob-havo & sug'orish",
         "🌾 Mening dalalarim",
@@ -392,7 +393,8 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
 
       const lowerCmd = command.toLowerCase();
 
-      if (lowerCmd.includes('start') || lowerCmd === '/start') {
+      if (!replyText) {
+        if (lowerCmd.includes('start') || lowerCmd === '/start') {
         replyText = `🌱 <b>Ekinix — O'zbekiston dehqonlari uchun aqlli yordamchi botiga xush kelibsiz!</b>\n\nAssalomu alaykum, <b>Hurmatli dehqon!</b> 👋\n\n🤖 <b>Ushbu bot sizga quyidagilarda yordam beradi:</b>\n• ⛅ <b>Ob-havo va Sug'orish (/weather):</b> Open-Meteo orqali 7 kunlik ob-havo va aniq suv me'yori (m³/ga)\n• 🌾 <b>Mening dalalarim (/fields):</b> Barcha ro'yxatdan o'tgan ekin maydonlaringiz va gektari\n• 🛰️ <b>Sun'iy yo'ldosh NDVI (/ndvi):</b> Sentinel-2 sun'iy yo'ldoshidan o'simlik salomatligi va tuproq namligi\n• 👨‍🌾 <b>Agronom xulosasi (/agronomist):</b> Mutaxassis agronomlarning o'g'itlash va himoya ko'rsatmalari\n• 🔔 <b>Bildirishnomalar (/notifications):</b> Har kuni ertalab 07:00 da avtomatik ob-havo va sovuq xavfidan ogohlantirish\n\n👇 <i>Kerakli buyruqni tanlang:</i>`;
       } else if (lowerCmd.includes('ob-havo') || lowerCmd === '/weather' || lowerCmd.includes('prognos')) {
         replyText = `☀️ <b>BUGUNGI OB-HAVO & SUG'ORISH (Jonli Open-Meteo)</b>\n\n📍 <b>Dala:</b> 1-Maydon (Paxta, 24.5 ga)\n🌡️ <b>Harorat:</b> +28°C (Kunduzi: +33° / Kechasi: +19°)\n💧 <b>Havo namligi:</b> 42% | <b>Shamol:</b> 12 km/soat\n🌧️ <b>Yomg'ir ehtimoli:</b> 10% (Yog'ingarchilik kutilmaydi)\n\n💧 <b>Sug'orish tavsiyasi:</b> Me'yorda — bugun kechki payt 32 m³/ga tomchilatib sug'orish tavsiya etiladi.`;
@@ -445,6 +447,7 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
       } else {
         replyText = `🌱 Ekinix tizimida buyrug'ingiz qabul qilindi. Menyudan kerakli bo'limni tanlang:`;
       }
+      }
 
       setSimulatedChat((prev) => [
         ...prev,
@@ -460,7 +463,7 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#1F3D2B]/80 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-[#1F3D2B]/80 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-3xl bg-[#FAF7F0] rounded-3xl shadow-2xl border-2 border-[#E4D9C4] overflow-hidden flex flex-col max-h-[94vh]">
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-[#1F3D2B] via-[#1B3626] to-[#122419] text-[#FAF7F0] p-5 sm:p-6 flex items-center justify-between border-b border-[#D9A441]/30">
@@ -648,18 +651,37 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
                 )}
               </div>
 
-              {/* 2-Step Simple Activation Instructions */}
-              <div className="bg-[#FAF7F0] rounded-2xl p-5 border border-[#E4D9C4] space-y-3">
-                <h4 className="font-serif text-sm font-bold text-[#1F3D2B] flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-[#D9A441]" />
-                  <span>
-                    {currentLang === 'ru'
-                      ? 'Как активировать бота за 30 секунд:'
-                      : currentLang === 'en'
-                      ? 'How to activate in 30 seconds:'
-                      : "Botni 30 soniyada ulash tartibi:"}
-                  </span>
-                </h4>
+              {/* Quick Activation Code & Bot Action Card */}
+              <div className="bg-[#FAF7F0] rounded-2xl p-5 border border-[#E4D9C4] space-y-4">
+                <p className="text-xs sm:text-sm text-[#3A4A3E] leading-relaxed">
+                  {currentLang === 'ru'
+                    ? 'Получайте мгновенные предупреждения о стрессе растений, дефиците влаги и прогнозе дождей прямо через Telegram-бота.'
+                    : currentLang === 'en'
+                    ? 'Receive instant alerts regarding crop drought stress, moisture deficit, and incoming rain directly via our Telegram bot.'
+                    : "Maydoningizdagi qurg‘oqchilik stressi va kutilayotgan yomg‘ir haqida bevosita Telegram bot orqali tezkor ogohlantirish oling."}
+                </p>
+
+                <div className="bg-white p-4 rounded-xl border border-[#E4D9C4] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                  <div>
+                    <span className="text-[11px] font-semibold text-[#6C7C6F] uppercase tracking-wider block mb-1">
+                      {currentLang === 'ru' ? 'Ваш код активации:' : currentLang === 'en' ? 'Your Activation Code:' : "Sizning faollashtirish kodingiz:"}
+                    </span>
+                    <div className="font-mono font-bold text-lg text-[#1F3D2B] tracking-wider">
+                      EKX-9824
+                    </div>
+                  </div>
+
+                  <a
+                    href="https://t.me/ekinix_bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto h-9 px-4 bg-[#0088cc] hover:bg-[#0077b5] text-white text-xs font-semibold rounded-xl inline-flex items-center justify-center gap-2 transition-colors shadow-xs"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{currentLang === 'ru' ? 'Запустить в боте (@ekinix_bot)' : currentLang === 'en' ? 'Launch in bot (@ekinix_bot)' : 'Botda ishga tushirish (@ekinix_bot)'}</span>
+                  </a>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-[#5C6B5F]">
                   <div className="p-3 bg-white rounded-xl border border-[#E4D9C4] space-y-1">
                     <span className="w-5 h-5 rounded-full bg-[#1F3D2B] text-[#D9A441] font-bold text-[11px] flex items-center justify-center">
@@ -774,13 +796,16 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
                         <Layers className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="font-bold text-xs sm:text-sm text-[#1F3D2B]">
-                          {currentLang === 'ru'
-                            ? 'Спутниковый NDVI индекс и карта стресса'
-                            : currentLang === 'en'
-                            ? 'Sentinel-2 NDVI vegetation health updates'
-                            : "Sentinel-2 sun'iy yo'ldosh NDVI xulosasi"}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-xs sm:text-sm text-[#1F3D2B]">
+                            {currentLang === 'ru'
+                              ? 'Спутниковый NDVI индекс и карта стресса'
+                              : currentLang === 'en'
+                              ? 'Sentinel-2 NDVI vegetation health updates'
+                              : "Sentinel-2 sun'iy yo'ldosh NDVI xulosasi"}
+                          </p>
+                          <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="tg-modal-ndvi-trigger-tooltip" />
+                        </div>
                         <p className="text-[11px] text-[#6C7C6F] mt-0.5">
                           {currentLang === 'ru'
                             ? 'Спутниковый мониторинг Sentinel-2 каждые 3-5 дней при обновлении снимков'
@@ -1259,7 +1284,10 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
                     <span className="font-mono font-bold text-[#1F3D2B] bg-white px-2 py-0.5 rounded border border-[#E4D9C4]">
                       /ndvi
                     </span>
-                    <p className="font-bold text-[#1F3D2B] mt-1">{"Sun'iy yo'ldosh NDVI"}</p>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="font-bold text-[#1F3D2B]">{"Sun'iy yo'ldosh NDVI"}</p>
+                      <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="tg-guide-ndvi-tooltip" />
+                    </div>
                     <p className="text-[#6C7C6F]">
                       {"Sentinel-2 sun'iy yo'ldoshidan ekin vegetatsiyasi va tuproq namligi indeksi."}
                     </p>

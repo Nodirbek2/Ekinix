@@ -38,18 +38,40 @@ function getWeatherMeta(code: number) {
 // Map region name to fallback coordinates in Uzbekistan
 const REGION_COORDS_FALLBACK: Record<string, [number, number]> = {
   "Toshkent viloyati": [41.2995, 69.2401],
+  "Toshkent": [41.2995, 69.2401],
   "Toshkent shahri": [41.2995, 69.2401],
   "Samarqand viloyati": [39.6542, 66.9597],
+  "Samarqand": [39.6542, 66.9597],
+  "Samarkand": [39.6542, 66.9597],
   "Farg'ona viloyati": [40.3842, 71.7843],
+  "Farg'ona": [40.3842, 71.7843],
+  "Fergana": [40.3842, 71.7843],
   "Buxoro viloyati": [39.7747, 64.4286],
+  "Buxoro": [39.7747, 64.4286],
+  "Bukhara": [39.7747, 64.4286],
   "Namangan viloyati": [40.9983, 71.6726],
+  "Namangan": [40.9983, 71.6726],
   "Andijon viloyati": [40.7821, 72.3442],
+  "Andijon": [40.7821, 72.3442],
+  "Andijan": [40.7821, 72.3442],
   "Qashqadaryo viloyati": [38.8605, 65.7891],
+  "Qashqadaryo": [38.8605, 65.7891],
+  "Kashkadarya": [38.8605, 65.7891],
   "Surxondaryo viloyati": [37.2242, 67.2783],
+  "Surxondaryo": [37.2242, 67.2783],
+  "Surkhandarya": [37.2242, 67.2783],
   "Xorazm viloyati": [41.5503, 60.6317],
+  "Xorazm": [41.5503, 60.6317],
+  "Khorezm": [41.5503, 60.6317],
   "Navoiy viloyati": [40.1031, 65.3688],
+  "Navoiy": [40.1031, 65.3688],
   "Sirdaryo viloyati": [40.4897, 68.7842],
+  "Sirdaryo": [40.4897, 68.7842],
+  "Jizzax viloyati": [40.1158, 67.8422],
+  "Jizzax": [40.1158, 67.8422],
   "Qoraqalpog'iston Respublikasi": [43.7683, 59.0214],
+  "Qoraqalpog'iston": [43.7683, 59.0214],
+  "Karakalpakstan": [43.7683, 59.0214],
 };
 
 export function getFieldCenterCoordinates(field: FieldRecord): [number, number] {
@@ -65,7 +87,20 @@ export function getFieldCenterCoordinates(field: FieldRecord): [number, number] 
       parseFloat((lonSum / field.coordinates.length).toFixed(4)),
     ];
   }
-  return REGION_COORDS_FALLBACK[field.region] || [41.2995, 69.2401];
+
+  if (field.region) {
+    const regStr = field.region.toLowerCase().trim();
+    if (REGION_COORDS_FALLBACK[field.region]) {
+      return REGION_COORDS_FALLBACK[field.region];
+    }
+    for (const [key, coords] of Object.entries(REGION_COORDS_FALLBACK)) {
+      if (regStr.includes(key.toLowerCase()) || key.toLowerCase().includes(regStr)) {
+        return coords;
+      }
+    }
+  }
+
+  return [41.2995, 69.2401];
 }
 
 export const FieldWeatherCard: React.FC<FieldWeatherCardProps> = ({ field, currentLang }) => {

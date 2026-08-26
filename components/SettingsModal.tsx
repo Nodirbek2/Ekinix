@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, User, Bell, Globe, ShieldCheck, Phone, MapPin, Sprout, Save, AlertTriangle } from 'lucide-react';
+import { X, Check, User, Bell, Globe, ShieldCheck, Phone, MapPin, Sprout, Save, AlertTriangle, Send, ExternalLink } from 'lucide-react';
 import { Language, translations } from '@/lib/i18n';
 import { FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
@@ -56,6 +56,7 @@ interface SettingsModalProps {
   onLanguageChange: (lang: Language) => void;
   userProfile?: FarmerProfile | null;
   onUpdateProfile?: (updated: Partial<FarmerProfile>) => void;
+  onOpenTelegramModal?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -64,7 +65,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentLang,
   onLanguageChange,
   userProfile,
-  onUpdateProfile
+  onUpdateProfile,
+  onOpenTelegramModal
 }) => {
   const t = translations[currentLang];
   const [activeTab, setActiveTab] = useState<'profile' | 'notifications' | 'language'>('profile');
@@ -172,7 +174,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-[#1F3D2B]/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-3 sm:p-4 bg-[#1F3D2B]/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-[#FAF7F0] rounded-3xl shadow-2xl border-2 border-[#E4D9C4] overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header */}
@@ -402,6 +404,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
+              {/* Telegram Bot Quick Connect Box */}
+              <div className="p-4 bg-sky-50 rounded-2xl border border-sky-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#0088cc] text-white flex items-center justify-center shadow-xs shrink-0">
+                    <Send className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <span>Telegram Agro Bot</span>
+                      <span className="text-[10px] bg-sky-200 text-sky-900 px-1.5 py-0.5 rounded font-mono font-bold">@ekinix_bot</span>
+                    </h4>
+                    <p className="text-[11px] text-sky-800">
+                      {currentLang === 'uz'
+                        ? "Tezkor ogohlantirishlar va sun'iy yo'ldosh xabarlari"
+                        : currentLang === 'ru'
+                        ? "Мгновенные уведомления и спутниковые снимки"
+                        : "Instant alerts & satellite NDVI updates"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {onOpenTelegramModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenTelegramModal();
+                      }}
+                      className="flex-1 sm:flex-none px-3 py-2 bg-white hover:bg-sky-100 text-sky-900 border border-sky-300 rounded-xl text-xs font-bold transition-colors cursor-pointer text-center"
+                    >
+                      {currentLang === 'uz' ? "Botni sozlash" : currentLang === 'ru' ? "Настроить бота" : "Configure Bot"}
+                    </button>
+                  )}
+                  <a
+                    href="https://t.me/ekinix_bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 sm:flex-none px-3.5 py-2 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5 shadow-xs"
+                  >
+                    <span>{currentLang === 'uz' ? "Ochish" : currentLang === 'ru' ? "Открыть" : "Open"}</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+
             </div>
           )}
 
@@ -525,6 +573,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <p className="text-[10px] opacity-75">{ch.sub}</p>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Telegram Bot Details Card */}
+              <div className="bg-[#FAF7F0] rounded-2xl p-4 border border-[#E4D9C4] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-[#0088cc] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                      <Send className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-[#1F3D2B]">Ekinix Telegram Bot (@ekinix_bot)</h4>
+                      <p className="text-[11px] text-[#6C7C6F]">
+                        {currentLang === 'uz' ? "Kodi: EKX-9824 • Sun'iy yo'ldosh & Sovuq xabarlari" : "Код: EKX-9824 • Снимки и заморозки"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                    {currentLang === 'uz' ? "Tayyor" : "Готов"}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
+                  <a
+                    href="https://t.me/ekinix_bot"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:flex-1 py-2 px-3 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{currentLang === 'uz' ? "Telegram botda ochish" : "Открыть в Telegram"}</span>
+                  </a>
+
+                  {onOpenTelegramModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenTelegramModal();
+                      }}
+                      className="w-full sm:w-auto py-2 px-3.5 bg-white hover:bg-slate-100 text-[#1F3D2B] border border-[#E4D9C4] rounded-xl text-xs font-bold transition-colors cursor-pointer text-center"
+                    >
+                      {currentLang === 'uz' ? "Batafsil sozlamalar" : "Подробные настройки"}
+                    </button>
+                  )}
                 </div>
               </div>
 

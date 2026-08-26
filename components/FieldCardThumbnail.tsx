@@ -10,10 +10,12 @@ interface FieldCardThumbnailProps {
 
 export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
   coordinates,
-  height = 140,
+  height = 110,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
+
+  const coordsKey = JSON.stringify(coordinates || []);
 
   useEffect(() => {
     let isMounted = true;
@@ -58,14 +60,14 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
 
       if (coordinates && coordinates.length >= 3) {
         const polygon = L.polygon(coordinates, {
-          color: '#D9A441',
+          color: '#10B981',
           weight: 2,
-          fillColor: '#1F3D2B',
-          fillOpacity: 0.5,
+          fillColor: '#10B981',
+          fillOpacity: 0.25,
         }).addTo(map);
 
         try {
-          map.fitBounds(polygon.getBounds(), { padding: [15, 15], animate: false });
+          map.fitBounds(polygon.getBounds(), { padding: [12, 12], animate: false });
         } catch {
           // ignore
         }
@@ -83,15 +85,16 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
         mapRef.current = null;
       }
     };
-  }, [coordinates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordsKey]);
 
   if (!coordinates || coordinates.length === 0) {
     return (
       <div
         style={{ height }}
-        className="w-full bg-[#1F3D2B]/10 rounded-xl border border-[#E4D9C4] flex items-center justify-center text-xs text-[#6C7C6F]"
+        className="w-full bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center text-xs text-slate-500"
       >
-        <span>Xarita xarakteristikasi yo&apos;q</span>
+        <span>Xarita koordinatasi yo&apos;q</span>
       </div>
     );
   }
@@ -99,12 +102,11 @@ export const FieldCardThumbnail: React.FC<FieldCardThumbnailProps> = ({
   return (
     <div
       style={{ height }}
-      className="w-full rounded-xl overflow-hidden border border-[#1F3D2B]/30 relative shadow-inner"
+      className="w-full rounded-lg overflow-hidden border border-slate-200 relative bg-slate-900 isolate z-0"
     >
-      <div ref={containerRef} className="w-full h-full" />
-      <div className="absolute top-2 right-2 bg-[#1F3D2B]/90 text-[#FAF7F0] text-[10px] font-bold px-2 py-0.5 rounded-md border border-[#D9A441]">
-        Sun&apos;iy Yo&apos;ldosh
-      </div>
+      <div ref={containerRef} className="w-full h-full relative z-0" />
     </div>
   );
 };
+
+export default FieldCardThumbnail;

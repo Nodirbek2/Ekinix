@@ -21,7 +21,7 @@ export const SupabaseSetupModal: React.FC<SupabaseSetupModalProps> = ({ isOpen, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[150] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div className="bg-[#FAF7F0] rounded-3xl max-w-2xl w-full p-6 sm:p-8 border-2 border-[#1F3D2B] shadow-2xl relative space-y-6 max-h-[90vh] overflow-y-auto">
         
         {/* Close Button */}

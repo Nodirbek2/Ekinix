@@ -17,12 +17,17 @@ import {
   Tag, Send, X, Copy, ExternalLink, Sparkles, RefreshCw, AlertCircle,
   Package, ChevronRight, MessageSquare, ShieldCheck, Check,
   Upload, Image as ImageIcon, Camera, Link as LinkIcon, Trash2,
-  Edit3, Eye, CheckCircle, Clock, Ban, UserCheck, AlertTriangle
+  Edit3, Eye, CheckCircle, Clock, Ban, UserCheck, AlertTriangle,
+  Star, Award, Layers, Scale, TrendingUp, BarChart3
 } from 'lucide-react';
+import { MarketplaceDetailView } from '@/components/MarketplaceDetailView';
+import { MarketAccessAdviser } from '@/components/MarketAccessAdviser';
 
 interface MarketplaceSectionProps {
   currentLang: Language;
   userProfile?: FarmerProfile | null;
+  selectedListingId?: string | null;
+  onStartChat?: (listing: MarketplaceListing) => void;
 }
 
 // Preset crop image mappings with high quality agricultural photography
@@ -32,12 +37,12 @@ const DEFAULT_CROP_IMAGES: Record<string, string> = {
   olma: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80',
   bugdoy: 'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=600&q=80',
   paxta: 'https://images.unsplash.com/photo-1605000797499-95a51c5269ae?auto=format&fit=crop&w=600&q=80',
-  qovun: 'https://images.unsplash.com/photo-1598170845058-12ef4a45753b?auto=format&fit=crop&w=600&q=80',
+  qovun: 'https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&w=600&q=80',
   tarvuz: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80',
-  sabzi: 'https://images.unsplash.com/photo-1598170845058-12ef4a45753b?auto=format&fit=crop&w=600&q=80',
+  sabzi: 'https://images.unsplash.com/photo-1447175008436-054170c2e979?auto=format&fit=crop&w=600&q=80',
   anor: 'https://images.unsplash.com/photo-1615485290382-441e4d049cb5?auto=format&fit=crop&w=600&q=80',
   kartoshka: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=600&q=80',
-  piyoz: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cf?auto=format&fit=crop&w=600&q=80',
+  piyoz: 'https://images.unsplash.com/photo-1508747703725-719777637510?auto=format&fit=crop&w=600&q=80',
   bodring: 'https://images.unsplash.com/photo-1604977042946-1eecc30f269e?auto=format&fit=crop&w=600&q=80',
   shaftoli: 'https://images.unsplash.com/photo-1629828874514-c1e5103f2150?auto=format&fit=crop&w=600&q=80',
   qulupnay: 'https://images.unsplash.com/photo-1464965911861-746a04b4bca6?auto=format&fit=crop&w=600&q=80',
@@ -81,6 +86,176 @@ const UZBEKISTAN_REGIONS = [
 
 type ListingStatusFilter = 'all_active' | 'all' | 'available' | 'reserved' | 'sold' | 'my_listings';
 
+const DEFAULT_DEMO_LISTINGS: MarketplaceListing[] = [
+  {
+    id: 'list-1',
+    farmer_name: 'Akmal Rahimov',
+    crop_name: 'Paxta (G‘o‘za)',
+    variety: 'Buxoro-102',
+    category: 'paxta',
+    total_quantity: 45,
+    remaining_quantity: 30,
+    unit: 'tonna',
+    price_uzs_per_unit: 9200,
+    price_usd_per_unit: 0.72,
+    location_region: 'Buxoro viloyati, Vobkent',
+    phone_contact: '+998 90 123 45 67',
+    telegram_contact: 'vobkent_agro_paxta',
+    expected_date: '2026-09-15',
+    harvest_date: '2026-yil avgust (1-terim)',
+    isVerified: true,
+    qualityGrade: 'Export',
+    farmer_rating: 4.9,
+    deals_count: 24,
+    packaging: 'Kip (preslangan 200 kg qoplar)',
+    image_url: DEFAULT_CROP_IMAGES.paxta,
+    images: [
+      DEFAULT_CROP_IMAGES.paxta,
+      'https://images.unsplash.com/photo-1595855759920-86582396756a?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80'
+    ],
+    status: 'available',
+    description: "Export sifatli birinchi terim g'o'za paxta hosili. Vobkent tumanidagi zamonaviy agrofirmadan to'g'ridan-to'g'ri ulgurji xaridorlar uchun. Tolalilik darajasi 36%, namlik 8% me'yorida. Laboratoriya sertifikatlari mavjud."
+  },
+  {
+    id: 'list-2',
+    farmer_name: 'Sardorbek Jo‘rayev',
+    crop_name: 'Kuzgi bug‘doy',
+    variety: 'Alekseich',
+    category: 'don',
+    total_quantity: 120,
+    remaining_quantity: 85,
+    unit: 'tonna',
+    price_uzs_per_unit: 3100,
+    price_usd_per_unit: 0.24,
+    location_region: 'Qashqadaryo, Qarshi',
+    phone_contact: '+998 91 234 56 78',
+    telegram_contact: 'sardor_galla',
+    expected_date: '2026-06-20',
+    harvest_date: '2026-yil iyun',
+    isVerified: true,
+    qualityGrade: 'A',
+    farmer_rating: 4.8,
+    deals_count: 19,
+    packaging: '50 kg qoplar yoki to‘kma',
+    image_url: DEFAULT_CROP_IMAGES.bugdoy,
+    images: [
+      DEFAULT_CROP_IMAGES.bugdoy,
+      'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80'
+    ],
+    status: 'available',
+    description: "Alekseich navli yuqori sifatli bug'doy. Qarshi tumanidan yetkazib berish sharoitlari bilan. Kleykovina 26%, don tozaligi 99%."
+  },
+  {
+    id: 'list-3',
+    farmer_name: 'Dilshod Soliyev',
+    crop_name: 'Gilos',
+    variety: 'Valeriy Chkalov',
+    category: 'meva',
+    total_quantity: 12,
+    remaining_quantity: 8,
+    unit: 'tonna',
+    price_uzs_per_unit: 24000,
+    price_usd_per_unit: 1.88,
+    location_region: 'Farg‘ona, Quva',
+    phone_contact: '+998 93 345 67 89',
+    telegram_contact: 'quva_gilos_export',
+    expected_date: '2026-05-25',
+    harvest_date: '2026-yil may',
+    isVerified: true,
+    qualityGrade: 'Export',
+    farmer_rating: 5.0,
+    deals_count: 32,
+    packaging: '5 kg yog‘och yashiklar (Sovutgichli fura uchun tayyor)',
+    image_url: DEFAULT_CROP_IMAGES.uzum,
+    images: [
+      DEFAULT_CROP_IMAGES.uzum,
+      'https://images.unsplash.com/photo-1528825871115-3581a5387919?auto=format&fit=crop&w=800&q=80'
+    ],
+    status: 'available',
+    description: "Quva bog'laridan saralangan eksportbop Valeriy Chkalov gilosi. Kalibri 28-32 mm, shirin va to'q qizil rangda. Sovutgichli kamerada saqlanmoqda."
+  },
+  {
+    id: 'list-4',
+    farmer_name: 'Bobur Mirzayev',
+    crop_name: 'Qizil Pomidor',
+    variety: 'Volgogradskiy',
+    category: 'sabzavot',
+    total_quantity: 35,
+    remaining_quantity: 22,
+    unit: 'tonna',
+    price_uzs_per_unit: 6500,
+    price_usd_per_unit: 0.51,
+    location_region: 'Toshkent viloyati, Zangiota',
+    phone_contact: '+998 97 456 78 90',
+    telegram_contact: 'zangiota_tomatoes',
+    expected_date: 'Hozir mavjud',
+    harvest_date: '2026-yil avgust',
+    isVerified: true,
+    qualityGrade: 'A',
+    farmer_rating: 4.9,
+    deals_count: 14,
+    packaging: '10 kg plastik yashiklar',
+    image_url: DEFAULT_CROP_IMAGES.pomidor,
+    images: [
+      DEFAULT_CROP_IMAGES.pomidor,
+      'https://images.unsplash.com/photo-1561136594-7f68413baa99?auto=format&fit=crop&w=800&q=80'
+    ],
+    status: 'available',
+    description: "Ochiq maydonda yetishtirilgan quyosh nuri bilan to'yingan shirin pomidor. Konservalash va yangi iste'mol uchun juda mos."
+  },
+  {
+    id: 'list-5',
+    farmer_name: 'Nodirbek Qodirov',
+    crop_name: 'Qora Kishmish Uzum',
+    variety: 'Qora Kishmish Samarqand',
+    category: 'meva',
+    total_quantity: 28,
+    remaining_quantity: 18,
+    unit: 'tonna',
+    price_uzs_per_unit: 18000,
+    price_usd_per_unit: 1.41,
+    location_region: 'Samarqand, Ishtixon',
+    phone_contact: '+998 94 567 89 01',
+    telegram_contact: 'samarqand_uzum_bog',
+    expected_date: '2026-09-01',
+    harvest_date: '2026-yil sentabr',
+    isVerified: true,
+    qualityGrade: 'Export',
+    farmer_rating: 5.0,
+    deals_count: 41,
+    packaging: '8 kg yog‘och yashiklar',
+    image_url: 'https://images.unsplash.com/photo-1537640538966-79f369143f8f?auto=format&fit=crop&w=800&q=80',
+    status: 'available',
+    description: "Ishtixon uzumzorlaridan sara Qora Kishmish uzumi. Danaksiz, shakar miqdori 24% brix. Eksport va quritish uchun ayni muddao."
+  },
+  {
+    id: 'list-6',
+    farmer_name: 'Hamidulla Jo‘rayev',
+    crop_name: 'Mirzacho‘l Shirin Qovun',
+    variety: 'Oqurug‘ / Ko‘kcha',
+    category: 'poliz',
+    total_quantity: 50,
+    remaining_quantity: 35,
+    unit: 'tonna',
+    price_uzs_per_unit: 4200,
+    price_usd_per_unit: 0.33,
+    location_region: 'Jizzax, Do‘stlik',
+    phone_contact: '+998 99 678 90 12',
+    telegram_contact: 'jizzax_mirzachol_qovun',
+    expected_date: 'Hozir mavjud',
+    harvest_date: '2026-yil avgust',
+    isVerified: true,
+    qualityGrade: 'A',
+    farmer_rating: 4.8,
+    deals_count: 16,
+    packaging: 'To‘kma yoki somon to‘shalgan fura',
+    image_url: DEFAULT_CROP_IMAGES.qovun,
+    status: 'available',
+    description: "Mashhur Mirzacho'l yerlarida yetishtirilgan nihoyatda shirin va xushbo'y qovun partiyasi. O'rtacha vazni 5-8 kg."
+  }
+];
+
 // Helper to generate a unique listing ID
 function generateListingId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -89,7 +264,12 @@ function generateListingId(): string {
   return `list-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentLang, userProfile }) => {
+export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({
+  currentLang,
+  userProfile,
+  selectedListingId,
+  onStartChat,
+}) => {
   const t = translations[currentLang];
 
   // State
@@ -102,6 +282,11 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
   const [statusFilter, setStatusFilter] = useState<ListingStatusFilter>('all_active');
   const [myListingIds, setMyListingIds] = useState<string[]>([]);
   const [currentAuthUserId, setCurrentAuthUserId] = useState<string | null>(null);
+  const [onlyExportGrade, setOnlyExportGrade] = useState<boolean>(false);
+  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc' | 'volume_desc'>('newest');
+
+  // Detail View State
+  const [detailListing, setDetailListing] = useState<MarketplaceListing | null>(null);
 
   // Modals & UI States
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
@@ -121,9 +306,11 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
   // Form State for creating/editing listing
   const [formData, setFormData] = useState({
     crop_name: '',
+    variety: '',
+    qualityGrade: 'A' as 'A' | 'B' | 'Export',
     category: 'sabzavot',
     price_uzs_per_unit: '',
-    unit: 'kg',
+    unit: 'tonna',
     total_quantity: '',
     expected_date: 'Hozir mavjud',
     location_region: userProfile?.region || 'Toshkent viloyati',
@@ -246,6 +433,19 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
       // ignore
     }
 
+    // 3. Fallback to demo listings if no listings exist yet
+    if (loadedListings.length === 0) {
+      loadedListings = [...DEFAULT_DEMO_LISTINGS];
+    } else {
+      // Ensure default demo items exist if not already present
+      const existingIds = new Set(loadedListings.map(l => l.id));
+      for (const demo of DEFAULT_DEMO_LISTINGS) {
+        if (!existingIds.has(demo.id)) {
+          loadedListings.push(demo);
+        }
+      }
+    }
+
     // Sort by created_at desc
     loadedListings.sort((a, b) => {
       const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -324,9 +524,11 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
     setEditingListing(item);
     setFormData({
       crop_name: item.crop_name,
+      variety: item.variety || '',
+      qualityGrade: (item.qualityGrade as 'A' | 'B' | 'Export') || 'A',
       category: item.category || 'sabzavot',
       price_uzs_per_unit: item.price_uzs_per_unit ? String(item.price_uzs_per_unit) : '',
-      unit: item.unit || 'kg',
+      unit: item.unit || 'tonna',
       total_quantity: String(item.total_quantity || ''),
       expected_date: item.expected_date || 'Hozir mavjud',
       location_region: item.location_region || 'Toshkent viloyati',
@@ -359,6 +561,8 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
       const updatedItem: MarketplaceListing = {
         ...editingListing,
         crop_name: formData.crop_name,
+        variety: formData.variety || undefined,
+        qualityGrade: formData.qualityGrade || 'A',
         category: formData.category,
         price_uzs_per_unit: priceNum,
         unit: formData.unit,
@@ -425,6 +629,9 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
         user_id: currentAuthUserId || userProfile?.user_id,
         farmer_name: formData.farmer_name,
         crop_name: formData.crop_name,
+        variety: formData.variety || undefined,
+        qualityGrade: formData.qualityGrade || 'A',
+        isVerified: true,
         category: formData.category,
         price_uzs_per_unit: priceNum,
         unit: formData.unit,
@@ -586,9 +793,11 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
   const resetForm = () => {
     setFormData({
       crop_name: '',
+      variety: '',
+      qualityGrade: 'A',
       category: 'sabzavot',
       price_uzs_per_unit: '',
-      unit: 'kg',
+      unit: 'tonna',
       total_quantity: '',
       expected_date: 'Hozir mavjud',
       location_region: userProfile?.region || 'Toshkent viloyati',
@@ -614,9 +823,22 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
     return clean.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   };
 
-  // Filter listings based on Search, Category, Region, and Status
+  // Sync with selectedListingId prop (from URL query or parent)
+  useEffect(() => {
+    if (selectedListingId && listings.length > 0) {
+      const timer = setTimeout(() => {
+        const found = listings.find(l => l.id === selectedListingId);
+        if (found) {
+          setDetailListing(found);
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedListingId, listings]);
+
+  // Filter & sort listings based on Search, Category, Region, Status, Export grade, and SortBy
   const filteredListings = useMemo(() => {
-    return listings.filter(item => {
+    const result = listings.filter(item => {
       // 1. Search Query
       const query = searchQuery.toLowerCase().trim();
       const matchesSearch = !query || 
@@ -626,14 +848,21 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
         (item.description && item.description.toLowerCase().includes(query));
 
       // 2. Category Filter
-      const matchesCat = selectedCategory === 'all' || item.category === selectedCategory;
+      const catLower = selectedCategory.toLowerCase();
+      const matchesCat = selectedCategory === 'all' || 
+        item.category === selectedCategory ||
+        item.crop_name.toLowerCase().includes(catLower) ||
+        (item.variety && item.variety.toLowerCase().includes(catLower));
 
       // 3. Region Filter
       const matchesRegion = selectedRegion === 'all' || 
         item.location_region.toLowerCase().includes(selectedRegion.toLowerCase()) ||
         (selectedRegion === 'Barcha viloyatlar');
 
-      // 4. Status Filter
+      // 4. Export Grade Filter
+      const matchesExport = !onlyExportGrade || item.qualityGrade === 'Export';
+
+      // 5. Status Filter
       const itemStatus = item.status || 'available';
       let matchesStatus = true;
 
@@ -652,9 +881,26 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
         matchesStatus = true;
       }
 
-      return matchesSearch && matchesCat && matchesRegion && matchesStatus;
+      return matchesSearch && matchesCat && matchesRegion && matchesExport && matchesStatus;
     });
-  }, [listings, searchQuery, selectedCategory, selectedRegion, statusFilter, isOwner]);
+
+    // Apply Sorting
+    return result.sort((a, b) => {
+      if (sortBy === 'price_asc') {
+        return (a.price_uzs_per_unit || 0) - (b.price_uzs_per_unit || 0);
+      }
+      if (sortBy === 'price_desc') {
+        return (b.price_uzs_per_unit || 0) - (a.price_uzs_per_unit || 0);
+      }
+      if (sortBy === 'volume_desc') {
+        return (b.total_quantity || 0) - (a.total_quantity || 0);
+      }
+      // default: newest
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [listings, searchQuery, selectedCategory, selectedRegion, statusFilter, onlyExportGrade, sortBy, isOwner]);
 
   // Count active / my listings
   const activeCount = useMemo(() => {
@@ -707,6 +953,7 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
             <Button
               variant="accent"
               size="md"
+              id="hero-post-listing-btn"
               onClick={() => {
                 resetForm();
                 setCreateModalOpen(true);
@@ -717,8 +964,23 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
             </Button>
 
             <Button
+              variant="ghost"
+              size="md"
+              id="hero-market-access-btn"
+              onClick={() => {
+                resetForm();
+                setCreateModalOpen(true);
+              }}
+              leftIcon={<Scale className="w-4 h-4 text-[#D9A441]" />}
+              className="bg-white/10 hover:bg-white/20 text-[#FAF7F0] border-white/20"
+            >
+              {currentLang === 'ru' ? 'Справочник цен (Market Access)' : currentLang === 'en' ? 'Market Access & Prices' : 'Bozor narxlari & Tavsiyalar'}
+            </Button>
+
+            <Button
               variant={statusFilter === 'my_listings' ? 'secondary' : 'ghost'}
               size="md"
+              id="hero-my-listings-btn"
               onClick={() => setStatusFilter(statusFilter === 'my_listings' ? 'all_active' : 'my_listings')}
               leftIcon={<UserCheck className="w-4 h-4 text-[#D9A441]" />}
               className={statusFilter !== 'my_listings' ? 'bg-white/10 hover:bg-white/20 text-[#FAF7F0] border-white/20' : ''}
@@ -785,12 +1047,13 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
           {/* Category Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto w-full lg:w-auto pb-1 sm:pb-0 scrollbar-none">
             {[
-              { id: 'all', label: currentLang === 'ru' ? 'Все категории' : currentLang === 'en' ? 'All' : 'Barchasi', icon: '🧺' },
+              { id: 'all', label: currentLang === 'ru' ? 'Все' : currentLang === 'en' ? 'All' : 'Barchasi', icon: '🧺' },
+              { id: 'paxta', label: currentLang === 'ru' ? 'Хлопок' : currentLang === 'en' ? 'Cotton' : 'Paxta', icon: '🌱' },
+              { id: 'bug‘doy', label: currentLang === 'ru' ? 'Пшеница' : currentLang === 'en' ? 'Wheat' : 'Bug‘doy', icon: '🌾' },
+              { id: 'gilos', label: currentLang === 'ru' ? 'Черешня' : currentLang === 'en' ? 'Cherry' : 'Gilos', icon: '🍒' },
+              { id: 'makkajo‘xori', label: currentLang === 'ru' ? 'Кукуруза' : currentLang === 'en' ? 'Corn' : 'Makkajo‘xori', icon: '🌽' },
               { id: 'sabzavot', label: currentLang === 'ru' ? 'Овощи' : currentLang === 'en' ? 'Vegetables' : 'Sabzavotlar', icon: '🥦' },
               { id: 'meva', label: currentLang === 'ru' ? 'Фрукты' : currentLang === 'en' ? 'Fruits' : 'Mevalar', icon: '🍎' },
-              { id: 'don', label: currentLang === 'ru' ? 'Зерновые' : currentLang === 'en' ? 'Grains' : 'Don & G\'alla', icon: '🌾' },
-              { id: 'paxta', label: currentLang === 'ru' ? 'Хлопок' : currentLang === 'en' ? 'Cotton' : 'Paxta', icon: '🌱' },
-              { id: 'boshqa', label: currentLang === 'ru' ? 'Другое' : currentLang === 'en' ? 'Other' : 'Boshqa', icon: '📦' },
             ].map((cat) => (
               <button
                 key={cat.id}
@@ -808,55 +1071,84 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
           </div>
 
           {/* Status Filter Tabs (Faol / Barchasi / Mavjud / Band / Sotilgan / Mening) */}
-          <div className="flex items-center bg-[#F0E8D8] p-1 rounded-2xl border border-[#E4D9C4] shrink-0 self-start lg:self-auto overflow-x-auto max-w-full">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Export Grade Checkbox */}
             <button
-              onClick={() => setStatusFilter('all_active')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                statusFilter === 'all_active'
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
-                  : 'text-[#5C4033] hover:text-[#1F3D2B]'
+              onClick={() => setOnlyExportGrade(!onlyExportGrade)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer border ${
+                onlyExportGrade
+                  ? 'bg-emerald-800 text-white border-emerald-900 shadow-xs'
+                  : 'bg-white text-[#4A5D4E] hover:bg-[#F0E8D8] border-[#E4D9C4]'
               }`}
             >
-              {currentLang === 'ru' ? 'Активные' : currentLang === 'en' ? 'Active' : 'Faol e\'lonlar'}
+              <Award className="w-3.5 h-3.5 text-[#D9A441]" />
+              <span>{currentLang === 'ru' ? 'Только Экспорт' : currentLang === 'en' ? 'Export Grade Only' : 'Faqat Export navi'}</span>
             </button>
 
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                statusFilter === 'all'
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
-                  : 'text-[#5C4033] hover:text-[#1F3D2B]'
-              }`}
-            >
-              {currentLang === 'ru' ? 'Все' : currentLang === 'en' ? 'All' : 'Barchasi'}
-            </button>
+            {/* Sort Dropdown */}
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e: any) => setSortBy(e.target.value)}
+                className="bg-white border border-[#E4D9C4] rounded-xl px-3 py-1.5 text-xs text-[#1F3D2B] font-semibold focus:outline-none focus:ring-2 focus:ring-[#1F3D2B] cursor-pointer"
+              >
+                <option value="newest">{currentLang === 'ru' ? 'Сначала новые' : currentLang === 'en' ? 'Newest' : 'Eng yangi'}</option>
+                <option value="price_asc">{currentLang === 'ru' ? 'Сначала дешевле' : currentLang === 'en' ? 'Price: Low to High' : 'Narx: Arzonroq'}</option>
+                <option value="price_desc">{currentLang === 'ru' ? 'Сначала дороже' : currentLang === 'en' ? 'Price: High to Low' : 'Narx: Qimmatroq'}</option>
+                <option value="volume_desc">{currentLang === 'ru' ? 'По объему' : currentLang === 'en' ? 'Volume: High to Low' : 'Hajmi: Kattaroq'}</option>
+              </select>
+            </div>
 
-            <button
-              onClick={() => setStatusFilter('sold')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                statusFilter === 'sold'
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
-                  : 'text-[#5C4033] hover:text-[#1F3D2B]'
-              }`}
-            >
-              {currentLang === 'ru' ? 'Продано' : currentLang === 'en' ? 'Sold' : 'Sotilgan'}
-            </button>
+            <div className="flex items-center bg-[#F0E8D8] p-1 rounded-2xl border border-[#E4D9C4] shrink-0 overflow-x-auto max-w-full">
+              <button
+                onClick={() => setStatusFilter('all_active')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  statusFilter === 'all_active'
+                    ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
+                    : 'text-[#5C4033] hover:text-[#1F3D2B]'
+                }`}
+              >
+                {currentLang === 'ru' ? 'Активные' : currentLang === 'en' ? 'Active' : 'Faol e\'lonlar'}
+              </button>
 
-            <button
-              onClick={() => setStatusFilter('my_listings')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 cursor-pointer ${
-                statusFilter === 'my_listings'
-                  ? 'bg-[#D9A441] text-[#1F3D2B] shadow-xs font-extrabold'
-                  : 'text-[#5C4033] hover:text-[#1F3D2B]'
-              }`}
-            >
-              <span>{currentLang === 'ru' ? 'Мои' : currentLang === 'en' ? 'Mine' : 'Mening'}</span>
-              {myListingsCount > 0 && (
-                <span className="bg-[#1F3D2B] text-[#FAF7F0] text-[10px] px-1.5 py-0.2 rounded-full">
-                  {myListingsCount}
-                </span>
-              )}
-            </button>
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  statusFilter === 'all'
+                    ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
+                    : 'text-[#5C4033] hover:text-[#1F3D2B]'
+                }`}
+              >
+                {currentLang === 'ru' ? 'Все' : currentLang === 'en' ? 'All' : 'Barchasi'}
+              </button>
+
+              <button
+                onClick={() => setStatusFilter('sold')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                  statusFilter === 'sold'
+                    ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
+                    : 'text-[#5C4033] hover:text-[#1F3D2B]'
+                }`}
+              >
+                {currentLang === 'ru' ? 'Продано' : currentLang === 'en' ? 'Sold' : 'Sotilgan'}
+              </button>
+
+              <button
+                onClick={() => setStatusFilter('my_listings')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1 cursor-pointer ${
+                  statusFilter === 'my_listings'
+                    ? 'bg-[#D9A441] text-[#1F3D2B] shadow-xs font-extrabold'
+                    : 'text-[#5C4033] hover:text-[#1F3D2B]'
+                }`}
+              >
+                <span>{currentLang === 'ru' ? 'Мои' : currentLang === 'en' ? 'Mine' : 'Mening'}</span>
+                {myListingsCount > 0 && (
+                  <span className="bg-[#1F3D2B] text-[#FAF7F0] text-[10px] px-1.5 py-0.2 rounded-full">
+                    {myListingsCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
         </div>
@@ -943,258 +1235,226 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
         />
       ) : (
         /* LISTINGS GRID */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredListings.map((item) => {
             const userIsOwner = isOwner(item);
             const itemStatus = item.status || 'available';
             const isSold = itemStatus === 'sold';
             const isReserved = itemStatus === 'reserved';
-            const isAvailable = itemStatus === 'available';
+            const totalQty = item.total_quantity || 0;
+            const remQty = item.remaining_quantity !== undefined ? item.remaining_quantity : totalQty;
+            const progressPercent = totalQty > 0 ? Math.round((remQty / totalQty) * 100) : 100;
+            const pricePerKg = item.unit === 'tonna' ? (item.price_uzs_per_unit ? item.price_uzs_per_unit : null) : item.price_uzs_per_unit;
 
             return (
               <div
                 key={item.id}
-                className={`bg-[#FAF7F0] rounded-3xl overflow-hidden border-2 transition-all flex flex-col justify-between group relative ${
-                  isSold 
-                    ? 'border-gray-300 opacity-85 shadow-sm bg-gray-50/50' 
-                    : userIsOwner 
-                    ? 'border-[#D9A441] shadow-md hover:shadow-xl ring-2 ring-[#D9A441]/20' 
-                    : 'border-[#E4D9C4] hover:border-[#D9A441] shadow-md hover:shadow-xl'
+                className={`bg-white rounded-2xl overflow-hidden border transition-all flex flex-col justify-between group relative shadow-xs hover:shadow-md ${
+                  isSold
+                    ? 'border-slate-200 opacity-80'
+                    : userIsOwner
+                    ? 'border-[#D9A441] ring-1 ring-[#D9A441]/30'
+                    : 'border-slate-200 hover:border-[#1F3D2B]/40'
                 }`}
               >
-                {/* CARD TOP: IMAGE & BADGES */}
-                <div>
-                  <div className="relative h-48 w-full bg-[#1F3D2B]/10 overflow-hidden">
-                    <NextImage
-                      src={item.image_url || DEFAULT_CROP_IMAGES.default}
-                      alt={item.crop_name}
-                      fill
-                      referrerPolicy="no-referrer"
-                      className={`object-cover transition-transform duration-500 ${
-                        isSold ? 'grayscale-[50%] brightness-90' : 'group-hover:scale-105'
-                      }`}
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    
-                    {/* Top Left: Status Badge */}
-                    <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
+                {/* Top Image & Floating Badges */}
+                <div 
+                  className="relative h-44 w-full bg-slate-100 overflow-hidden cursor-pointer"
+                  onClick={() => setDetailListing(item)}
+                >
+                  <NextImage
+                    src={item.image_url || (item.images && item.images[0]) || DEFAULT_CROP_IMAGES.default}
+                    alt={item.crop_name}
+                    fill
+                    referrerPolicy="no-referrer"
+                    className={`object-cover transition-transform duration-500 group-hover:scale-105 ${
+                      isSold ? 'grayscale-[50%]' : ''
+                    }`}
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
+
+                  {/* Top Badges */}
+                  <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       {isSold ? (
-                        <span className="bg-rose-900/90 backdrop-blur-md text-rose-100 font-extrabold text-[11px] px-3 py-1 rounded-full border border-rose-400/40 shadow-md inline-flex items-center gap-1">
-                          <Ban className="w-3.5 h-3.5 text-rose-300" />
+                        <span className="bg-rose-900/90 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-xs">
+                          <Ban className="w-3 h-3" />
                           <span>{currentLang === 'ru' ? 'Продано' : currentLang === 'en' ? 'Sold' : 'Sotilgan'}</span>
                         </span>
                       ) : isReserved ? (
-                        <span className="bg-amber-800/90 backdrop-blur-md text-amber-100 font-extrabold text-[11px] px-3 py-1 rounded-full border border-amber-400/30 shadow-md inline-flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-amber-300" />
-                          <span>{currentLang === 'ru' ? 'Забронировано' : currentLang === 'en' ? 'Reserved' : 'Band qilingan'}</span>
+                        <span className="bg-amber-800/90 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-xs">
+                          <Clock className="w-3 h-3" />
+                          <span>{currentLang === 'ru' ? 'Забронировано' : currentLang === 'en' ? 'Reserved' : 'Band'}</span>
                         </span>
                       ) : (
-                        <span className="bg-emerald-800/90 backdrop-blur-md text-emerald-100 font-extrabold text-[11px] px-3 py-1 rounded-full border border-emerald-400/30 shadow-md inline-flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
-                          <span>{item.expected_date || (currentLang === 'ru' ? 'В наличии' : 'Hozir mavjud')}</span>
+                        <span className="bg-emerald-800/90 text-white font-bold text-[10px] px-2.5 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-xs">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-300" />
+                          <span>{item.expected_date || (currentLang === 'ru' ? 'В наличии' : 'Mavjud')}</span>
                         </span>
                       )}
 
-                      {/* Owner Badge */}
                       {userIsOwner && (
-                        <span className="bg-[#D9A441] text-[#1F3D2B] font-extrabold text-[10px] px-2.5 py-0.5 rounded-full shadow-md inline-flex items-center gap-1 border border-white/40">
-                          <UserCheck className="w-3 h-3" />
-                          <span>{currentLang === 'ru' ? 'Ваше объявление' : currentLang === 'en' ? 'Your Listing' : 'Sizning e\'loningiz'}</span>
+                        <span className="bg-[#D9A441] text-[#1F3D2B] font-extrabold text-[10px] px-2 py-0.5 rounded-md shadow-xs">
+                          {currentLang === 'ru' ? 'Моё' : 'Mening'}
                         </span>
                       )}
                     </div>
 
-                    {/* Bottom Image Tag: Quantity & Region */}
-                    <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white">
-                      <span className="bg-[#1F3D2B]/90 backdrop-blur-md text-[#FAF7F0] font-bold text-xs px-3 py-1.5 rounded-xl border border-white/20">
-                        📦 {item.total_quantity} {item.unit}
+                    {item.qualityGrade && (
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md backdrop-blur-xs shadow-xs ${
+                        item.qualityGrade === 'Export'
+                          ? 'bg-[#D9A441] text-[#1F3D2B]'
+                          : 'bg-black/60 text-white border border-white/20'
+                      }`}>
+                        {item.qualityGrade === 'Export' ? '★ EXPORT' : `NAV: ${item.qualityGrade}`}
                       </span>
-                      <span className="text-[11px] font-semibold text-white/90 bg-black/40 px-2 py-0.5 rounded-md backdrop-blur-xs">
-                        {item.location_region.split(',')[0]}
-                      </span>
-                    </div>
+                    )}
                   </div>
 
-                  {/* CARD BODY */}
-                  <div className="p-5 space-y-3">
-                    
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider bg-[#F0E8D8] text-[#5C4033] px-2.5 py-1 rounded-md border border-[#E4D9C4]">
-                        {item.category === 'sabzavot' ? (currentLang === 'ru' ? 'Овощи' : 'Sabzavot') :
-                         item.category === 'meva' ? (currentLang === 'ru' ? 'Фрукты' : 'Meva') :
-                         item.category === 'don' ? (currentLang === 'ru' ? 'Зерновые' : 'Don & G\'alla') :
-                         item.category === 'paxta' ? (currentLang === 'ru' ? 'Хлопок' : 'Paxta') :
-                         (currentLang === 'ru' ? 'Сельхоз' : 'Qishloq Xo\'jaligi')}
-                      </span>
-                      <span className="text-[11px] text-[#6C7C6F] font-medium flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{currentLang === 'ru' ? 'Проверен' : 'Tasdiqlangan'}</span>
-                      </span>
-                    </div>
-
-                    <h3 className={`font-serif text-lg font-bold leading-snug transition-colors ${
-                      isSold ? 'text-gray-500 line-through' : 'text-[#1F3D2B] group-hover:text-[#B8852B]'
-                    }`}>
-                      {item.crop_name}
-                    </h3>
-
-                    <div className="space-y-1 text-xs text-[#4A5D4E]">
-                      <p className="flex items-center gap-1.5 font-medium">
-                        <MapPin className="w-3.5 h-3.5 text-[#D9A441] shrink-0" />
-                        <span>{item.location_region}</span>
-                      </p>
-                      <p className="text-[#6C7C6F]">
-                        {currentLang === 'ru' ? 'Продавец: ' : 'Sotuvchi: '}
-                        <strong className="text-[#1F3D2B]">{item.farmer_name}</strong>
-                      </p>
-                    </div>
-
-                    {item.description && (
-                      <p className="text-xs text-[#6C7C6F] line-clamp-2 italic pt-1 border-t border-[#E4D9C4]">
-                        &ldquo;{item.description}&rdquo;
-                      </p>
-                    )}
-
+                  {/* Bottom Image Stats */}
+                  <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center justify-between text-white text-[11px] font-semibold">
+                    <span className="bg-black/60 backdrop-blur-xs px-2 py-0.5 rounded-md border border-white/10 tabular-nums">
+                      📦 {item.total_quantity} {item.unit}
+                    </span>
+                    <span className="bg-black/60 backdrop-blur-xs px-2 py-0.5 rounded-md border border-white/10 flex items-center gap-1">
+                      <MapPin className="w-3 h-3 text-[#D9A441]" />
+                      {item.location_region.split(',')[0]}
+                    </span>
                   </div>
                 </div>
 
-                {/* CARD FOOTER & OWNER CONTROLS */}
-                <div className="p-5 pt-0 space-y-3">
-                  
-                  {/* Price Row */}
-                  <div className="pt-3 border-t border-[#E4D9C4] flex items-baseline justify-between">
-                    <span className="text-xs text-[#6C7C6F] font-semibold">
-                      {currentLang === 'ru' ? 'Ориентировочная цена:' : 'Mo\'ljallangan narx:'}
-                    </span>
-                    <span className="text-base font-serif font-extrabold text-[#1F3D2B]">
-                      {item.price_uzs_per_unit ? (
-                        <>
-                          {item.price_uzs_per_unit.toLocaleString()} <span className="text-xs font-sans font-normal text-[#6C7C6F]">so&apos;m/{item.unit}</span>
-                        </>
-                      ) : (
-                        <span className="text-sm font-sans text-[#B8852B] font-bold">
-                          {currentLang === 'ru' ? 'Договорная' : 'Kelishilgan narxda'}
-                        </span>
+                {/* Card Content */}
+                <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div 
+                      className="cursor-pointer group-hover:text-[#1F3D2B]"
+                      onClick={() => setDetailListing(item)}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-semibold text-sm text-[#1F3D2B] leading-snug hover:underline line-clamp-1">
+                          {item.crop_name}
+                        </h3>
+                        {item.variety && (
+                          <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                            {item.variety}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Pricing Box with dual rate */}
+                    <div className="bg-[#FAF7F0] border border-[#E4D9C4] rounded-xl p-2.5 flex items-baseline justify-between">
+                      <div>
+                        <div className="text-[10px] text-slate-500 font-medium">
+                          {currentLang === 'ru' ? 'Цена за 1 кг / ед:' : 'Narxi (1 birlik):'}
+                        </div>
+                        <div className="text-base font-bold text-[#1F3D2B] tabular-nums tracking-tight">
+                          {pricePerKg ? `${pricePerKg.toLocaleString('uz-UZ')} so‘m` : 'Kelishilgan'}
+                        </div>
+                      </div>
+                      {item.price_usd_per_unit && (
+                        <div className="text-right">
+                          <div className="text-[10px] text-slate-500">Valyuta (USD)</div>
+                          <div className="text-xs font-semibold text-emerald-800 tabular-nums">
+                            ~${item.price_usd_per_unit.toFixed(2)}
+                          </div>
+                        </div>
                       )}
-                    </span>
+                    </div>
+
+                    {/* Stock Remaining Meter */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600 font-medium">
+                        <span>{currentLang === 'ru' ? 'Остаток партии:' : 'Qolgan hajm:'}</span>
+                        <span className="font-bold text-[#1F3D2B] tabular-nums">
+                          {remQty} / {totalQty} {item.unit}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-[#1F3D2B] h-full rounded-full transition-all"
+                          style={{ width: `${Math.min(100, Math.max(0, progressPercent))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Farmer Details */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <div className="w-5 h-5 rounded-full bg-[#1F3D2B] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                          {item.farmer_name ? item.farmer_name.charAt(0) : 'D'}
+                        </div>
+                        <span className="truncate font-medium text-slate-800">{item.farmer_name}</span>
+                        {item.isVerified !== false && (
+                          <span title="Tasdiqlangan dehqon">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          </span>
+                        )}
+                      </div>
+
+                      {item.farmer_rating && (
+                        <div className="flex items-center gap-0.5 font-bold text-amber-800 text-[10px] shrink-0">
+                          <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                          <span>{item.farmer_rating.toFixed(1)}</span>
+                          {item.deals_count && <span className="text-slate-500 font-normal">({item.deals_count})</span>}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* OWNER ACTION CONTROLS (Only visible to creator) */}
-                  {userIsOwner ? (
-                    <div className="bg-[#F0E8D8] p-3 rounded-2xl border border-[#E4D9C4] space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-[#5C4033]">
-                        <span>{currentLang === 'ru' ? 'Управление объявлением:' : 'E\'lon boshqaruvi:'}</span>
-                        <span className="text-[10px] text-[#B8852B] font-extrabold uppercase">
-                          {itemStatus}
-                        </span>
-                      </div>
-
-                      {/* Status Toggle Buttons */}
+                  {/* Actions / Buttons */}
+                  <div className="pt-2 border-t border-slate-100 space-y-2">
+                    {userIsOwner ? (
+                      /* Owner quick actions */
                       <div className="grid grid-cols-2 gap-1.5">
-                        {isAvailable && (
-                          <>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleChangeStatus(item, 'sold')}
-                              leftIcon={<Ban className="w-3.5 h-3.5" />}
-                              className="text-[11px] py-1.5 w-full"
-                              title="E'lonni sotilgan deb belgilash va faol ro'yxatdan olish"
-                            >
-                              {currentLang === 'ru' ? 'Продано' : 'Sotildi'}
-                            </Button>
-
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleChangeStatus(item, 'reserved')}
-                              leftIcon={<Clock className="w-3.5 h-3.5" />}
-                              className="text-[11px] py-1.5 w-full bg-amber-700 hover:bg-amber-800 text-white border-amber-800"
-                            >
-                              {currentLang === 'ru' ? 'Забронировать' : 'Band qilish'}
-                            </Button>
-                          </>
-                        )}
-
-                        {isReserved && (
-                          <>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleChangeStatus(item, 'sold')}
-                              leftIcon={<Ban className="w-3.5 h-3.5" />}
-                              className="text-[11px] py-1.5 w-full"
-                            >
-                              {currentLang === 'ru' ? 'Продано' : 'Sotildi'}
-                            </Button>
-
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleChangeStatus(item, 'available')}
-                              leftIcon={<CheckCircle2 className="w-3.5 h-3.5 text-[#D9A441]" />}
-                              className="text-[11px] py-1.5 w-full"
-                            >
-                              {currentLang === 'ru' ? 'Активно' : 'Faol qilish'}
-                            </Button>
-                          </>
-                        )}
-
-                        {isSold && (
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() => handleChangeStatus(item, 'available')}
-                            leftIcon={<RefreshCw className="w-3.5 h-3.5 text-[#D9A441]" />}
-                            className="col-span-2 text-[11px] py-1.5 w-full"
-                          >
-                            {currentLang === 'ru' ? 'Вернуть в активные' : 'Qayta sotuvga chiqarish'}
-                          </Button>
-                        )}
-                      </div>
-
-                      {/* Edit & Delete Action Buttons */}
-                      <div className="flex items-center gap-1.5 pt-1">
-                        <Button
-                          variant="secondary"
-                          size="sm"
+                        <button
+                          onClick={() => setDetailListing(item)}
+                          className="h-8 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>{currentLang === 'ru' ? 'Просмотр' : 'Ko‘rish'}</span>
+                        </button>
+                        <button
                           onClick={() => handleOpenEdit(item)}
-                          leftIcon={<Edit3 className="w-3.5 h-3.5 text-[#D9A441]" />}
-                          className="flex-1 text-[11px] py-1.5"
+                          className="h-8 rounded-lg text-xs font-semibold bg-[#FAF7F0] border border-[#E4D9C4] hover:bg-[#F0E8D8] text-[#1F3D2B] flex items-center justify-center gap-1 transition-colors cursor-pointer"
                         >
-                          {currentLang === 'ru' ? 'Редактировать' : 'Tahrirlash'}
-                        </Button>
-
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteListing(item)}
-                          leftIcon={<Trash2 className="w-3.5 h-3.5" />}
-                          className="text-[11px] py-1.5 px-3"
-                          title="E'lonni butunlay o'chirish"
-                        >
-                          {currentLang === 'ru' ? 'Удалить' : 'O\'chirish'}
-                        </Button>
+                          <Edit3 className="w-3.5 h-3.5 text-[#D9A441]" />
+                          <span>{currentLang === 'ru' ? 'Изменить' : 'Tahrirlash'}</span>
+                        </button>
                       </div>
+                    ) : (
+                      /* Buyer Actions: View Details + Direct Chat/Contact */
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setDetailListing(item)}
+                          className="h-9 rounded-xl text-xs font-semibold bg-[#FAF7F0] hover:bg-[#F0E8D8] text-[#1F3D2B] border border-[#E4D9C4] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-[#D9A441]" />
+                          <span>{currentLang === 'ru' ? 'Детали' : 'Batafsil'}</span>
+                        </button>
 
-                    </div>
-                  ) : (
-                    /* PUBLIC CONTACT BUTTON */
-                    <Button
-                      variant={isSold ? 'ghost' : 'primary'}
-                      size="md"
-                      onClick={() => setContactModalItem(item)}
-                      disabled={isSold}
-                      leftIcon={<Phone className={`w-4 h-4 ${isSold ? 'text-gray-400' : 'text-[#D9A441]'}`} />}
-                      className={`w-full ${isSold ? 'bg-gray-200 text-gray-500 border border-gray-300' : ''}`}
-                    >
-                      {isSold 
-                        ? (currentLang === 'ru' ? 'Товар продан' : 'Mahsulot sotilgan')
-                        : (currentLang === 'ru' ? 'Связаться с фермером' : 'Dehqon Bilan Bog\'lanish')}
-                    </Button>
-                  )}
-
+                        <button
+                          onClick={() => {
+                            if (onStartChat) {
+                              onStartChat(item);
+                            } else {
+                              setContactModalItem(item);
+                            }
+                          }}
+                          disabled={isSold}
+                          className={`h-9 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-2xs ${
+                            isSold
+                              ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-not-allowed'
+                              : 'bg-[#1F3D2B] hover:bg-[#14281C] text-white border border-[#D9A441]/40'
+                          }`}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-[#D9A441]" />
+                          <span>{currentLang === 'ru' ? 'Чат / Связь' : 'Xabar / Bog‘lanish'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
               </div>
@@ -1271,6 +1531,37 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
                 </div>
               </div>
 
+              {/* Variety & Quality Grade */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1">
+                    {currentLang === 'ru' ? 'Сорт / Разновидность' : 'Navi / Xili (Ixtiyoriy)'}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Masalan: Gala, Husseyn, Alekseich"
+                    value={formData.variety}
+                    onChange={(e) => setFormData({ ...formData, variety: e.target.value })}
+                    className="w-full bg-white border border-[#E4D9C4] rounded-xl px-3.5 py-2.5 text-xs text-[#1F3D2B] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1">
+                    {currentLang === 'ru' ? 'Сорт качества *' : 'Sifat toifasi / Navi *'}
+                  </label>
+                  <select
+                    value={formData.qualityGrade}
+                    onChange={(e) => setFormData({ ...formData, qualityGrade: e.target.value as 'A' | 'B' | 'Export' })}
+                    className="w-full bg-white border border-[#E4D9C4] rounded-xl px-3.5 py-2.5 text-xs text-[#1F3D2B] focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  >
+                    <option value="Export">🌟 Export navi (Высший экспортный сорт)</option>
+                    <option value="A">🥇 1-nav (Стандартное качество А)</option>
+                    <option value="B">🥈 2-nav / Qayta ishlashga (Сорт Б / Переработка)</option>
+                  </select>
+                </div>
+              </div>
+
               {/* Quantity & Unit */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
@@ -1305,6 +1596,29 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
                   </select>
                 </div>
               </div>
+
+              {/* MARKET ACCESS & ADVISORY SECTION */}
+              <MarketAccessAdviser
+                currentLang={currentLang}
+                cropName={formData.crop_name}
+                category={formData.category}
+                unit={formData.unit}
+                qualityGrade={formData.qualityGrade}
+                userEnteredPrice={formData.price_uzs_per_unit}
+                activeListings={listings}
+                onApplyAdvisedPrice={(price) => {
+                  setFormData(prev => ({ ...prev, price_uzs_per_unit: String(price) }));
+                }}
+                onSelectCropPreset={(preset) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    crop_name: preset.name,
+                    category: preset.category,
+                    unit: preset.unit,
+                    price_uzs_per_unit: String(preset.advisedPrice)
+                  }));
+                }}
+              />
 
               {/* Expected Date & Price */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1783,6 +2097,41 @@ export const MarketplaceSection: React.FC<MarketplaceSectionProps> = ({ currentL
 
           </div>
         </div>
+      )}
+
+      {/* ==================== MARKETPLACE FULL DETAIL VIEW MODAL ==================== */}
+      {detailListing && (
+        <MarketplaceDetailView
+          listing={detailListing}
+          isOpen={true}
+          currentLang={currentLang}
+          userProfile={userProfile}
+          onClose={() => setDetailListing(null)}
+          onStartChat={(item) => {
+            setDetailListing(null);
+            if (onStartChat) {
+              onStartChat(item);
+            } else {
+              setContactModalItem(item);
+            }
+          }}
+          onChangeStatus={(item, newStatus) => {
+            const updatedListing = { ...item, status: newStatus };
+            setListings((prev) =>
+              prev.map((l) => (l.id === updatedListing.id ? updatedListing : l))
+            );
+            setDetailListing(updatedListing);
+            showToast(
+              currentLang === 'ru'
+                ? 'Статус объявления обновлен'
+                : "E'lon holati muvaffaqiyatli yangilandi"
+            );
+          }}
+          onEditListing={(item) => {
+            setDetailListing(null);
+            handleOpenEdit(item);
+          }}
+        />
       )}
 
     </section>

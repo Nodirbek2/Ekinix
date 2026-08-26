@@ -174,17 +174,64 @@ export interface MarketplaceListing {
   user_id?: string;
   farmer_name: string;
   crop_name: string;
-  category: 'sabzavot' | 'meva' | 'don' | 'paxta' | 'boshqa' | string;
+  category: 'sabzavot' | 'meva' | 'don' | 'paxta' | 'poliz' | 'boshqa' | string;
   price_uzs_per_unit?: number | null;
+  price_usd_per_unit?: number | null;
   unit: 'kg' | 'tonna' | 'qop' | 'dona' | 'quti' | string;
   total_quantity: number;
+  remaining_quantity?: number;
+  min_order_quantity?: number;
   expected_date?: string;
+  harvest_date?: string;
   location_region: string;
+  district?: string;
+  latitude?: number;
+  longitude?: number;
   phone_contact: string;
   telegram_contact?: string;
   description?: string;
   image_url?: string;
+  images?: string[];
+  variety?: string;
+  qualityGrade?: 'Export' | '1-nav' | '2-nav' | 'Organik' | 'A' | 'B' | string;
+  isVerified?: boolean;
+  farmer_rating?: number;
+  deals_count?: number;
   status?: 'available' | 'reserved' | 'sold' | string;
+  packaging?: string;
+  created_at?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_role: 'farmer' | 'agronomist' | 'buyer' | 'seller' | 'system';
+  text: string;
+  created_at: string;
+  is_read?: boolean;
+  attachment_url?: string;
+  attachment_type?: 'image' | 'file';
+  listing_id?: string;
+}
+
+export interface ChatConversation {
+  id: string;
+  type: 'agronomist' | 'marketplace';
+  title: string;
+  participant_id: string;
+  participant_name: string;
+  participant_role: string;
+  participant_avatar?: string;
+  participant_phone?: string;
+  participant_telegram?: string;
+  participant_online?: boolean;
+  last_message?: string;
+  last_message_time?: string;
+  unread_count?: number;
+  listing_context?: MarketplaceListing;
+  messages: ChatMessage[];
   created_at?: string;
 }
 

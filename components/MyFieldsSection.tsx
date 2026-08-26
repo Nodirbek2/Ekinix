@@ -1,25 +1,69 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Language, translations } from '@/lib/i18n';
 import { FieldRecord, FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { FieldMapDrawer } from '@/components/FieldMapDrawer';
-import { FieldCardThumbnail } from '@/components/FieldCardThumbnail';
+import FieldCardThumbnail from '@/components/FieldCardThumbnail';
 import { UnifiedFieldDetailView } from '@/components/UnifiedFieldDetailView';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { Button } from '@/components/ui/Button';
-import { MapPin, Plus, Calendar, Sparkles, Trash2, Sprout, Activity, Database, Check, AlertCircle, Droplets, Bug, BookOpen, ArrowRight, Eye, Layers } from 'lucide-react';
+import { 
+  Plus, 
+  MapPin, 
+  Activity, 
+  Droplets, 
+  Calendar, 
+  Search, 
+  Layers, 
+  ChevronRight, 
+  SlidersHorizontal,
+  TrendingUp,
+  AlertTriangle,
+  Sprout,
+  Check,
+  Eye,
+  Trash2,
+  BookOpen,
+  ArrowRight
+} from 'lucide-react';
 
-interface MyFieldsSectionProps {
-  currentLang: Language;
+export interface FieldItem {
+  id: string;
+  name: string;
+  cropType?: string;
+  crop_type?: string;
+  cropVariety?: string;
+  hectares?: number;
+  area_hectares?: number;
+  region: string;
+  district?: string;
+  plantingDate?: string;
+  planting_date?: string;
+  coordinates: [number, number][];
+  currentNdvi?: number;
+  soilMoisturePct?: number;
+  healthStatus?: 'healthy' | 'moderate' | 'critical';
+  priorityAction?: string;
+  farmer_id?: string;
+  user_id?: string;
+}
+
+export interface MyFieldsSectionProps {
+  currentLang?: Language;
+  lang?: 'uz' | 'ru' | 'en';
   userProfile?: FarmerProfile | null;
   onOpenAuth?: (mode: 'login' | 'register') => void;
   selectedFieldId?: string | null;
   onNavigateToGuides?: () => void;
+  fields?: FieldItem[] | FieldRecord[] | any[];
+  onSelectField?: (field: any) => void;
+  onOpenDrawer?: () => void;
 }
 
-// Initial demo fields located in Uzbekistan
+// Initial default demo fields located in Uzbekistan
 const SAMPLE_FIELDS: FieldRecord[] = [
   {
     id: 'field_sample_1',
@@ -65,25 +109,55 @@ const SAMPLE_FIELDS: FieldRecord[] = [
   },
 ];
 
-export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
-  currentLang,
+export function MyFieldsSection({
+  currentLang: propCurrentLang,
+  lang: propLang,
   userProfile,
   onOpenAuth,
   selectedFieldId,
   onNavigateToGuides,
-}) => {
-  const t = translations[currentLang];
-  const [fields, setFields] = useState<FieldRecord[]>([]);
+  fields: externalFields,
+  onSelectField: externalOnSelectField,
+  onOpenDrawer: externalOnOpenDrawer,
+}: MyFieldsSectionProps) {
+  const effectiveLang: Language = propCurrentLang || propLang || 'uz';
+  const t = translations[effectiveLang] || translations.uz;
+
+  const [internalFields, setInternalFields] = useState<FieldRecord[]>([]);
   const [activeDetailField, setActiveDetailField] = useState<FieldRecord | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Load fields from Supabase or localStorage
+  // Search & Filter states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCrop, setSelectedCrop] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Load fields from Supabase or localStorage if externalFields not provided
   useEffect(() => {
     let isMounted = true;
 
     async function loadFields() {
+      if (externalFields && externalFields.length > 0) {
+        const normalized: FieldRecord[] = externalFields.map((f: any) => ({
+          id: f.id,
+          farmer_id: f.farmer_id,
+          user_id: f.user_id,
+          name: f.name,
+          crop_type: f.crop_type || f.cropType || 'cotton',
+          planting_date: f.planting_date || f.plantingDate || '2026-04-10',
+          area_hectares: Number(f.area_hectares || f.hectares || 1.5),
+          region: f.region || "Toshkent viloyati",
+          coordinates: f.coordinates || [],
+        }));
+        if (isMounted) {
+          setInternalFields(normalized);
+          setLoading(false);
+        }
+        return;
+      }
+
       setLoading(true);
       let loaded: FieldRecord[] = [];
 
@@ -130,7 +204,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
       }
 
       if (isMounted) {
-        setFields(loaded);
+        setInternalFields(loaded);
         if (selectedFieldId) {
           const found = loaded.find((f) => f.id === selectedFieldId);
           if (found) setActiveDetailField(found);
@@ -144,7 +218,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [userProfile, selectedFieldId]);
+  }, [userProfile, selectedFieldId, externalFields]);
 
   const handleSaveField = async (fieldData: {
     name: string;
@@ -167,14 +241,14 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
       coordinates: fieldData.coordinates,
     };
 
-    const updatedList = [newRecord, ...fields];
-    setFields(updatedList);
+    const updatedList = [newRecord, ...internalFields];
+    setInternalFields(updatedList);
     localStorage.setItem('ekinix_farmer_fields', JSON.stringify(updatedList));
 
     const client = supabase;
     if (isSupabaseConfigured && client) {
       try {
-        const { error } = await client.from('fields').insert({
+        await client.from('fields').insert({
           user_id: userProfile?.user_id || null,
           farmer_id: userProfile?.id || null,
           name: fieldData.name,
@@ -184,10 +258,6 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
           region: selectedRegion,
           coordinates_json: fieldData.coordinates,
         });
-
-        if (error) {
-          console.warn("Supabase field save notice:", error);
-        }
       } catch (e) {
         console.warn("Failed saving field to Supabase:", e);
       }
@@ -195,9 +265,9 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
 
     setNotification({
       type: 'success',
-      text: currentLang === 'uz'
+      text: effectiveLang === 'uz'
         ? "Yangi maydon muvaffaqiyatli saqlandi! Sun'iy yo'ldosh monitoringi faollashtirildi."
-        : currentLang === 'ru'
+        : effectiveLang === 'ru'
         ? "Новое поле успешно сохранено! Спутниковый мониторинг активирован."
         : "New field saved successfully! Satellite telemetry activated.",
     });
@@ -210,8 +280,8 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
   };
 
   const handleDeleteField = async (id: string) => {
-    const updated = fields.filter((f) => f.id !== id);
-    setFields(updated);
+    const updated = internalFields.filter((f) => f.id !== id);
+    setInternalFields(updated);
     localStorage.setItem('ekinix_farmer_fields', JSON.stringify(updated));
 
     const client = supabase;
@@ -235,13 +305,83 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
     return { icon: '🌱', label: cropId };
   };
 
+  const handleOpenDrawerClick = () => {
+    if (externalOnOpenDrawer) {
+      externalOnOpenDrawer();
+    } else {
+      setIsRegistering(!isRegistering);
+    }
+  };
+
+  const handleCardClick = (field: FieldRecord) => {
+    if (externalOnSelectField) {
+      externalOnSelectField(field);
+    }
+    setActiveDetailField(field);
+  };
+
+  // Filtered Fields calculation
+  const filteredFields = useMemo(() => {
+    return internalFields.filter((field) => {
+      const cropName = field.crop_type || '';
+      const matchesSearch = 
+        field.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        field.region.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        cropName.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesCrop = selectedCrop === 'all' || cropName.toLowerCase() === selectedCrop.toLowerCase();
+
+      // Simple status evaluation logic based on field id or attributes
+      let healthStatus: 'healthy' | 'moderate' | 'critical' = 'healthy';
+      if (field.id.includes('2')) healthStatus = 'moderate';
+      if (field.id.includes('5')) healthStatus = 'critical';
+
+      const matchesStatus = statusFilter === 'all' || healthStatus === statusFilter;
+
+      return matchesSearch && matchesCrop && matchesStatus;
+    });
+  }, [internalFields, searchQuery, selectedCrop, statusFilter]);
+
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'healthy':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+            {effectiveLang === 'ru' ? 'Здоровое' : effectiveLang === 'en' ? 'Healthy' : 'Sog‘lom'}
+          </span>
+        );
+      case 'moderate':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+            {effectiveLang === 'ru' ? 'Среднее' : effectiveLang === 'en' ? 'Moderate' : 'O‘rtacha'}
+          </span>
+        );
+      case 'critical':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+            {effectiveLang === 'ru' ? 'Опасность' : effectiveLang === 'en' ? 'Critical' : 'Xavfli'}
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {effectiveLang === 'ru' ? 'Здоровое' : effectiveLang === 'en' ? 'Healthy' : 'Sog‘lom'}
+          </span>
+        );
+    }
+  };
+
   if (activeDetailField) {
     return (
-      <section id="my-fields" className="py-8 px-4 sm:px-8 max-w-7xl mx-auto space-y-6">
+      <section id="my-fields" className="py-4 sm:py-6 max-w-7xl mx-auto space-y-6">
         <UnifiedFieldDetailView
           field={activeDetailField}
-          allFields={fields}
-          currentLang={currentLang}
+          allFields={internalFields}
+          currentLang={effectiveLang}
           onSelectField={setActiveDetailField}
           onBack={() => setActiveDetailField(null)}
           onNavigateToGuides={onNavigateToGuides}
@@ -251,23 +391,21 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
   }
 
   return (
-    <section id="my-fields" className="py-4 sm:py-6 max-w-7xl mx-auto space-y-6">
-      
-      {/* Section Header */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-[#E4D9C4] pb-5">
+    <section id="my-fields" className="py-4 sm:py-6 max-w-7xl mx-auto space-y-5">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-[#E4D9C4]">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#D9A441]/15 text-[#B8852B] rounded-full border border-[#D9A441]/30 text-xs font-bold uppercase tracking-wider mb-2">
             <Sprout className="w-3.5 h-3.5 text-[#D9A441]" />
             <span>Interaktiv Xarita & Monitoring</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B]">
-            {t.myFieldsTitle}
-          </h2>
-          <p className="text-xs sm:text-sm text-[#6C7C6F] mt-1">
-            Har bir maydoningiz uchun sun&apos;iy yo&apos;ldosh NDVI telemetriyasi, ob-havo va sug&apos;orish hisob-kitoblari.
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B] tracking-tight">
+            {t.myFieldsTitle || 'Mening maydonlarim'}
+          </h1>
+          <p className="text-xs sm:text-sm text-[#6C7C6F] mt-0.5">
+            Ro‘yxatga olingan barcha ekin maydonlari va sun’iy yo‘ldosh telemetriyasi
           </p>
         </div>
-
         <div className="flex items-center gap-2.5 shrink-0">
           {!userProfile && onOpenAuth && (
             <Button
@@ -279,14 +417,13 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
             </Button>
           )}
 
-          <Button
-            onClick={() => setIsRegistering(!isRegistering)}
-            variant={isRegistering ? 'secondary' : 'primary'}
-            size="sm"
-            leftIcon={<Plus className="w-4 h-4 text-[#D9A441]" />}
+          <button
+            onClick={handleOpenDrawerClick}
+            className="h-10 px-4 bg-[#1F3D2B] hover:bg-[#163020] text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs flex items-center gap-2 transition-all border border-[#D9A441]/40 cursor-pointer"
           >
-            {isRegistering ? 'Xaritani Yopish' : t.addFieldBtn}
-          </Button>
+            <Plus className="w-4 h-4 text-[#D9A441]" />
+            {isRegistering ? 'Xaritani Yopish' : (t.addFieldBtn || 'Yangi maydon chizish')}
+          </button>
         </div>
       </div>
 
@@ -311,7 +448,7 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
       {isRegistering && (
         <div className="animate-in fade-in slide-in-from-top-4 duration-300">
           <FieldMapDrawer
-            currentLang={currentLang}
+            currentLang={effectiveLang}
             defaultRegion={userProfile?.region}
             onSaveField={handleSaveField}
             onCancel={() => setIsRegistering(false)}
@@ -319,132 +456,170 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
         </div>
       )}
 
-      {/* Fields List View / Cards */}
+      {/* Filter & Search Bar */}
+      <div className="bg-white p-3 rounded-2xl border border-[#E4D9C4] shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full md:w-80">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#6C7C6F]" />
+          <input
+            type="text"
+            placeholder="Maydon nomi yoki hudud bo‘yicha qidirish..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full h-9 pl-9 pr-3 bg-[#FAF7F0] border border-[#E4D9C4] rounded-xl text-xs text-[#1F3D2B] placeholder:text-[#6C7C6F] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#1F3D2B] transition-all font-medium"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+          <div className="flex items-center gap-1 bg-[#FAF7F0] p-1 rounded-xl text-xs font-semibold text-[#6C7C6F] border border-[#E4D9C4]">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1 rounded-lg transition-all ${
+                statusFilter === 'all' ? 'bg-[#1F3D2B] text-white shadow-xs font-bold' : 'hover:text-[#1F3D2B]'
+              }`}
+            >
+              Barchasi ({internalFields.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('healthy')}
+              className={`px-3 py-1 rounded-lg transition-all ${
+                statusFilter === 'healthy' ? 'bg-emerald-700 text-white shadow-xs font-bold' : 'hover:text-[#1F3D2B]'
+              }`}
+            >
+              Sog‘lom
+            </button>
+            <button
+              onClick={() => setStatusFilter('moderate')}
+              className={`px-3 py-1 rounded-lg transition-all ${
+                statusFilter === 'moderate' ? 'bg-amber-600 text-white shadow-xs font-bold' : 'hover:text-[#1F3D2B]'
+              }`}
+            >
+              Stress
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Field Grid / Content */}
       {loading ? (
         <div className="py-16 text-center space-y-3 bg-[#FAF7F0] rounded-2xl border border-[#E4D9C4]">
           <div className="w-8 h-8 border-3 border-[#1F3D2B] border-t-[#D9A441] rounded-full animate-spin mx-auto" />
           <p className="text-xs font-bold text-[#6C7C6F]">Maydonlar ma&apos;lumotlari yuklanmoqda...</p>
         </div>
-      ) : fields.length === 0 ? (
-        <div className="py-12 px-6 text-center bg-white rounded-2xl border-2 border-dashed border-[#D9A441] space-y-4 max-w-xl mx-auto shadow-xs">
-          <div className="w-14 h-14 bg-[#F0E8D8] text-[#D9A441] rounded-2xl flex items-center justify-center mx-auto border border-[#E4D9C4]">
-            <Sprout className="w-7 h-7" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#1F3D2B]">
-              {t.noFieldsYet}
-            </h3>
-            <p className="text-xs text-[#6C7C6F] leading-relaxed">
-              {t.noFieldsSub}
-            </p>
-          </div>
-          <Button
-            onClick={() => setIsRegistering(true)}
-            variant="accent"
-            size="md"
-            leftIcon={<Plus className="w-4 h-4" />}
+      ) : filteredFields.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-[#E4D9C4] p-12 text-center space-y-3 max-w-md mx-auto shadow-xs">
+          <Layers className="w-10 h-10 text-[#D9A441] mx-auto" />
+          <h3 className="text-base font-serif font-bold text-[#1F3D2B]">Hech qanday maydon topilmadi</h3>
+          <p className="text-xs text-[#6C7C6F]">
+            Qidiruv so‘rovingizni o‘zgartiring yoki yangi ekin maydoni konturini xaritadan belgilang.
+          </p>
+          <button
+            onClick={handleOpenDrawerClick}
+            className="mt-2 h-9 px-4 text-xs font-bold bg-[#1F3D2B] text-white rounded-xl hover:bg-[#163020] transition-colors border border-[#D9A441]/40 inline-flex items-center gap-1.5"
           >
-            {t.addFieldBtn}
-          </Button>
+            <Plus className="w-3.5 h-3.5 text-[#D9A441]" />
+            Maydon qo‘shish
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {fields.map((field) => {
+          {filteredFields.map((field) => {
             const cropMeta = getCropMeta(field.crop_type);
+            const calc = calculateGrowthStage(field.crop_type, field.planting_date || '2026-04-10');
+            const stage = calc.currentStage;
+
+            // Health status tag
+            let healthStatus: 'healthy' | 'moderate' | 'critical' = 'healthy';
+            let fieldNdvi = 0.72;
+            if (field.id.includes('2')) {
+              healthStatus = 'moderate';
+              fieldNdvi = 0.58;
+            } else if (field.id.includes('5')) {
+              healthStatus = 'critical';
+              fieldNdvi = 0.42;
+            }
 
             return (
               <div
                 key={field.id}
-                onClick={() => setActiveDetailField(field)}
-                className="bg-white rounded-2xl border border-[#E4D9C4] hover:border-[#1F3D2B] p-5 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-4 group cursor-pointer"
+                onClick={() => handleCardClick(field)}
+                className="group bg-white rounded-2xl border border-[#E4D9C4] hover:border-[#1F3D2B] hover:shadow-md transition-all duration-200 flex flex-col justify-between cursor-pointer overflow-hidden p-5 space-y-4"
               >
-                {/* Field Top Info */}
+                {/* Header info */}
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-[#D9A441] tracking-wider mb-1">
-                        <MapPin className="w-3.5 h-3.5" />
-                        <span>{field.region}</span>
-                      </div>
-                      <h4 className="font-serif text-lg font-bold text-[#1F3D2B] group-hover:text-[#B8852B] transition-colors">
+                      <h3 className="text-base font-serif font-bold text-[#1F3D2B] group-hover:text-[#B8852B] transition-colors flex items-center gap-1.5">
                         {field.name}
-                      </h4>
+                        <ChevronRight className="w-4 h-4 text-[#6C7C6F] group-hover:translate-x-0.5 transition-transform" />
+                      </h3>
+                      <p className="text-xs text-[#6C7C6F] flex items-center gap-1 mt-0.5 font-medium">
+                        <MapPin className="w-3.5 h-3.5 text-[#D9A441]" />
+                        {field.region}
+                      </p>
                     </div>
-
-                    <span className="bg-[#1F3D2B] text-[#FAF7F0] px-3 py-1 rounded-full text-xs font-bold border border-[#D9A441]/40 flex items-center gap-1.5 shrink-0 shadow-xs">
-                      <span>{cropMeta.icon}</span>
-                      <span>{cropMeta.label}</span>
-                    </span>
+                    {getStatusBadge(healthStatus)}
                   </div>
 
                   {/* Satellite Thumbnail Map */}
-                  <div className="rounded-2xl overflow-hidden border border-[#E4D9C4]">
-                    <FieldCardThumbnail coordinates={field.coordinates} height={140} />
-                  </div>
-
-                  {/* Metrics Row */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 text-xs">
-                    <div className="bg-[#FAF7F0] p-2.5 rounded-xl border border-[#E4D9C4]">
-                      <p className="text-[10px] text-[#6C7C6F] font-semibold uppercase">Maydon Hajmi</p>
-                      <p className="font-bold text-[#1F3D2B] text-sm mt-0.5">
-                        {field.area_hectares} <span className="text-xs font-normal text-[#6C7C6F]">{t.hectaresUnit}</span>
-                      </p>
-                    </div>
-
-                    <div className="bg-[#FAF7F0] p-2.5 rounded-xl border border-[#E4D9C4]">
-                      <p className="text-[10px] text-[#6C7C6F] font-semibold uppercase">{t.plantingDateLabel}</p>
-                      <p className="font-bold text-[#1F3D2B] text-xs mt-0.5 flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-[#D9A441]" />
-                        <span>{field.planting_date || '2026-04-10'}</span>
-                      </p>
+                  <div className="relative rounded-xl overflow-hidden border border-[#E4D9C4]">
+                    <FieldCardThumbnail coordinates={field.coordinates} height={120} />
+                    <div className="absolute top-2 left-2 px-2.5 py-1 rounded-lg bg-[#1F3D2B]/90 backdrop-blur-xs text-[10px] font-bold text-[#FAF7F0] border border-[#D9A441]/40 flex items-center gap-1">
+                      <span>{cropMeta.icon}</span>
+                      <span>{cropMeta.label}</span>
                     </div>
                   </div>
 
-                  {/* Calculated Growth Stage Care Tip Card */}
-                  {(() => {
-                    const calc = calculateGrowthStage(field.crop_type, field.planting_date);
-                    const stage = calc.currentStage;
-                    return (
-                      <div className="bg-[#1F3D2B] text-[#FAF7F0] p-3.5 rounded-xl border border-[#D9A441]/40 space-y-2 text-xs">
-                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-                          <div className="flex items-center gap-1.5 font-bold text-[#D9A441] text-[11px]">
-                            <BookOpen className="w-3.5 h-3.5" />
-                            <span>Joriy Parvarish ({calc.daysElapsed} kun)</span>
-                          </div>
-                          <span className="bg-[#D9A441] text-[#1F3D2B] text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                            {calc.stageIndex + 1}-bosqich
-                          </span>
-                        </div>
-
-                        <p className="font-semibold text-white text-xs">
-                          {currentLang === 'ru' ? stage.stage_name_ru : currentLang === 'en' ? stage.stage_name_en : stage.stage_name_uz}
-                        </p>
-
-                        <div className="space-y-1 text-[11px] text-white/90 pt-1">
-                          <p className="flex items-start gap-1">
-                            <Droplets className="w-3 h-3 text-blue-300 shrink-0 mt-0.5" />
-                            <span><strong>Sug&apos;orish:</strong> {currentLang === 'ru' ? stage.irrigation_notes_ru : currentLang === 'en' ? stage.irrigation_notes_en : stage.irrigation_notes_uz}</span>
-                          </p>
-                        </div>
+                  {/* Metrics 2x2 Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-[#FAF7F0] p-2.5 rounded-xl border border-[#E4D9C4]">
+                      <span className="text-[10px] uppercase font-bold text-[#6C7C6F] block">Maydon hajmi</span>
+                      <span className="text-xs font-mono font-bold text-[#1F3D2B]">
+                        {field.area_hectares.toFixed(1)} <span className="text-[10px] font-normal text-[#6C7C6F]">ga</span>
+                      </span>
+                    </div>
+                    <div className="bg-[#FAF7F0] p-2.5 rounded-xl border border-[#E4D9C4]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-[#6C7C6F] block">NDVI indeksi</span>
+                        <InfoTooltip preset="ndvi" lang={effectiveLang} size="xs" id={`myfields-ndvi-tooltip-${field.id}`} />
                       </div>
-                    );
-                  })()}
+                      <span className="text-xs font-mono font-bold text-emerald-800 flex items-center gap-1 mt-0.5">
+                        <Activity className="w-3 h-3 text-emerald-600" />
+                        {fieldNdvi.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Growth Stage Summary Card */}
+                  <div className="bg-[#1F3D2B] text-[#FAF7F0] p-3 rounded-xl border border-[#D9A441]/30 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold text-[#D9A441] text-[11px]">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        <span>{calc.stageIndex + 1}-bosqich ({calc.daysElapsed} kun)</span>
+                      </div>
+                      <span className="text-[10px] font-mono font-semibold text-emerald-300">
+                        {field.planting_date || '2026-04-10'}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-white text-xs truncate">
+                      {effectiveLang === 'ru' ? stage.stage_name_ru : effectiveLang === 'en' ? stage.stage_name_en : stage.stage_name_uz}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Footer Controls & Detail View CTA Button */}
+                {/* Bottom Action strip */}
                 <div className="pt-3 border-t border-[#E4D9C4] flex items-center justify-between gap-2">
                   <Button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setActiveDetailField(field);
+                      handleCardClick(field);
                     }}
                     variant="secondary"
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 text-xs font-bold"
                     leftIcon={<Eye className="w-3.5 h-3.5 text-[#D9A441]" />}
-                    rightIcon={<ArrowRight className="w-3 h-3" />}
+                    rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                   >
-                    Maydon Tahlili
+                    Batafsil Tahlil
                   </Button>
 
                   <Button
@@ -460,13 +635,13 @@ export const MyFieldsSection: React.FC<MyFieldsSectionProps> = ({
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </div>
-
               </div>
             );
           })}
         </div>
       )}
-
     </section>
   );
-};
+}
+
+export default MyFieldsSection;

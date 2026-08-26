@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { Language, translations } from '@/lib/i18n';
 import { fetchAndStoreFieldNdvi, NdviResult } from '@/lib/ndviService';
 import { calculateGrowthStage, CROP_GUIDES_DATA } from '@/lib/cropGuidesData';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { 
   Satellite, Sun, ShoppingBag, BookOpen, Droplets, Wind, Thermometer, 
   MapPin, CheckCircle, AlertTriangle, AlertCircle, Phone, Plus, RefreshCw, CloudOff,
@@ -502,10 +503,13 @@ export const InteractiveDemo: React.FC<InteractiveDemoProps> = ({ currentLang })
                     {/* Real NDVI Index Gauge */}
                     <div className="bg-[#FAF7F0] p-5 rounded-2xl border border-[#E4D9C4] shadow-xs space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider flex items-center gap-1">
-                          <Satellite className="w-3.5 h-3.5 text-[#D9A441]" />
-                          {t.ndviIndex} (Sentinel-2)
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-[#6C7C6F] uppercase tracking-wider flex items-center gap-1">
+                            <Satellite className="w-3.5 h-3.5 text-[#D9A441]" />
+                            {t.ndviIndex} (Sentinel-2)
+                          </span>
+                          <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="demo-ndvi-gauge-tooltip" />
+                        </div>
                         <div className="flex items-center gap-2">
                           <span className="text-2xl font-extrabold text-[#1F3D2B]">
                             {ndviResult?.ndviScore !== undefined && ndviResult?.ndviScore !== null ? ndviResult.ndviScore.toFixed(2) : '0.72'}

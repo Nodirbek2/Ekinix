@@ -2,268 +2,212 @@
 
 import React, { useState, useMemo } from 'react';
 import { Language, translations } from '@/lib/i18n';
-import { FarmerProfile, FieldRecord, FieldAdvisorNote, NDVIReading } from '@/lib/supabase';
+import { FarmerProfile, FieldRecord, FieldAdvisorNote } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import {
-  Users,
-  ShieldAlert,
   AlertTriangle,
   CheckCircle2,
+  Clock,
   Filter,
   Search,
-  Plus,
-  ArrowRight,
-  ExternalLink,
-  MapPin,
-  Calendar,
-  Droplets,
-  Sprout,
   FileText,
-  Clock,
-  Sparkles,
-  Send,
+  ArrowUpRight,
+  Droplets,
+  Bug,
+  ThermometerSnowflake,
+  Sprout,
+  ShieldCheck,
+  ShieldAlert,
   UserPlus,
   KeyRound,
-  Check,
   X,
+  Send,
+  Plus,
   Eye,
   Activity,
-  Layers,
+  Calendar,
+  MapPin,
   Phone,
-  BookmarkCheck,
+  Check
 } from 'lucide-react';
 
+export interface TriageCase {
+  id: string;
+  farmerName: string;
+  fieldTitle: string;
+  region: string;
+  phone?: string;
+  issueType: 'water_stress' | 'pest_risk' | 'frost_alert' | 'nutrient_deficiency';
+  severity: 'critical' | 'warning' | 'info';
+  ndviDropPct: number;
+  detectedDate: string;
+  status: 'pending' | 'resolved' | 'in_review';
+  recommendation: string;
+  cropType?: string;
+  areaHectares?: number;
+}
+
+const DEMO_CASES: TriageCase[] = [
+  {
+    id: 'case-101',
+    farmerName: 'Rustam Aliyev',
+    fieldTitle: '12-Kontur Paxta',
+    region: 'Jizzax, Zafarobod',
+    phone: '+998 90 123 45 67',
+    issueType: 'water_stress',
+    severity: 'critical',
+    ndviDropPct: -14.2,
+    detectedDate: '2026-08-21 14:30',
+    status: 'pending',
+    recommendation: 'Shoshilinch 550 m³/ga me’yorda tomchilatib sug‘orish va vegetatsiya kuchaytirgich berish.',
+    cropType: 'Paxta (Buxoro-102)',
+    areaHectares: 18.5
+  },
+  {
+    id: 'case-102',
+    farmerName: 'Alisher Qodirov',
+    fieldTitle: 'Bog‘zor 4-uchastka',
+    region: 'Samarqand, Toyloq',
+    phone: '+998 91 234 56 78',
+    issueType: 'pest_risk',
+    severity: 'warning',
+    ndviDropPct: -6.5,
+    detectedDate: '2026-08-20 09:15',
+    status: 'in_review',
+    recommendation: 'G‘o‘za tunlami tuxum qo‘yishi aniqlandi, feromon tutqichlar va insektitsid bilan ishlov berish.',
+    cropType: 'Intensiv bog‘',
+    areaHectares: 6.2
+  },
+  {
+    id: 'case-103',
+    farmerName: 'Sherzodbek Boboyev',
+    fieldTitle: 'Bug‘doy 8-dala',
+    region: 'Sirdaryo, Boyovut',
+    phone: '+998 93 345 67 89',
+    issueType: 'nutrient_deficiency',
+    severity: 'warning',
+    ndviDropPct: -8.1,
+    detectedDate: '2026-08-19 16:45',
+    status: 'resolved',
+    recommendation: 'Azotli oziqlantirish (karbamid 100 kg/ga) va barg orqali mikroelementlar purkash.',
+    cropType: 'Kuzgi bug‘doy',
+    areaHectares: 24.0
+  },
+  {
+    id: 'case-104',
+    farmerName: 'Dilshod Usmonov',
+    fieldTitle: 'Issiqxona Pomidori',
+    region: 'Farg‘ona, Quva',
+    phone: '+998 97 456 78 90',
+    issueType: 'frost_alert',
+    severity: 'critical',
+    ndviDropPct: -11.0,
+    detectedDate: '2026-08-21 06:10',
+    status: 'pending',
+    recommendation: 'Tungi harorat pasayishi xavfi: plyonka qoplamasini zichlash va isitish tizimini yoqish.',
+    cropType: 'Issiqxona sabzavot',
+    areaHectares: 2.5
+  }
+];
+
 interface AgronomistDashboardSectionProps {
-  currentLang: Language;
+  currentLang?: Language;
   userProfile?: FarmerProfile | null;
   allFields?: FieldRecord[];
   onSelectField?: (field: FieldRecord) => void;
   onOpenAuth?: (mode: 'login' | 'register') => void;
 }
 
-// Sample multi-farmer dataset for Agronomist mode demonstration and client farms
-const MOCK_CLIENT_FARMS: {
-  farmerName: string;
-  farmerPhone: string;
-  region: string;
-  fields: FieldRecord[];
-}[] = [
-  {
-    farmerName: "Anvar Qodirov",
-    farmerPhone: "+998 90 123 45 67",
-    region: "Samarqand viloyati, Pastdarg'om",
-    fields: [
-      {
-        id: 'f-demo-1',
-        name: "Paxtazor - 1-dala",
-        crop_type: "cotton",
-        area_hectares: 12.5,
-        region: "Samarqand",
-        planting_date: "2026-04-12",
-      },
-      {
-        id: 'f-demo-2',
-        name: "Intensiv Olmazor",
-        crop_type: "apple",
-        area_hectares: 4.2,
-        region: "Samarqand",
-        planting_date: "2024-03-15",
-      },
-    ],
-  },
-  {
-    farmerName: "Rustam Ikromov",
-    farmerPhone: "+998 93 456 78 90",
-    region: "Qashqadaryo viloyati, Qarshi",
-    fields: [
-      {
-        id: 'f-demo-3',
-        name: "G'allazor - Janubiy sektor",
-        crop_type: "wheat",
-        area_hectares: 24.0,
-        region: "Qashqadaryo",
-        planting_date: "2025-10-20",
-      },
-    ],
-  },
-  {
-    farmerName: "Dilshod Usmonov",
-    farmerPhone: "+998 97 888 12 34",
-    region: "Farg'ona viloyati, Quva",
-    fields: [
-      {
-        id: 'f-demo-4',
-        name: "Uzumzor va Anorzor",
-        crop_type: "grape",
-        area_hectares: 8.0,
-        region: "Farg'ona",
-        planting_date: "2023-04-10",
-      },
-      {
-        id: 'f-demo-5',
-        name: "Issiqxona Pomidori",
-        crop_type: "tomato",
-        area_hectares: 2.5,
-        region: "Farg'ona",
-        planting_date: "2026-02-28",
-      },
-    ],
-  },
-];
-
-export interface TriageFieldItem {
-  field: FieldRecord;
-  farmerName: string;
-  farmerPhone: string;
-  ndviScore: number;
-  moisturePercentage: number;
-  urgency: 'critical' | 'warning' | 'optimal';
-  urgencyScore: number; // 100 is highest urgency
-  urgencyReasonUz: string;
-  urgencyReasonRu: string;
-  urgencyReasonEn: string;
-  growthStage: string;
-}
-
-export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProps> = ({
-  currentLang,
+export function AgronomistDashboardSection({
+  currentLang = 'uz',
   userProfile,
   allFields = [],
   onSelectField,
-}) => {
-  const t = translations[currentLang];
-
-  // State
-  const [filterUrgency, setFilterUrgency] = useState<'all' | 'critical' | 'warning' | 'optimal'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  onOpenAuth
+}: AgronomistDashboardSectionProps) {
+  const [cases, setCases] = useState<TriageCase[]>(DEMO_CASES);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  
+  // Modals state
+  const [activeCase, setActiveCase] = useState<TriageCase | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [inviteCodeInput, setInviteCodeInput] = useState('');
   const [linkSuccess, setLinkSuccess] = useState(false);
 
-  // Field Advisory Note Creation Modal State
-  const [activeTriageField, setActiveTriageField] = useState<TriageFieldItem | null>(null);
-  const [noteTitle, setNoteTitle] = useState('');
-  const [noteContent, setNoteContent] = useState('');
-  const [noteUrgency, setNoteUrgency] = useState<'low' | 'medium' | 'high' | 'critical'>('high');
-  const [recList, setRecList] = useState<string[]>(['']);
+  // Advisory note editing state inside modal
+  const [customNote, setCustomNote] = useState('');
+  const [prescriptions, setPrescriptions] = useState<string[]>(['']);
   const [savingNote, setSavingNote] = useState(false);
-  const [noteSavedSuccess, setNoteSavedSuccess] = useState(false);
+  const [noteSentSuccess, setNoteSentSuccess] = useState(false);
 
-  // Local storage advisor notes
-  const [advisorNotes, setAdvisorNotes] = useState<FieldAdvisorNote[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('ekinix_advisor_notes');
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  // Filtered cases
+  const filteredCases = useMemo(() => {
+    return cases.filter((item) => {
+      const q = search.toLowerCase();
+      const matchesSearch =
+        item.farmerName.toLowerCase().includes(q) ||
+        item.fieldTitle.toLowerCase().includes(q) ||
+        item.region.toLowerCase().includes(q) ||
+        item.recommendation.toLowerCase().includes(q);
 
-  // Consolidate user fields + client demo farms into triage list
-  const triageList: TriageFieldItem[] = useMemo(() => {
-    const list: TriageFieldItem[] = [];
+      const matchesCat =
+        selectedCategory === 'all' || item.issueType === selectedCategory;
 
-    // User's own fields (if any)
-    allFields.forEach((f, idx) => {
-      // Deterministic synthetic telemetry for triage
-      const isCrit = idx % 3 === 0;
-      const isWarn = idx % 3 === 1;
-      const ndvi = isCrit ? 0.38 : isWarn ? 0.54 : 0.76;
-      const moisture = isCrit ? 38 : isWarn ? 52 : 72;
-      const urgency = isCrit ? 'critical' : isWarn ? 'warning' : 'optimal';
-      const urgencyScore = isCrit ? 92 : isWarn ? 68 : 25;
+      const matchesStatus =
+        statusFilter === 'all' || item.status === statusFilter;
 
-      list.push({
-        field: f,
-        farmerName: userProfile?.full_name || "Mening xo'jaligim",
-        farmerPhone: userProfile?.phone || "+998 90 000 00 00",
-        ndviScore: ndvi,
-        moisturePercentage: moisture,
-        urgency,
-        urgencyScore,
-        urgencyReasonUz: isCrit
-          ? "NDVI 0.38 ga tushib ketgan, tuproq namligi keskin kam (38%) — zudlik bilan sug'orish va oziqlantirish zarur"
-          : isWarn
-          ? "Tuproq namligi 52% (chegara holat), o'g'itlash vaqti kelgan"
-          : "NDVI 0.76 va tuproq namligi 72% — o'sish holati optimal",
-        urgencyReasonRu: isCrit
-          ? "Критическое падение NDVI до 0.38, дефицит влаги (38%) — требуется срочный полив"
-          : isWarn
-          ? "Влажность почвы 52% (пограничное состояние), требуется плановая подкормка"
-          : "NDVI 0.76 и влажность 72% — вегетативное состояние оптимальное",
-        urgencyReasonEn: isCrit
-          ? "Critical NDVI drop to 0.38, severe moisture deficit (38%) — immediate irrigation needed"
-          : isWarn
-          ? "Soil moisture at 52% (moderate stress threshold), schedule top-dressing"
-          : "NDVI 0.76 and soil moisture 72% — healthy optimal canopy condition",
-        growthStage: "Vegetatsiya",
-      });
+      return matchesSearch && matchesCat && matchesStatus;
     });
-
-    // Client multi-farmer fields
-    MOCK_CLIENT_FARMS.forEach((farm) => {
-      farm.fields.forEach((f, idx) => {
-        const isCrit = f.crop_type === 'cotton';
-        const isWarn = f.crop_type === 'wheat';
-        const ndvi = isCrit ? 0.41 : isWarn ? 0.56 : 0.78;
-        const moisture = isCrit ? 42 : isWarn ? 55 : 74;
-        const urgency = isCrit ? 'critical' : isWarn ? 'warning' : 'optimal';
-        const urgencyScore = isCrit ? 95 : isWarn ? 70 : 20;
-
-        list.push({
-          field: f,
-          farmerName: farm.farmerName,
-          farmerPhone: farm.farmerPhone,
-          ndviScore: ndvi,
-          moisturePercentage: moisture,
-          urgency,
-          urgencyScore,
-          urgencyReasonUz: isCrit
-            ? "Suv tanqisligi va qurg'oqchilik xavfi: NDVI 0.41 ga tushdi, zudlik bilan 80 m³/ga sug'orish tavsiya etiladi"
-            : isWarn
-            ? "G'alla to'lishish davrida: tuproq namligi 55%, zang kasalligiga qarshi profilaktika zarur"
-            : "Vegetativ rivojlanish a'lo darajada (NDVI 0.78), namlik barqaror",
-          urgencyReasonRu: isCrit
-            ? "Водный дефицит: падение NDVI до 0.41, требуется полив 80 м³/га"
-            : isWarn
-            ? "Налив зерна: влажность 55%, необходима профилактика ржавчины"
-            : "Отличное состояние вегетации (NDVI 0.78), влажность стабильна",
-          urgencyReasonEn: isCrit
-            ? "Water deficit stress: NDVI at 0.41, 80 m³/ha irrigation required immediately"
-            : isWarn
-            ? "Grain fill stage: 55% moisture, preventative rust scouting advised"
-            : "Optimal canopy health (NDVI 0.78), moisture balanced",
-          growthStage: f.crop_type === 'cotton' ? "Gullash" : f.crop_type === 'wheat' ? "Sut-mum pishish" : "Meva tugish",
-        });
-      });
-    });
-
-    // Sort by Urgency Score descending (Taranis AgTech Triage model)
-    return list.sort((a, b) => b.urgencyScore - a.urgencyScore);
-  }, [allFields, userProfile]);
-
-  // Filtered triage list
-  const filteredTriageList = useMemo(() => {
-    return triageList.filter((item) => {
-      const matchUrgency = filterUrgency === 'all' || item.urgency === filterUrgency;
-      const matchSearch =
-        searchQuery === '' ||
-        item.field.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.farmerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.field.region.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchUrgency && matchSearch;
-    });
-  }, [triageList, filterUrgency, searchQuery]);
+  }, [cases, search, selectedCategory, statusFilter]);
 
   // Counts
-  const criticalCount = triageList.filter((i) => i.urgency === 'critical').length;
-  const warningCount = triageList.filter((i) => i.urgency === 'warning').length;
-  const optimalCount = triageList.filter((i) => i.urgency === 'optimal').length;
+  const criticalCount = cases.filter((c) => c.severity === 'critical' && c.status !== 'resolved').length;
+  const pendingCount = cases.filter((c) => c.status === 'pending').length;
+  const inReviewCount = cases.filter((c) => c.status === 'in_review').length;
+  const resolvedCount = cases.filter((c) => c.status === 'resolved').length;
 
-  // Handle link farmer by code
+  const handleOpenCase = (c: TriageCase) => {
+    setActiveCase(c);
+    setCustomNote(c.recommendation);
+    setPrescriptions([
+      c.recommendation,
+      "Dala chetlarida tuproq namligi va o'simlik barglarini vizual ko'zdan kechirish",
+      "Bajarilgan agrotexnik tadbirlar to'g'risida hisobot kiritish"
+    ]);
+    setNoteSentSuccess(false);
+  };
+
+  const handleStatusChange = (caseId: string, newStatus: 'pending' | 'in_review' | 'resolved') => {
+    setCases((prev) =>
+      prev.map((item) => (item.id === caseId ? { ...item, status: newStatus } : item))
+    );
+    if (activeCase && activeCase.id === caseId) {
+      setActiveCase({ ...activeCase, status: newStatus });
+    }
+  };
+
+  const handleSendAdvisory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeCase) return;
+    setSavingNote(true);
+
+    setTimeout(() => {
+      setSavingNote(false);
+      setNoteSentSuccess(true);
+      // Auto move pending to in_review
+      if (activeCase.status === 'pending') {
+        handleStatusChange(activeCase.id, 'in_review');
+      }
+      setTimeout(() => {
+        setActiveCase(null);
+        setNoteSentSuccess(false);
+      }, 2000);
+    }, 600);
+  };
+
   const handleLinkFarmer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCodeInput.trim()) return;
@@ -272,410 +216,424 @@ export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProp
       setLinkSuccess(false);
       setLinkModalOpen(false);
       setInviteCodeInput('');
-    }, 2500);
-  };
-
-  // Open Advisory Note Modal
-  const handleOpenAdvisoryModal = (item: TriageFieldItem) => {
-    setActiveTriageField(item);
-    setNoteTitle(
-      currentLang === 'ru'
-        ? `Агрономическое предписание для ${item.field.name}`
-        : currentLang === 'en'
-        ? `Agronomic Advisory for ${item.field.name}`
-        : `«${item.field.name}» maydoni uchun agronomik ko'rsatma`
-    );
-    setNoteContent(
-      currentLang === 'ru'
-        ? `На основе анализа спутниковых данных NDVI (${item.ndviScore}) и влажности почвы (${item.moisturePercentage}%), рекомендуется провести следующие срочные агротехнические мероприятия:`
-        : currentLang === 'en'
-        ? `Based on satellite NDVI analysis (${item.ndviScore}) and soil moisture (${item.moisturePercentage}%), the following priority agronomic actions are advised:`
-        : `Sun'iy yo'ldosh NDVI (${item.ndviScore}) va tuproq namligi (${item.moisturePercentage}%) tahliliga asosan, zudlik bilan quyidagi agrotexnik tadbirlarni amalga oshirish tavsiya etiladi:`
-    );
-    setNoteUrgency(item.urgency === 'critical' ? 'critical' : item.urgency === 'warning' ? 'high' : 'medium');
-    setRecList([
-      item.urgency === 'critical'
-        ? "Ertaga ertalab soat 05:00 dan 09:00 gacha 75-80 m³/ga me'yorda sug'orishni amalga oshirish"
-        : "Rejali sug'orish jadvalini saqlash",
-      "Kaliy va fosforli mikroo'g'it bilan bargdan oziqlantirish (2.5 kg/ga)",
-      "Dala chetlarida zararkunandalarga qarshi nazorat ko'rigini o'tkazish",
-    ]);
-    setNoteSavedSuccess(false);
-  };
-
-  const handleSaveAdvisoryNote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeTriageField) return;
-    setSavingNote(true);
-
-    const newNote: FieldAdvisorNote = {
-      id: `note-${Date.now()}`,
-      field_id: activeTriageField.field.id,
-      agronomist_id: userProfile?.id || 'agronom-1',
-      agronomist_name: userProfile?.full_name || "Katta Agronom (Ekinix)",
-      agronomist_phone: userProfile?.phone || "+998 90 123 45 67",
-      title: noteTitle,
-      note: noteContent,
-      urgency: noteUrgency,
-      recommendations: recList.filter((r) => r.trim().length > 0),
-      created_at: new Date().toISOString(),
-    };
-
-    setTimeout(() => {
-      const updated = [newNote, ...advisorNotes];
-      setAdvisorNotes(updated);
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('ekinix_advisor_notes', JSON.stringify(updated));
-        } catch (err) {
-          console.warn("Storage err:", err);
-        }
-      }
-      setSavingNote(false);
-      setNoteSavedSuccess(true);
-      setTimeout(() => {
-        setActiveTriageField(null);
-        setNoteSavedSuccess(false);
-      }, 2500);
-    }, 700);
+    }, 2000);
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-12">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-br from-[#1F3D2B] via-[#1B3626] to-[#0F1E15] rounded-3xl p-6 sm:p-10 text-white relative overflow-hidden border border-[#2D543C] shadow-lg">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#D9A441]/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#D9A441]/20 text-[#D9A441] border border-[#D9A441]/30 text-xs font-bold uppercase tracking-wider">
-              <Activity className="w-4 h-4" />
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E4D9C4]">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1F3D2B]/10 text-[#1F3D2B] text-xs font-bold uppercase tracking-wider mb-1.5">
+            <Activity className="w-3.5 h-3.5 text-[#D9A441]" />
+            <span>
               {currentLang === 'ru'
-                ? 'Режим Агронома-Консультанта (Taranis AgTech)'
+                ? 'Агрономическая Экспертиза'
                 : currentLang === 'en'
-                ? 'Advisor / Agronomist Triage Dashboard'
-                : "Agronom Xonasi & Dala Triaji (Taranis modeli)"}
-            </div>
-
-            <h1 className="font-serif text-3xl sm:text-4xl font-bold tracking-tight text-[#FAF7F0]">
-              {currentLang === 'ru'
-                ? 'Консолидированный триаж полей по срочности'
-                : currentLang === 'en'
-                ? 'Field Health Triage Sorted by Urgency'
-                : "Shoshilinchlik bo'yicha saralangan maydonlar nazorati"}
-            </h1>
-
-            <p className="text-emerald-100/90 text-xs sm:text-sm leading-relaxed">
-              {currentLang === 'ru'
-                ? 'Консолидированный дашборд агронома: автоматическое ранжирование всех подопечных фермерских полей по уровню водного стресса, отклонению NDVI и необходимости вмешательства.'
-                : currentLang === 'en'
-                ? 'Advisor triage engine: Automatically ranks linked client fields by water deficit, NDVI anomalies, and urgent agronomic intervention needs.'
-                : "Barcha biriktirilgan dehqonlar maydonlari sun'iy yo'ldosh NDVI pasayishi va namlik tanqisligi bo'yicha saralangan. Shoshilinch yordam talab qiluvchi dalalarga to'g'ridan-to'g'ri ko'rsatma yuboring."}
-            </p>
+                ? 'Agronomic Triage Engine'
+                : 'Agronomik Ekspertiza'}
+            </span>
           </div>
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#1F3D2B] tracking-tight">
+            {currentLang === 'ru'
+              ? 'Агрономическая Экспертиза и Триаж'
+              : currentLang === 'en'
+              ? 'Agronomic Expertise & Triage'
+              : 'Agronomik Ekspertiza va Triaj'}
+          </h1>
+          <p className="text-xs sm:text-sm text-[#6C7C6F] mt-1">
+            {currentLang === 'ru'
+              ? 'Автоматически выявленные аномалии полей по спектральному анализу Sentinel-2'
+              : currentLang === 'en'
+              ? 'Automated field anomalies identified by Sentinel-2 spectral analysis'
+              : 'Sentinel-2 spektral tahlili bo‘yicha avtomatik aniqlangan dala anomaliyalari'}
+          </p>
+        </div>
 
-          {/* Quick Invite / Link Farmer CTA */}
-          <div className="shrink-0 flex flex-col sm:flex-row gap-3">
-            <Button
-              onClick={() => setLinkModalOpen(true)}
-              variant="secondary"
-              size="md"
-              leftIcon={<UserPlus className="w-4 h-4 text-[#1F3D2B]" />}
-            >
-              {currentLang === 'ru' ? 'Привязать фермера' : currentLang === 'en' ? 'Link Farmer' : 'Dehqonni biriktirish'}
-            </Button>
-          </div>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {criticalCount > 0 && (
+            <span className="h-9 px-3.5 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 text-xs font-bold flex items-center gap-1.5 shadow-xs animate-pulse">
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>{criticalCount} ta tezkor ko‘rik zarur</span>
+            </span>
+          )}
+          <Button
+            onClick={() => setLinkModalOpen(true)}
+            variant="secondary"
+            size="sm"
+            leftIcon={<UserPlus className="w-4 h-4 text-[#1F3D2B]" />}
+          >
+            {currentLang === 'ru' ? 'Привязать фермера' : currentLang === 'en' ? 'Link Farmer' : 'Dehqonni biriktirish'}
+          </Button>
         </div>
       </div>
 
-      {/* Urgency Triage Metric Stats Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Critical Card */}
-        <button
-          onClick={() => setFilterUrgency(filterUrgency === 'critical' ? 'all' : 'critical')}
-          className={`p-5 rounded-3xl border text-left transition-all cursor-pointer ${
-            filterUrgency === 'critical'
-              ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-400'
-              : 'bg-white border-[#E4D9C4] hover:border-rose-300'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5">
-              <ShieldAlert className="w-4 h-4 text-rose-600" />
-              {currentLang === 'ru' ? 'Критично / Срочно' : currentLang === 'en' ? 'Critical Action' : 'Shoshilinch / Xavfli'}
-            </span>
-            <span className="w-6 h-6 rounded-full bg-rose-100 text-rose-800 font-black text-xs flex items-center justify-center">
-              {criticalCount}
-            </span>
+      {/* Stats Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-[#E4D9C4] shadow-xs">
+          <div className="flex items-center justify-between text-xs text-[#6C7C6F] font-medium">
+            <span>Jami holatlar</span>
+            <Activity className="w-4 h-4 text-[#1F3D2B]" />
           </div>
-          <div className="font-serif text-2xl font-black text-[#1F3D2B]">{criticalCount} ta maydon</div>
-          <p className="text-[11px] text-[#6C7C6F] mt-1">
-            {currentLang === 'ru'
-              ? 'Резкое падение NDVI / сильный дефицит влаги'
-              : currentLang === 'en'
-              ? 'Steep NDVI drop / severe water deficit'
-              : "NDVI pasaygan, zudlik bilan sug'orish zarur"}
-          </p>
-        </button>
+          <div className="font-serif text-2xl font-bold text-[#1F3D2B] mt-1">{cases.length}</div>
+          <div className="text-[11px] text-[#6C7C6F] mt-0.5">Monitoringdagi maydonlar</div>
+        </div>
 
-        {/* Warning Card */}
-        <button
-          onClick={() => setFilterUrgency(filterUrgency === 'warning' ? 'all' : 'warning')}
-          className={`p-5 rounded-3xl border text-left transition-all cursor-pointer ${
-            filterUrgency === 'warning'
-              ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400'
-              : 'bg-white border-[#E4D9C4] hover:border-amber-300'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-              {currentLang === 'ru' ? 'Внимание / Подкормка' : currentLang === 'en' ? 'Needs Attention' : 'Diqqat talab'}
-            </span>
-            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 font-black text-xs flex items-center justify-center">
-              {warningCount}
-            </span>
+        <div className="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/40 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-rose-800 font-bold">
+            <span>Kritik / Shoshilinch</span>
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
           </div>
-          <div className="font-serif text-2xl font-black text-[#1F3D2B]">{warningCount} ta maydon</div>
-          <p className="text-[11px] text-[#6C7C6F] mt-1">
-            {currentLang === 'ru'
-              ? 'Пограничная влажность / плановая защита'
-              : currentLang === 'en'
-              ? 'Moderate moisture deficit / top-dressing'
-              : "O'rtacha namlik / oziqlantirish zarur"}
-          </p>
-        </button>
+          <div className="font-serif text-2xl font-bold text-rose-700 mt-1">{criticalCount}</div>
+          <div className="text-[11px] text-rose-600/90 mt-0.5">NDVI pasayishi &gt; 10%</div>
+        </div>
 
-        {/* Optimal Card */}
-        <button
-          onClick={() => setFilterUrgency(filterUrgency === 'optimal' ? 'all' : 'optimal')}
-          className={`p-5 rounded-3xl border text-left transition-all cursor-pointer ${
-            filterUrgency === 'optimal'
-              ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400'
-              : 'bg-white border-[#E4D9C4] hover:border-emerald-300'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              {currentLang === 'ru' ? 'Оптимальное состояние' : currentLang === 'en' ? 'Optimal Health' : 'Optimal / Sog\'lom'}
-            </span>
-            <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center">
-              {optimalCount}
-            </span>
+        <div className="bg-white p-4 rounded-2xl border border-amber-200 bg-amber-50/40 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-amber-800 font-bold">
+            <span>Jarayonda</span>
+            <Clock className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="font-serif text-2xl font-black text-[#1F3D2B]">{optimalCount} ta maydon</div>
-          <p className="text-[11px] text-[#6C7C6F] mt-1">
-            {currentLang === 'ru'
-              ? 'NDVI > 0.70, достаточная влажность'
-              : currentLang === 'en'
-              ? 'NDVI > 0.70, balanced soil hydration'
-              : "Yashillik yuqori, namlik me'yorda"}
-          </p>
-        </button>
+          <div className="font-serif text-2xl font-bold text-amber-700 mt-1">{inReviewCount}</div>
+          <div className="text-[11px] text-amber-600/90 mt-0.5">Ko‘rsatma yuborilgan</div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-emerald-800 font-bold">
+            <span>Hal qilingan</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="font-serif text-2xl font-bold text-emerald-700 mt-1">{resolvedCount}</div>
+          <div className="text-[11px] text-emerald-600/90 mt-0.5">Vegetatsiya tiklandi</div>
+        </div>
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-[#E4D9C4] flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
+      {/* Filter Row */}
+      <div className="bg-white p-3.5 rounded-2xl border border-[#E4D9C4] shadow-xs flex flex-col lg:flex-row gap-3 items-center justify-between">
+        {/* Search */}
+        <div className="relative w-full lg:w-80">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6C7C6F]" />
           <input
             type="text"
             placeholder={
               currentLang === 'ru'
-                ? 'Поиск по полю, фермеру или району...'
+                ? 'Фермер, поле или регион...'
                 : currentLang === 'en'
-                ? 'Search by field, farmer, or region...'
-                : "Dala, dehqon yoki hudud bo'yicha qidiruv..."
+                ? 'Farmer, field, or region...'
+                : 'Fermer, maydon yoki hudud...'
             }
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-[#E4D9C4] text-xs text-[#1F3D2B] bg-[#FAF7F0] focus:ring-2 focus:ring-[#1F3D2B] outline-none"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-9 pl-9 pr-3.5 bg-[#FAF7F0] border border-[#E4D9C4] rounded-xl text-xs text-[#1F3D2B] placeholder:text-[#6C7C6F] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1F3D2B] transition-all"
           />
         </div>
 
-        {/* Urgency Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+        {/* Anomaly Type Filter Pills */}
+        <div className="flex items-center gap-1.5 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
           {[
-            { id: 'all', labelUz: "Barchasi", labelRu: "Все", labelEn: "All" },
-            { id: 'critical', labelUz: "Shoshilinch", labelRu: "Критичные", labelEn: "Critical" },
-            { id: 'warning', labelUz: "Diqqat talab", labelRu: "Внимание", labelEn: "Warning" },
-            { id: 'optimal', labelUz: "Optimal", labelRu: "Оптимальные", labelEn: "Optimal" },
-          ].map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilterUrgency(f.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                filterUrgency === f.id
-                  ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs'
-                  : 'bg-[#FAF7F0] text-[#6C7C6F] hover:text-[#1F3D2B]'
-              }`}
-            >
-              {currentLang === 'ru' ? f.labelRu : currentLang === 'en' ? f.labelEn : f.labelUz}
-            </button>
-          ))}
+            { id: 'all', label: 'Barchasi', icon: null },
+            { id: 'water_stress', label: 'Suv tanqisligi', icon: Droplets },
+            { id: 'pest_risk', label: 'Zararkunanda', icon: Bug },
+            { id: 'nutrient_deficiency', label: 'Ozuqa', icon: Sprout },
+            { id: 'frost_alert', label: 'Sovuq xavfi', icon: ThermometerSnowflake },
+          ].map((cat) => {
+            const Icon = cat.icon;
+            const active = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`h-8 px-3 rounded-xl text-xs font-medium whitespace-nowrap flex items-center gap-1.5 transition-all cursor-pointer ${
+                  active
+                    ? 'bg-[#1F3D2B] text-[#FAF7F0] shadow-xs font-semibold'
+                    : 'bg-[#FAF7F0] text-[#6C7C6F] hover:bg-[#F0E8D8] hover:text-[#1F3D2B]'
+                }`}
+              >
+                {Icon && <Icon className="w-3.5 h-3.5" />}
+                <span>{cat.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Triage Fields List */}
-      <div className="space-y-4">
-        {filteredTriageList.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-[#E4D9C4]">
-            <p className="text-sm font-bold text-[#1F3D2B]">
-              {currentLang === 'ru' ? 'Полей не найдено' : currentLang === 'en' ? 'No fields matched' : 'Maydonlar topilmadi'}
-            </p>
+      {/* Case Table */}
+      <div className="bg-white rounded-2xl border border-[#E4D9C4] shadow-xs overflow-hidden">
+        <div className="p-4 border-b border-[#E4D9C4] bg-[#FAF7F0]/60 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-bold text-[#1F3D2B] uppercase tracking-wider">
+              {currentLang === 'ru' ? 'Очередь выявленных аномалий' : currentLang === 'en' ? 'Triage Case Queue' : 'Navbatdagi holatlar ro‘yxati'}
+            </h2>
+            <span className="px-2 py-0.5 rounded-full bg-[#1F3D2B]/10 text-[#1F3D2B] text-[10px] font-bold">
+              {filteredCases.length} ta
+            </span>
           </div>
-        ) : (
-          filteredTriageList.map((item) => {
-            const isCrit = item.urgency === 'critical';
-            const isWarn = item.urgency === 'warning';
+          <div className="flex items-center gap-1.5 text-xs text-[#6C7C6F]">
+            <span className="text-[11px] font-mono">Real vaqt yangilanishi</span>
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          </div>
+        </div>
 
-            return (
-              <div
-                key={item.field.id}
-                className={`bg-white rounded-3xl p-5 sm:p-6 border transition-all hover:shadow-md ${
-                  isCrit
-                    ? 'border-rose-300 shadow-xs ring-1 ring-rose-200'
-                    : isWarn
-                    ? 'border-amber-300'
-                    : 'border-[#E4D9C4]'
-                }`}
-              >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                  {/* Left: Urgency Badge + Field & Farmer Info */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
-                          isCrit
-                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                            : isWarn
-                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        }`}
-                      >
-                        {isCrit ? (
-                          <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
-                        ) : isWarn ? (
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                        ) : (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        )}
-                        <span>
-                          {isCrit
-                            ? currentLang === 'ru'
-                              ? 'Срочное вмешательство'
-                              : currentLang === 'en'
-                              ? 'Critical Triage'
-                              : 'Zudlik bilan choralar zarur'
-                            : isWarn
-                            ? currentLang === 'ru'
-                              ? 'Требует внимания'
-                              : currentLang === 'en'
-                              ? 'Moderate Warning'
-                              : 'Diqqat talab holat'
-                            : currentLang === 'ru'
-                            ? 'В норме'
-                            : currentLang === 'en'
-                            ? 'Optimal'
-                            : 'Optimal holat'}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="border-b border-[#E4D9C4] bg-[#FAF7F0] text-[11px] font-bold text-[#6C7C6F] uppercase tracking-wider">
+                <th className="py-3 px-4">Fermer & Maydon</th>
+                <th className="py-3 px-4">Anomaliya turi</th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>NDVI o‘zgarishi</span>
+                    <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="agronomist-table-ndvi-tooltip" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">Holat</th>
+                <th className="py-3 px-4">Tavsiya</th>
+                <th className="py-3 px-4 text-right">Harakat</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E4D9C4]/60">
+              {filteredCases.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-[#6C7C6F]">
+                    Mos keladigan holatlar topilmadi
+                  </td>
+                </tr>
+              ) : (
+                filteredCases.map((item) => (
+                  <tr key={item.id} className="hover:bg-[#FAF7F0]/80 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-[#1F3D2B]">{item.farmerName}</div>
+                      <div className="text-[11px] text-[#6C7C6F] mt-0.5">
+                        {item.fieldTitle} <span className="text-[#6C7C6F]/60">({item.region})</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {item.issueType === 'water_stress' && (
+                        <span className="inline-flex items-center gap-1 text-sky-900 text-[11px] font-semibold bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200">
+                          <Droplets className="w-3.5 h-3.5 text-sky-600" /> Suv tanqisligi
                         </span>
-                      </span>
-
-                      <span className="text-xs font-bold text-[#6C7C6F] bg-[#FAF7F0] px-2.5 py-1 rounded-lg border border-[#E4D9C4]">
-                        {item.growthStage}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className="font-serif text-xl font-bold text-[#1F3D2B]">{item.field.name}</h3>
-                      <div className="flex items-center gap-3 text-xs text-[#6C7C6F] mt-1 flex-wrap">
-                        <span className="font-bold text-[#1F3D2B]">{item.farmerName}</span>
-                        <span>•</span>
-                        <span>{item.farmerPhone}</span>
-                        <span>•</span>
-                        <span>{item.field.region}</span>
-                        <span>•</span>
-                        <span>{item.field.area_hectares} ga</span>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-[#2D4A3E] leading-relaxed max-w-2xl bg-[#FAF7F0] p-3 rounded-xl border border-[#E4D9C4]">
-                      {currentLang === 'ru'
-                        ? item.urgencyReasonRu
-                        : currentLang === 'en'
-                        ? item.urgencyReasonEn
-                        : item.urgencyReasonUz}
-                    </p>
-                  </div>
-
-                  {/* Middle: Live NDVI & Soil Moisture Readouts */}
-                  <div className="flex items-center gap-4 bg-[#FAF7F0] p-4 rounded-2xl border border-[#E4D9C4] shrink-0">
-                    <div className="text-center">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-[#6C7C6F]">NDVI</div>
-                      <div
-                        className={`font-serif text-2xl font-black ${
-                          item.ndviScore < 0.45 ? 'text-rose-600' : item.ndviScore < 0.6 ? 'text-amber-600' : 'text-emerald-700'
-                        }`}
+                      )}
+                      {item.issueType === 'pest_risk' && (
+                        <span className="inline-flex items-center gap-1 text-amber-900 text-[11px] font-semibold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                          <Bug className="w-3.5 h-3.5 text-amber-600" /> Zararkunanda xavfi
+                        </span>
+                      )}
+                      {item.issueType === 'nutrient_deficiency' && (
+                        <span className="inline-flex items-center gap-1 text-emerald-900 text-[11px] font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                          <Sprout className="w-3.5 h-3.5 text-emerald-600" /> Ozuqa yetishmovchiligi
+                        </span>
+                      )}
+                      {item.issueType === 'frost_alert' && (
+                        <span className="inline-flex items-center gap-1 text-indigo-900 text-[11px] font-semibold bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200">
+                          <ThermometerSnowflake className="w-3.5 h-3.5 text-indigo-600" /> Sovuq xavfi
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-rose-600">
+                      {item.ndviDropPct}%
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {item.status === 'pending' && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 rounded-lg">
+                          Kutilmoqda
+                        </span>
+                      )}
+                      {item.status === 'in_review' && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 rounded-lg">
+                          Jarayonda
+                        </span>
+                      )}
+                      {item.status === 'resolved' && (
+                        <span className="px-2.5 py-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg">
+                          Bajarildi
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-[#4A5D4E] text-xs max-w-xs truncate">
+                      {item.recommendation}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <button
+                        onClick={() => handleOpenCase(item)}
+                        className="h-7 px-3 text-xs font-semibold text-[#1F3D2B] hover:text-[#B8852B] bg-[#FAF7F0] hover:bg-[#F0E8D8] border border-[#E4D9C4] rounded-lg transition-colors cursor-pointer"
                       >
-                        {item.ndviScore.toFixed(2)}
-                      </div>
-                      <div className="text-[10px] text-[#6C7C6F]">
-                        {item.ndviScore < 0.45 ? "Past" : item.ndviScore < 0.6 ? "O'rtacha" : "A'lo"}
-                      </div>
-                    </div>
-
-                    <div className="w-px h-10 bg-[#E4D9C4]" />
-
-                    <div className="text-center">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-[#6C7C6F]">
-                        {currentLang === 'ru' ? 'Влажность' : currentLang === 'en' ? 'Moisture' : 'Namlik'}
-                      </div>
-                      <div
-                        className={`font-serif text-2xl font-black ${
-                          item.moisturePercentage < 45
-                            ? 'text-rose-600'
-                            : item.moisturePercentage < 60
-                            ? 'text-amber-600'
-                            : 'text-emerald-700'
-                        }`}
-                      >
-                        {item.moisturePercentage}%
-                      </div>
-                      <div className="text-[10px] text-[#6C7C6F]">
-                        {item.moisturePercentage < 45 ? "Kam" : "Normal"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Right Actions: Write Advisory Note & Inspect Field */}
-                  <div className="flex sm:flex-col gap-2 shrink-0">
-                    <Button
-                      onClick={() => handleOpenAdvisoryModal(item)}
-                      id={`write-advisory-${item.field.id}`}
-                      variant={isCrit ? 'primary' : 'secondary'}
-                      size="sm"
-                      leftIcon={<FileText className="w-3.5 h-3.5" />}
-                    >
-                      {currentLang === 'ru' ? 'Дать указание' : currentLang === 'en' ? 'Issue Advisory' : 'Xulosa yozish'}
-                    </Button>
-                    <Button
-                      onClick={() => onSelectField?.(item.field)}
-                      variant="secondary"
-                      size="sm"
-                      leftIcon={<Eye className="w-3.5 h-3.5" />}
-                    >
-                      {currentLang === 'ru' ? 'Открыть карту' : currentLang === 'en' ? 'Inspect Field' : "Dalani ko'rish"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
+                        Ko‘rish
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Link Farmer by Invite Code Modal */}
+      {/* Case Details & Agronomic Action Modal */}
+      {activeCase && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full border border-[#E4D9C4] shadow-2xl relative animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-4 mb-5 pb-4 border-b border-[#E4D9C4]">
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-md bg-[#1F3D2B] text-[#D9A441] text-[10px] font-bold uppercase tracking-wider">
+                    {activeCase.id}
+                  </span>
+                  <span className="text-xs text-[#6C7C6F]">
+                    {activeCase.detectedDate}
+                  </span>
+                </div>
+                <h3 className="font-serif text-2xl font-bold text-[#1F3D2B] mt-1.5">
+                  {activeCase.fieldTitle} ({activeCase.farmerName})
+                </h3>
+                <p className="text-xs text-[#6C7C6F] mt-0.5 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-[#D9A441]" /> {activeCase.region}
+                  {activeCase.phone && (
+                    <>
+                      <span>•</span>
+                      <Phone className="w-3.5 h-3.5 text-[#1F3D2B]" /> {activeCase.phone}
+                    </>
+                  )}
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveCase(null)}
+                className="p-2 rounded-xl text-[#6C7C6F] hover:text-[#1F3D2B] hover:bg-[#FAF7F0] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {noteSentSuccess ? (
+              <div className="p-8 text-center space-y-3 bg-emerald-50 rounded-2xl border border-emerald-300">
+                <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+                <h4 className="font-serif text-xl font-bold text-emerald-900">
+                  Ko‘rsatma dehqonga muvaffaqiyatli yuborildi!
+                </h4>
+                <p className="text-xs text-emerald-700">
+                  Ushbu tavsiyalar dehqonning shaxsiy kabinetida va SMS/Telegram bildirishnomasida aks etadi.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSendAdvisory} className="space-y-4">
+                {/* Telemetry Summary Card */}
+                <div className="bg-[#FAF7F0] p-4 rounded-2xl border border-[#E4D9C4] grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-[#6C7C6F]">Anomaliya</div>
+                    <div className="text-xs font-bold text-[#1F3D2B] mt-1">
+                      {activeCase.issueType === 'water_stress' ? 'Suv tanqisligi' :
+                       activeCase.issueType === 'pest_risk' ? 'Zararkunanda' :
+                       activeCase.issueType === 'nutrient_deficiency' ? 'Ozuqa kamchiligi' : 'Sovuq xavfi'}
+                    </div>
+                  </div>
+                  <div className="border-x border-[#E4D9C4]">
+                    <div className="text-[10px] uppercase font-bold text-[#6C7C6F]">NDVI Pasayishi</div>
+                    <div className="font-mono text-base font-bold text-rose-600 mt-0.5">
+                      {activeCase.ndviDropPct}%
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase font-bold text-[#6C7C6F]">Holat</div>
+                    <div className="mt-1">
+                      <select
+                        value={activeCase.status}
+                        onChange={(e) => handleStatusChange(activeCase.id, e.target.value as any)}
+                        className="text-xs font-bold bg-white px-2 py-1 rounded-lg border border-[#E4D9C4] text-[#1F3D2B] outline-none"
+                      >
+                        <option value="pending">Kutilmoqda</option>
+                        <option value="in_review">Jarayonda</option>
+                        <option value="resolved">Bajarildi</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Agronomic Prescriptions */}
+                <div>
+                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1.5">
+                    Rasmiy agronomik tavsiya va ko‘rsatma matni
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={customNote}
+                    onChange={(e) => setCustomNote(e.target.value)}
+                    required
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#E4D9C4] bg-[#FAF7F0] text-xs text-[#1F3D2B] focus:bg-white focus:ring-2 focus:ring-[#1F3D2B] outline-none resize-none"
+                  />
+                </div>
+
+                {/* Checklist */}
+                <div>
+                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1.5">
+                    Dehqon uchun ketma-ket harakatlar ro‘yxati (Checklist)
+                  </label>
+                  <div className="space-y-2">
+                    {prescriptions.map((p, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-[#1F3D2B] text-[#D9A441] text-[10px] font-bold flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={p}
+                          onChange={(e) => {
+                            const copy = [...prescriptions];
+                            copy[idx] = e.target.value;
+                            setPrescriptions(copy);
+                          }}
+                          placeholder={`Amaliy harakat #${idx + 1}`}
+                          className="w-full px-3 py-1.5 rounded-xl border border-[#E4D9C4] bg-[#FAF7F0] text-xs text-[#1F3D2B] focus:bg-white focus:ring-2 focus:ring-[#1F3D2B] outline-none"
+                        />
+                        {prescriptions.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setPrescriptions(prescriptions.filter((_, i) => i !== idx))}
+                            className="p-1 text-[#6C7C6F] hover:text-rose-500 cursor-pointer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPrescriptions([...prescriptions, ''])}
+                      className="text-xs font-bold text-[#1F3D2B] hover:text-[#D9A441] flex items-center gap-1 mt-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Ko‘rsatma qo‘shish</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-4 border-t border-[#E4D9C4]">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="md"
+                    className="flex-1 justify-center"
+                    onClick={() => setActiveCase(null)}
+                    disabled={savingNote}
+                  >
+                    Yopish
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="md"
+                    className="flex-1 justify-center"
+                    disabled={savingNote}
+                    leftIcon={<Send className="w-4 h-4 text-[#D9A441]" />}
+                  >
+                    {savingNote ? 'Yuborilmoqda...' : 'Ko‘rsatmani yuborish'}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Link Farmer Modal */}
       {linkModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border border-[#E4D9C4] shadow-2xl relative animate-in fade-in zoom-in-95">
@@ -685,42 +643,34 @@ export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProp
               </div>
               <button
                 onClick={() => setLinkModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                className="p-2 rounded-xl text-[#6C7C6F] hover:text-[#1F3D2B] hover:bg-[#FAF7F0] cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <h3 className="font-serif text-2xl font-bold text-[#1F3D2B] mb-1">
-              {currentLang === 'ru' ? 'Привязать поле фермера' : currentLang === 'en' ? 'Link Client Farm' : 'Dehqon maydonini biriktirish'}
+              Dehqon maydonini biriktirish
             </h3>
             <p className="text-xs text-[#6C7C6F] mb-5">
-              {currentLang === 'ru'
-                ? 'Введите 6-значный инвайт-код фермера (например: EKIN-7842) или номер телефона'
-                : currentLang === 'en'
-                ? 'Enter the 6-digit farmer invite code (e.g. EKIN-7842) or mobile number'
-                : "Dehqonning 6 xonali taklif kodini (masalan: EKIN-7842) yoki telefon raqamini kiriting"}
+              Dehqonning 6 xonali taklif kodini (masalan: EKIN-7842) yoki telefon raqamini kiriting.
             </p>
 
             {linkSuccess ? (
               <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-300 text-center space-y-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
                 <p className="font-bold text-sm text-emerald-900">
-                  {currentLang === 'ru' ? 'Фермер успешно привязан!' : currentLang === 'en' ? 'Farmer Linked Successfully!' : 'Dehqon muvaffaqiyatli biriktirildi!'}
+                  Dehqon muvaffaqiyatli biriktirildi!
                 </p>
                 <p className="text-xs text-emerald-700">
-                  {currentLang === 'ru'
-                    ? 'Поля добавлены в ваш список агрономического триажа.'
-                    : currentLang === 'en'
-                    ? 'Fields added to your monitoring triage queue.'
-                    : "Maydonlar sizning monitoring ro'yxatingizga qo'shildi."}
+                  Maydonlar sizning agronomik triaj monitoringingizga qo‘shildi.
                 </p>
               </div>
             ) : (
               <form onSubmit={handleLinkFarmer} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold text-[#1F3D2B] mb-1">
-                    {currentLang === 'ru' ? 'Инвайт-код или Телефон' : currentLang === 'en' ? 'Invite Code or Phone' : 'Taklif kodi yoki Telefon'}
+                    Taklif kodi yoki Telefon
                   </label>
                   <input
                     type="text"
@@ -728,7 +678,7 @@ export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProp
                     onChange={(e) => setInviteCodeInput(e.target.value)}
                     placeholder="EKIN-7842 yoki +998..."
                     required
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#E4D9C4] bg-white text-xs font-bold text-[#1F3D2B] focus:ring-2 focus:ring-[#1F3D2B] outline-none tracking-wider uppercase placeholder:normal-case"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#E4D9C4] bg-[#FAF7F0] text-xs font-bold text-[#1F3D2B] focus:bg-white focus:ring-2 focus:ring-[#1F3D2B] outline-none uppercase tracking-wider placeholder:normal-case"
                   />
                 </div>
 
@@ -740,7 +690,7 @@ export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProp
                     className="flex-1 justify-center"
                     onClick={() => setLinkModalOpen(false)}
                   >
-                    {currentLang === 'ru' ? 'Отмена' : currentLang === 'en' ? 'Cancel' : 'Bekor qilish'}
+                    Bekor qilish
                   </Button>
                   <Button
                     type="submit"
@@ -748,190 +698,7 @@ export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProp
                     size="md"
                     className="flex-1 justify-center"
                   >
-                    {currentLang === 'ru' ? 'Привязать' : currentLang === 'en' ? 'Link Farm' : 'Biriktirish'}
-                  </Button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Issue Agronomic Advisory Note Modal */}
-      {activeTriageField && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full border border-[#E4D9C4] shadow-2xl relative animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-4 mb-5">
-              <div>
-                <span className="px-2.5 py-1 rounded-full bg-[#FAF7F0] border border-[#E4D9C4] text-[#1F3D2B] text-xs font-bold">
-                  {activeTriageField.farmerName} • {activeTriageField.field.name}
-                </span>
-                <h3 className="font-serif text-2xl font-bold text-[#1F3D2B] mt-2">
-                  {currentLang === 'ru'
-                    ? 'Официальное агрономическое предписание'
-                    : currentLang === 'en'
-                    ? 'Official Agronomic Action Advisory'
-                    : "Rasmiy agronomik xulosa va ko'rsatma"}
-                </h3>
-              </div>
-              <button
-                onClick={() => setActiveTriageField(null)}
-                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {noteSavedSuccess ? (
-              <div className="p-8 text-center space-y-3 bg-emerald-50 rounded-2xl border border-emerald-300">
-                <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
-                <h4 className="font-serif text-xl font-bold text-emerald-900">
-                  {currentLang === 'ru'
-                    ? 'Предписание отправлено фермеру!'
-                    : currentLang === 'en'
-                    ? 'Advisory Sent to Farmer!'
-                    : "Ko'rsatma dehqonga muvaffaqiyatli yuborildi!"}
-                </h4>
-                <p className="text-xs text-emerald-700">
-                  {currentLang === 'ru'
-                    ? 'Фермер увидит ваши рекомендации в карточке своего поля.'
-                    : currentLang === 'en'
-                    ? 'The farmer will see these instructions highlighted on their field screen.'
-                    : "Ushbu ko'rsatma dehqonning dala monitoringi sahifasida aks etadi."}
-                </p>
-              </div>
-            ) : (
-              <form onSubmit={handleSaveAdvisoryNote} className="space-y-4">
-                {/* Urgency Selector */}
-                <div>
-                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1.5">
-                    {currentLang === 'ru' ? 'Уровень срочности' : currentLang === 'en' ? 'Urgency Level' : 'Shoshilinchlik darajasi'}
-                  </label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[
-                      { id: 'low', label: 'Past', color: 'bg-emerald-100 text-emerald-800' },
-                      { id: 'medium', label: "O'rtacha", color: 'bg-blue-100 text-blue-800' },
-                      { id: 'high', label: 'Yuqori', color: 'bg-amber-100 text-amber-800' },
-                      { id: 'critical', label: 'Kritik', color: 'bg-rose-100 text-rose-800' },
-                    ].map((u) => (
-                      <button
-                        type="button"
-                        key={u.id}
-                        onClick={() => setNoteUrgency(u.id as any)}
-                        className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                          noteUrgency === u.id
-                            ? `${u.color} border-current ring-2 ring-current/20`
-                            : 'bg-[#FAF7F0] border-[#E4D9C4] text-[#6C7C6F]'
-                        }`}
-                      >
-                        {u.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Title */}
-                <div>
-                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1">
-                    {currentLang === 'ru' ? 'Тема предписания' : currentLang === 'en' ? 'Advisory Title' : 'Xulosa mavzusi'}
-                  </label>
-                  <input
-                    type="text"
-                    value={noteTitle}
-                    onChange={(e) => setNoteTitle(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2 rounded-xl border border-[#E4D9C4] bg-white text-xs text-[#1F3D2B] focus:ring-2 focus:ring-[#1F3D2B] outline-none"
-                  />
-                </div>
-
-                {/* Note Content */}
-                <div>
-                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1">
-                    {currentLang === 'ru' ? 'Агрономическое заключение' : currentLang === 'en' ? 'Agronomic Evaluation' : 'Agronom xulosasi'}
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={noteContent}
-                    onChange={(e) => setNoteContent(e.target.value)}
-                    required
-                    className="w-full px-3.5 py-2 rounded-xl border border-[#E4D9C4] bg-white text-xs text-[#1F3D2B] focus:ring-2 focus:ring-[#1F3D2B] outline-none resize-none"
-                  />
-                </div>
-
-                {/* Actionable Recommendations Checklist */}
-                <div>
-                  <label className="block text-xs font-bold text-[#1F3D2B] mb-1">
-                    {currentLang === 'ru' ? 'Конкретные действия (пункты)' : currentLang === 'en' ? 'Actionable Checklist Items' : 'Aniq amaliy ko\'rsatmalar ro\'yxati'}
-                  </label>
-                  <div className="space-y-2">
-                    {recList.map((rec, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-[#1F3D2B] text-[#D9A441] text-[10px] font-bold flex items-center justify-center shrink-0">
-                          {idx + 1}
-                        </span>
-                        <input
-                          type="text"
-                          value={rec}
-                          onChange={(e) => {
-                            const copy = [...recList];
-                            copy[idx] = e.target.value;
-                            setRecList(copy);
-                          }}
-                          placeholder={`Amaliy harakat #${idx + 1}`}
-                          className="w-full px-3 py-1.5 rounded-xl border border-[#E4D9C4] bg-white text-xs text-[#1F3D2B] focus:ring-2 focus:ring-[#1F3D2B] outline-none"
-                        />
-                        {recList.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => setRecList(recList.filter((_, i) => i !== idx))}
-                            className="p-1 text-slate-400 hover:text-rose-500"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setRecList([...recList, ''])}
-                      className="text-xs font-bold text-[#1F3D2B] hover:text-[#D9A441] flex items-center gap-1 mt-1 cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>{currentLang === 'ru' ? '+ Добавить пункт' : currentLang === 'en' ? '+ Add action' : "+ Ko'rsatma qo'shish"}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-4 border-t border-[#E4D9C4]">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="md"
-                    className="flex-1 justify-center"
-                    onClick={() => setActiveTriageField(null)}
-                    disabled={savingNote}
-                  >
-                    {currentLang === 'ru' ? 'Отмена' : currentLang === 'en' ? 'Cancel' : 'Bekor qilish'}
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    size="md"
-                    className="flex-1 justify-center"
-                    disabled={savingNote}
-                    leftIcon={<Send className="w-4 h-4 text-[#D9A441]" />}
-                  >
-                    {savingNote
-                      ? currentLang === 'ru'
-                        ? 'Отправка...'
-                        : currentLang === 'en'
-                        ? 'Sending...'
-                        : 'Yuborilmoqda...'
-                      : currentLang === 'ru'
-                      ? 'Отправить фермеру'
-                      : currentLang === 'en'
-                      ? 'Send Advisory'
-                      : "Ko'rsatmani yuborish"}
+                    Biriktirish
                   </Button>
                 </div>
               </form>
@@ -941,4 +708,6 @@ export const AgronomistDashboardSection: React.FC<AgronomistDashboardSectionProp
       )}
     </div>
   );
-};
+}
+
+export default AgronomistDashboardSection;

@@ -257,29 +257,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-[#FAF7F0] rounded-3xl max-w-md w-full p-6 sm:p-8 border-2 border-[#1F3D2B] shadow-2xl relative space-y-6">
+    <div className="fixed inset-0 z-[150] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+      <div className="bg-white rounded-xl max-w-sm w-full p-6 border border-slate-200 shadow-xl relative space-y-5">
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 text-[#6C7C6F] hover:text-[#1F3D2B] rounded-full hover:bg-[#F0E8D8] transition-colors"
+          className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
         {/* Modal Header */}
         <div className="space-y-1">
-          <h3 className="font-serif text-2xl font-bold text-[#1F3D2B]">
+          <h3 className="text-lg font-bold text-slate-900">
             {mode === 'login' ? t.authLoginTitle : t.authRegisterTitle}
           </h3>
           
           {/* Supabase Connection Status Badge */}
-          <div className="flex items-center gap-1.5 pt-1">
-            <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+          <div className="flex items-center gap-1.5 pt-0.5">
+            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded ${
               isSupabaseConfigured 
-                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
-                : 'bg-amber-100 text-amber-900 border border-amber-300'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                : 'bg-amber-50 text-amber-800 border border-amber-200'
             }`}>
               <Database className="w-3 h-3" />
               {isSupabaseConfigured ? t.supabaseConnected : t.supabaseNotConnected}
@@ -289,10 +289,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         {/* Feedback Message */}
         {message && (
-          <div className={`p-4 rounded-xl border text-xs font-semibold flex items-center gap-2.5 ${
+          <div className={`p-3 rounded-lg border text-xs font-medium flex items-center gap-2 ${
             message.type === 'success'
-              ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
-              : 'bg-rose-50 text-rose-900 border-rose-300'
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+              : 'bg-rose-50 text-rose-900 border-rose-200'
           }`}>
             {message.type === 'success' ? (
               <CheckCircle className="w-4 h-4 text-emerald-700 shrink-0" />
@@ -304,55 +304,55 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         )}
 
         {/* Auth Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           
           {mode === 'register' && (
             <div>
-              <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {t.fullName} *
               </label>
               <div className="relative">
-                <User className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-3.5" />
+                <User className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   required
                   placeholder="Masalan: Nodirbek Baratov"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full bg-white border border-[#E4D9C4] rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               {t.phoneOrEmail} *
             </label>
             <div className="relative">
-              <Phone className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-3.5" />
+              <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="text"
                 required
                 placeholder="+998 90 123 45 67"
                 value={phoneOrEmail}
                 onChange={(e) => setPhoneOrEmail(e.target.value)}
-                className="w-full bg-white border border-[#E4D9C4] rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
               />
             </div>
           </div>
 
           {mode === 'register' && (
             <div>
-              <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {t.region} *
               </label>
               <div className="relative">
-                <MapPin className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-3.5 pointer-events-none" />
+                <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
                 <select
                   value={region}
                   onChange={(e) => setRegion(e.target.value)}
-                  className="w-full bg-white border border-[#E4D9C4] rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                  className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
                 >
                   {REGIONS.map((reg) => (
                     <option key={reg} value={reg}>
@@ -365,18 +365,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           )}
 
           <div>
-            <label className="block text-xs font-bold text-[#6C7C6F] uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
               {t.password} *
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 text-[#D9A441] absolute left-3.5 top-3.5" />
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
               <input
                 type="password"
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white border border-[#E4D9C4] rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#1F3D2B]"
+                className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
               />
             </div>
           </div>
@@ -384,7 +384,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#1F3D2B] hover:bg-[#14281C] text-[#FAF7F0] font-bold text-sm py-3.5 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+            className="w-full h-9 bg-[#164E35] hover:bg-[#0F3826] text-white font-semibold text-xs rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
           >
             {loading 
               ? 'Kutilmoqda...' 
@@ -395,10 +395,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </form>
 
         {/* Switch Mode */}
-        <div className="pt-2 text-center border-t border-[#E4D9C4]">
+        <div className="pt-2 text-center border-t border-slate-100">
           <button
             onClick={() => onSwitchMode(mode === 'login' ? 'register' : 'login')}
-            className="text-xs font-bold text-[#1F3D2B] hover:text-[#D9A441] transition-colors"
+            className="text-xs font-medium text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
           >
             {mode === 'login' ? t.noAccount : t.hasAccount}
           </button>

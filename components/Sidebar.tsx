@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { Language, translations } from '@/lib/i18n';
-import { FarmerProfile, isSupabaseConfigured } from '@/lib/supabase';
+import { FarmerProfile } from '@/lib/supabase';
 import { Button } from '@/components/ui/Button';
 import {
   Sprout,
@@ -12,21 +12,21 @@ import {
   ShoppingBag,
   BookOpen,
   LogIn,
-  Database,
   Settings,
   LogOut,
   X,
   ChevronRight,
+  ChevronDown,
   UserCheck,
   Activity,
   CreditCard,
   Building2,
   Crown,
   Users,
-  Send,
+  MessageSquare,
 } from 'lucide-react';
 
-export type NavTabId = 'dashboard' | 'fields' | 'agronomist' | 'plans' | 'subsidies' | 'weather' | 'marketplace' | 'guides';
+export type NavTabId = 'dashboard' | 'fields' | 'agronomist' | 'plans' | 'subsidies' | 'weather' | 'marketplace' | 'guides' | 'chat';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -158,6 +158,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Bozor',
     },
     {
+      id: 'chat',
+      labelUz: 'Xabarlar & Chat',
+      labelRu: 'Сообщения и чат',
+      labelEn: 'Messages & Chat',
+      descUz: 'Savdo & agronom maslahatlari',
+      descRu: 'Чат по сделкам и агрономия',
+      descEn: 'B2B deals & agronomist chat',
+      icon: MessageSquare,
+      badge: 'Jonli',
+    },
+    {
       id: 'guides',
       labelUz: "Agro Qo'llanma",
       labelRu: 'Агро-справочник',
@@ -188,60 +199,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Reusable Sidebar Internal Content
   const renderSidebarContent = (isMobile: boolean) => (
-    <div className="flex flex-col h-full bg-[#1F3D2B] text-[#FAF7F0] select-none">
-      {/* Brand Header */}
-      <div className="p-5 border-b border-[#FAF7F0]/10 flex items-center justify-between bg-[#1A3324]">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#FAF7F0] flex items-center justify-center text-[#1F3D2B] shadow-md">
-            <Sprout className="w-6 h-6 stroke-[2.3]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="font-serif text-2xl font-bold tracking-tight text-[#FAF7F0]">Ekinix</span>
-              <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-[#D9A441] text-[#1F3D2B]">
-                AGRO
-              </span>
+    <div className="flex flex-col h-full bg-white text-slate-900 select-none">
+      
+      {/* Top Brand & Workspace Switcher Header */}
+      <div className="p-4 border-b border-slate-200 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-[#164E35] flex items-center justify-center text-white shadow-xs">
+              <Sprout className="w-4 h-4 stroke-[2.2]" />
             </div>
-            <p className="text-[11px] text-[#FAF7F0]/70 font-medium">
-              {currentLang === 'ru'
-                ? 'Агро-платформа Узбекистана'
-                : currentLang === 'en'
-                ? 'Smart Agriculture Platform'
-                : "Aqlli Dehqonchilik Tizimi"}
-            </p>
+            <span className="font-bold text-base tracking-tight text-slate-900">Ekinix AGRO</span>
           </div>
+
+          {/* Mobile Close Button (✕) */}
+          {isMobile && (
+            <button
+              onClick={onClose}
+              id="close-sidebar-btn"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              aria-label="Yopish"
+              title="Yopish (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
-        {/* Mobile Close Button (✕) */}
-        {isMobile && (
-          <button
-            onClick={onClose}
-            id="close-sidebar-btn"
-            className="p-2 text-[#FAF7F0]/80 hover:text-white hover:bg-white/10 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/20"
-            aria-label="Yopish"
-            title="Yopish (Esc)"
-          >
-            <X className="w-5 h-5 stroke-[2.4]" />
-          </button>
-        )}
+        {/* Workspace / Farm Switcher Box */}
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 transition-colors hover:bg-slate-100/80 cursor-pointer">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 pr-2">
+              <p className="text-xs font-semibold text-slate-900 truncate">
+                {userProfile?.full_name ? `${userProfile.full_name} Dalasi` : "Ekinix Asosiy Xo'jaligi"}
+              </p>
+              <p className="text-[11px] text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                <MapPin className="w-3 h-3 text-emerald-700 shrink-0" />
+                <span>{userProfile?.region || 'Toshkent viloyati'}</span>
+              </p>
+            </div>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          </div>
+        </div>
       </div>
 
       {/* Language Switcher Bar inside drawer */}
-      <div className="px-5 py-3 border-b border-[#FAF7F0]/10 bg-[#14281C]">
-        <div className="flex items-center justify-between gap-1 bg-[#1F3D2B] p-1 rounded-xl border border-white/10">
+      <div className="px-4 py-2 border-b border-slate-200 bg-slate-50/50">
+        <div className="flex items-center justify-between gap-1 bg-slate-100 p-0.5 rounded-md text-[11px] font-semibold text-slate-600">
           {(['uz', 'ru', 'en'] as Language[]).map((lang) => {
             const isActive = currentLang === lang;
             return (
               <button
                 key={lang}
                 onClick={() => onLanguageChange(lang)}
-                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 ${
+                className={`flex-1 py-1 text-[11px] font-semibold rounded transition-all flex items-center justify-center cursor-pointer ${
                   isActive
-                    ? 'bg-[#D9A441] text-[#1F3D2B] shadow-sm'
-                    : 'text-[#FAF7F0]/70 hover:text-white hover:bg-white/5'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <span>{lang === 'uz' ? '🇺🇿 UZ' : lang === 'ru' ? '🇷🇺 RU' : '🇬🇧 EN'}</span>
+                <span>{lang.toUpperCase()}</span>
               </button>
             );
           })}
@@ -249,8 +265,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Items List */}
-      <nav className="flex-1 px-3.5 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-        <div className="px-3 pb-2 text-[10px] font-bold text-[#FAF7F0]/50 uppercase tracking-widest">
+      <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto custom-scrollbar">
+        <div className="px-3 pb-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
           {currentLang === 'ru' ? 'РАЗДЕЛЫ СИСТЕМЫ' : currentLang === 'en' ? 'APPLICATION MODULES' : 'TIZIM BO\'LIMLARI'}
         </div>
 
@@ -261,69 +277,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => handleSelectTab(item.id)}
-              className={`w-full flex items-center justify-between p-3 rounded-2xl text-sm transition-all duration-200 group text-left cursor-pointer ${
+              className={`w-full h-9 px-3 rounded-lg text-xs font-medium transition-colors flex items-center justify-between group text-left cursor-pointer ${
                 isActive
-                  ? 'bg-[#D9A441] text-[#1F3D2B] font-bold shadow-md shadow-[#D9A441]/15 ring-1 ring-[#D9A441]'
-                  : 'text-[#FAF7F0]/85 hover:bg-white/10 hover:text-white font-medium'
+                  ? 'bg-emerald-50 text-emerald-900 font-semibold border-r-2 border-emerald-700 rounded-r-none'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                    isActive
-                      ? 'bg-[#1F3D2B] text-[#D9A441]'
-                      : 'bg-white/10 text-[#D9A441] group-hover:bg-white/15 group-hover:text-white'
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Icon
+                  className={`w-4 h-4 shrink-0 transition-colors ${
+                    isActive ? 'text-emerald-800' : 'text-slate-400 group-hover:text-slate-600'
                   }`}
-                >
-                  <Icon className="w-5 h-5 stroke-[2.2]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-sm leading-tight">{getLabel(item)}</p>
-                  <p
-                    className={`text-[11px] truncate mt-0.5 ${
-                      isActive ? 'text-[#1F3D2B]/80 font-medium' : 'text-[#FAF7F0]/60'
-                    }`}
-                  >
-                    {getDesc(item)}
-                  </p>
-                </div>
+                />
+                <span className="truncate">{getLabel(item)}</span>
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                {item.badge && (
-                  <span
-                    className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                      isActive
-                        ? 'bg-[#1F3D2B] text-[#FAF7F0]'
-                        : 'bg-[#D9A441]/20 text-[#D9A441] border border-[#D9A441]/30'
-                    }`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
-                {isActive && <ChevronRight className="w-4 h-4 text-[#1F3D2B] stroke-[2.5]" />}
-              </div>
+              {item.badge && (
+                <span
+                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                    isActive
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
             </button>
           );
         })}
       </nav>
 
       {/* Bottom Panel: Farmer Profile & Settings */}
-      <div className="p-4 border-t border-[#FAF7F0]/10 bg-[#14281C] space-y-2.5">
+      <div className="p-3 border-t border-slate-200 bg-slate-50 space-y-2">
         {userProfile ? (
-          <div className="bg-[#1F3D2B] rounded-2xl p-3 border border-white/10 space-y-2">
+          <div className="bg-white rounded-lg p-2.5 border border-slate-200 space-y-2 shadow-2xs">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-xl bg-[#D9A441] flex items-center justify-center text-[#1F3D2B] font-bold text-xs shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-slate-800 text-white font-medium text-xs flex items-center justify-center shrink-0">
                   {userProfile.full_name?.charAt(0) || 'D'}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold text-xs text-[#FAF7F0] truncate">
+                  <p className="font-medium text-xs text-slate-900 truncate">
                     {userProfile.full_name}
                   </p>
-                  <p className="text-[10px] text-[#FAF7F0]/70 truncate flex items-center gap-1">
-                    <MapPin className="w-2.5 h-2.5 text-[#D9A441]" />
-                    {userProfile.region || 'Toshkent viloyati'}
+                  <p className="text-[10px] text-slate-500 truncate">
+                    {userProfile.region || 'Toshkent'}
                   </p>
                 </div>
               </div>
@@ -335,21 +334,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (isMobile) onClose();
                   }}
                   title="Sozlamalar"
-                  className="p-1.5 text-[#FAF7F0]/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                  className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors cursor-pointer"
                 >
                   <Settings className="w-4 h-4" />
                 </button>
               )}
             </div>
 
-            <div className="flex items-center gap-2 pt-1.5 border-t border-white/10">
+            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
               {onOpenOnboarding && (
                 <button
                   onClick={() => {
                     onOpenOnboarding();
                     if (isMobile) onClose();
                   }}
-                  className="flex-1 text-[11px] font-semibold py-1.5 px-2 bg-white/5 hover:bg-white/10 rounded-lg text-center transition-colors truncate cursor-pointer text-[#FAF7F0]"
+                  className="flex-1 text-[11px] font-medium py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-center transition-colors truncate cursor-pointer"
                 >
                   {currentLang === 'ru' ? 'Моя ферма' : currentLang === 'en' ? 'Farm Profile' : "Xo'jalik profili"}
                 </button>
@@ -361,7 +360,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (isMobile) onClose();
                   }}
                   title="Chiqish"
-                  className="p-1.5 text-rose-300 hover:text-rose-100 hover:bg-rose-900/40 rounded-lg transition-colors shrink-0 cursor-pointer"
+                  className="p-1 text-rose-600 hover:bg-rose-50 rounded transition-colors shrink-0 cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -378,6 +377,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               }}
               variant="secondary"
               size="sm"
+              className="h-8 text-xs"
               leftIcon={<LogIn className="w-3.5 h-3.5" />}
             >
               {t.login}
@@ -387,77 +387,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 if (onOpenAuth) onOpenAuth('register');
                 if (isMobile) onClose();
               }}
-              variant="accent"
+              variant="primary"
               size="sm"
+              className="h-8 text-xs"
               leftIcon={<Sprout className="w-3.5 h-3.5" />}
             >
               {t.register}
             </Button>
           </div>
         )}
-
-        {/* Telegram Bot Notification Hub Trigger */}
-        {onOpenTelegram && (
-          <button
-            onClick={() => {
-              onOpenTelegram();
-              if (isMobile) onClose();
-            }}
-            className="w-full flex items-center justify-between px-3 py-2 bg-[#0088cc]/15 hover:bg-[#0088cc]/25 rounded-xl text-[11px] font-semibold text-[#FAF7F0] transition-colors border border-[#0088cc]/30 cursor-pointer group"
-          >
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-md bg-[#0088cc] text-white flex items-center justify-center">
-                <Send className="w-3 h-3 -translate-x-0.2" />
-              </div>
-              <span className="group-hover:text-white">Telegram Agro Bot</span>
-            </div>
-            <span className="text-[9px] bg-[#0088cc] text-white font-bold px-1.5 py-0.5 rounded shadow-xs">
-              @{process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'ekinixbot'}
-            </span>
-          </button>
-        )}
-
-        {/* Database Setup Button */}
-        <button
-          onClick={() => {
-            onOpenDbModal();
-            if (isMobile) onClose();
-          }}
-          className="w-full flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[11px] font-semibold text-[#FAF7F0]/80 transition-colors border border-white/5 cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            <Database className="w-3.5 h-3.5 text-[#D9A441]" />
-            <span>Supabase Cloud DB</span>
-          </div>
-          <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            {isSupabaseConfigured ? 'Ulangan' : 'SQL Tayyor'}
-          </span>
-        </button>
       </div>
     </div>
   );
 
   return (
     <>
-      {/* 1. DESKTOP FIXED SIDEBAR (ALWAYS VISIBLE ON lg: SCREENS) */}
-      <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 w-72 border-r border-[#14281C] z-30 shadow-xl">
+      {/* 1. DESKTOP FIXED SIDEBAR (ALWAYS VISIBLE ON lg: SCREENS - FIXED 256px w-64) */}
+      <aside className="hidden lg:flex flex-col fixed inset-y-0 left-0 w-64 border-r border-slate-200 z-40 bg-white">
         {renderSidebarContent(false)}
       </aside>
 
       {/* 2. MOBILE SLIDE-OUT DRAWER (FOR <lg SCREENS) */}
       {isOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-[100] flex">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200 z-0"
             onClick={onClose}
             aria-hidden="true"
           />
 
           {/* Slide-Out Drawer Panel */}
           <div
-            className="relative w-80 max-w-[88vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-250 border-r border-[#14281C]"
+            className="relative w-64 max-w-[85vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200 bg-white border-r border-slate-200"
             role="dialog"
             aria-modal="true"
             aria-label="Navigation drawer"
