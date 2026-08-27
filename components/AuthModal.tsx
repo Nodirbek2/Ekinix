@@ -250,24 +250,29 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           } catch {}
         }
 
+        const registeredRegion = farmerRecord?.region || data.user?.user_metadata?.region || "Toshkent viloyati";
+
         const loggedProfile: FarmerProfile = {
           id: farmerRecord?.id || loggedUserId,
           user_id: loggedUserId,
           full_name: farmerRecord?.full_name || data.user?.user_metadata?.full_name || 'Dehqon',
           phone: farmerRecord?.phone || data.user?.user_metadata?.phone || standardPhone,
-          region: farmerRecord?.region || data.user?.user_metadata?.region || region,
+          region: registeredRegion,
           farm_type: farmerRecord?.farm_type || 'smallholder',
           primary_crops: farmerRecord?.primary_crops || ['cotton', 'wheat'],
           telegram_chat_id: farmerRecord?.telegram_chat_id,
         };
 
-        // Fetch real fields from Supabase immediately on login
+        // Fetch real fields from Supabase immediately on login (matching user_id or farmer_id)
         try {
-          const { data: dbFields } = await supabase
-            .from('fields')
-            .select('*')
-            .eq('user_id', loggedUserId)
-            .order('created_at', { ascending: false });
+          let fieldsQuery = supabase.from('fields').select('*');
+          if (farmerRecord?.id) {
+            fieldsQuery = fieldsQuery.or(`user_id.eq.${loggedUserId},farmer_id.eq.${farmerRecord.id}`);
+          } else {
+            fieldsQuery = fieldsQuery.eq('user_id', loggedUserId);
+          }
+
+          const { data: dbFields } = await fieldsQuery.order('created_at', { ascending: false });
 
           if (dbFields) {
             const parsedFields: FieldRecord[] = dbFields.map((item: any) => ({
@@ -278,7 +283,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               crop_type: item.crop_type,
               planting_date: item.planting_date || '2026-04-10',
               area_hectares: Number(item.area_hectares) || 1.5,
-              region: item.region || loggedProfile.region || "Toshkent viloyati",
+              region: item.region || registeredRegion,
               coordinates: item.coordinates_json || item.coordinates || [],
             }));
             localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedFields));

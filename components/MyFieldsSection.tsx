@@ -136,11 +136,20 @@ export function MyFieldsSection({
           const targetUserId = sessionData.session?.user?.id || userProfile?.user_id;
 
           if (targetUserId) {
-            const { data, error } = await client
-              .from('fields')
-              .select('*')
+            const { data: farmerRec } = await client
+              .from('farmers')
+              .select('id')
               .eq('user_id', targetUserId)
-              .order('created_at', { ascending: false });
+              .maybeSingle();
+
+            let fieldsQuery = client.from('fields').select('*');
+            if (farmerRec?.id) {
+              fieldsQuery = fieldsQuery.or(`user_id.eq.${targetUserId},farmer_id.eq.${farmerRec.id}`);
+            } else {
+              fieldsQuery = fieldsQuery.eq('user_id', targetUserId);
+            }
+
+            const { data, error } = await fieldsQuery.order('created_at', { ascending: false });
 
             if (!error && data) {
               const parsedDbFields: FieldRecord[] = data.map((item: any) => ({
