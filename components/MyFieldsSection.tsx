@@ -63,52 +63,6 @@ export interface MyFieldsSectionProps {
   onOpenDrawer?: () => void;
 }
 
-// Initial default demo fields located in Uzbekistan
-const SAMPLE_FIELDS: FieldRecord[] = [
-  {
-    id: 'field_sample_1',
-    name: "Paxta maydoni #4",
-    crop_type: 'cotton',
-    planting_date: '2026-04-10',
-    area_hectares: 12.5,
-    region: "Namangan viloyati",
-    coordinates: [
-      [40.9983, 71.6726],
-      [41.0015, 71.6760],
-      [40.9990, 71.6810],
-      [40.9958, 71.6775],
-    ],
-  },
-  {
-    id: 'field_sample_2',
-    name: "Samarqand Kuzgi Bug'doy",
-    crop_type: 'wheat',
-    planting_date: '2025-11-05',
-    area_hectares: 8.2,
-    region: "Samarqand viloyati",
-    coordinates: [
-      [39.6542, 66.9597],
-      [39.6570, 66.9630],
-      [39.6530, 66.9670],
-      [39.6500, 66.9620],
-    ],
-  },
-  {
-    id: 'field_sample_3',
-    name: "Quva Anor Bog'i",
-    crop_type: 'pomegranate',
-    planting_date: '2024-03-20',
-    area_hectares: 3.8,
-    region: "Farg'ona viloyati",
-    coordinates: [
-      [40.3842, 71.7843],
-      [40.3870, 71.7880],
-      [40.3830, 71.7920],
-      [40.3810, 71.7870],
-    ],
-  },
-];
-
 export function MyFieldsSection({
   currentLang: propCurrentLang,
   lang: propLang,
@@ -197,10 +151,6 @@ export function MyFieldsSection({
         } catch (err) {
           console.warn("Error fetching fields from Supabase:", err);
         }
-      }
-
-      if (loaded.length === 0) {
-        loaded = SAMPLE_FIELDS;
       }
 
       if (isMounted) {

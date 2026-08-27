@@ -55,51 +55,6 @@ interface FieldWeatherInfo {
   condition: string;
 }
 
-const DEMO_DASHBOARD_FIELDS: FieldRecord[] = [
-  {
-    id: 'dash_field_1',
-    name: "Toshkent Paxta Maydoni #1",
-    crop_type: 'cotton',
-    planting_date: '2026-04-12',
-    area_hectares: 14.2,
-    region: "Toshkent viloyati",
-    coordinates: [
-      [41.2995, 69.2401],
-      [41.3025, 69.2435],
-      [41.3000, 69.2480],
-      [41.2970, 69.2440],
-    ],
-  },
-  {
-    id: 'dash_field_2',
-    name: "Samarqand Kuzgi Bug'doy",
-    crop_type: 'wheat',
-    planting_date: '2025-11-01',
-    area_hectares: 9.5,
-    region: "Samarqand viloyati",
-    coordinates: [
-      [39.6542, 66.9597],
-      [39.6570, 66.9630],
-      [39.6530, 66.9670],
-      [39.6500, 66.9620],
-    ],
-  },
-  {
-    id: 'dash_field_3',
-    name: "Farg'ona Anor Bog'i",
-    crop_type: 'pomegranate',
-    planting_date: '2024-03-15',
-    area_hectares: 4.6,
-    region: "Farg'ona viloyati",
-    coordinates: [
-      [40.3842, 71.7843],
-      [40.3870, 71.7880],
-      [40.3830, 71.7920],
-      [40.3810, 71.7870],
-    ],
-  },
-];
-
 export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
   currentLang,
   userProfile,
@@ -176,10 +131,6 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
         } catch (err) {
           console.warn("Supabase dashboard load notice:", err);
         }
-      }
-
-      if (list.length === 0 && !userProfile) {
-        list = DEMO_DASHBOARD_FIELDS;
       }
 
       if (active) {
@@ -314,10 +265,6 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
       } catch (err) {
         console.warn("Supabase dashboard refresh notice:", err);
       }
-    }
-
-    if (list.length === 0 && !userProfile) {
-      list = DEMO_DASHBOARD_FIELDS;
     }
 
     setFields(list);
