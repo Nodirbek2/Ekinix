@@ -361,8 +361,8 @@ export async function fetchFieldNdviHistory(field: FieldRecord): Promise<NDVIRea
 
   // 3. If history has fewer than 2 readings, generate a coherent timeline anchored on current NDVI telemetry
   if (list.length < 2) {
-    const currentRes = getCachedNdvi(field.id);
-    const targetScore = currentRes?.ndviScore ?? 0.68;
+    const currentRes = getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field);
+    const targetScore = currentRes.ndviScore ?? 0.68;
     const plantingDate = field.planting_date ? new Date(field.planting_date) : new Date(Date.now() - 60 * 86400000);
     const now = new Date();
     const totalDays = Math.max(14, Math.min(120, Math.floor((now.getTime() - plantingDate.getTime()) / 86400000)));

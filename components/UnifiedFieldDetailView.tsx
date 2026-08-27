@@ -621,17 +621,80 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
       {/* TAB 2: SATELLITE NDVI */}
       {activeDetailTab === 'ndvi' && (
         <div className="space-y-5">
+          {/* Top Live Satellite Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-slate-500">
+                <span className="text-[11px] font-semibold uppercase tracking-wider">
+                  {currentLang === 'ru' ? 'Текущий индекс NDVI' : currentLang === 'en' ? 'Current NDVI Score' : "Joriy NDVI Indeksi"}
+                </span>
+                <Activity className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-mono font-bold text-slate-900">
+                  {formatNdviScore(ndviResult?.ndviScore, currentLang)}
+                </span>
+                {(() => {
+                  const badge = getNdviStatusBadge(ndviResult?.ndviScore, currentLang);
+                  return (
+                    <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${badge.bg} ${badge.text} ${badge.border}`}>
+                      {badge.label}
+                    </span>
+                  );
+                })()}
+              </div>
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-600"
+                  style={{
+                    width: `${typeof ndviResult?.ndviScore === 'number' ? Math.min(100, Math.max(0, (ndviResult.ndviScore / 1.0) * 100)) : 0}%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-slate-500">
+                <span className="text-[11px] font-semibold uppercase tracking-wider">
+                  {currentLang === 'ru' ? 'Влажность биомассы' : currentLang === 'en' ? 'Canopy Hydration' : "Vegetatsiya Namligi"}
+                </span>
+                <Droplets className="w-4 h-4 text-sky-600" />
+              </div>
+              <div className="text-2xl font-mono font-bold text-slate-900">
+                {ndviResult?.moisturePercentage ?? 68}%
+              </div>
+              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                <div className="h-full bg-sky-600" style={{ width: `${ndviResult?.moisturePercentage ?? 68}%` }} />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-2">
+              <div className="flex items-center justify-between text-slate-500">
+                <span className="text-[11px] font-semibold uppercase tracking-wider">
+                  {currentLang === 'ru' ? 'Дата пролета Sentinel-2' : currentLang === 'en' ? 'Pass Date' : "Oxirgi O'tish Sanasi"}
+                </span>
+                <Calendar className="w-4 h-4 text-slate-400" />
+              </div>
+              <div className="text-sm font-mono font-bold text-slate-900">
+                {ndviResult?.satelliteDate || new Date().toISOString().split('T')[0]}
+              </div>
+              <span className="text-[10px] text-slate-500 block truncate">
+                Sentinel-2 MSI (10m Resolution)
+              </span>
+            </div>
+          </div>
+
           <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-semibold text-slate-900">
-                    {currentLang === 'ru' ? 'Спутниковый мониторинг Sentinel-2' : "Sun'iy yo'ldosh NDVI Telemetriyasi"}
+                    {currentLang === 'ru' ? 'История спутниковых измерений Sentinel-2' : "Sun'iy yo'ldosh NDVI Telemetriyasi Tarixi"}
                   </h3>
                   <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id="detail-tab2-ndvi-header-tooltip" />
                 </div>
                 <p className="text-xs text-slate-500">
-                  {currentLang === 'ru' ? 'Анализ вегетации и история измерений' : "Ekin vegetatsiyasi va spektral tahlil o'lchovlari"}
+                  {currentLang === 'ru' ? 'Хронология спектрального анализа вегетации' : "Ekin vegetatsiyasi va spektral tahlil o'lchovlari xronologiyasi (eng yangi o'lchov yuqorida)"}
                 </p>
               </div>
 
@@ -670,19 +733,55 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {ndviHistory.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-500 font-sans text-xs">
-                        <p className="font-medium text-slate-700">{currentLang === 'ru' ? 'Спутниковые данные пока не поступили' : currentLang === 'en' ? 'No satellite telemetry recorded yet' : "Sun'iy yo'ldosh ma'lumoti hozircha mavjud emas"}</p>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{currentLang === 'ru' ? 'Следующий пролет Sentinel-2 ожидается в течение 3-5 дней' : currentLang === 'en' ? 'Next Sentinel-2 pass scheduled within 3-5 days' : "Sentinel-2 sun'iy yo'ldoshi navbatdagi tahlili 3-5 kunda amalga oshiriladi"}</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    ndviHistory.map((item) => {
-                      const badge = getNdviStatusBadge(item.ndvi_score, currentLang);
+                  {(() => {
+                    const currentScore = ndviResult?.ndviScore ?? null;
+                    const currentDate = ndviResult?.satelliteDate || new Date().toISOString().split('T')[0];
+                    const currentMoisture = ndviResult?.moisturePercentage ?? 68;
+
+                    const list = [...ndviHistory];
+                    const hasCurrent = list.some((item) => item.satellite_date === currentDate);
+                    if (!hasCurrent && currentScore !== null) {
+                      list.push({
+                        id: `current_${field.id}`,
+                        field_id: field.id,
+                        ndvi_score: currentScore,
+                        moisture_percentage: currentMoisture,
+                        status: currentScore >= 0.65 ? 'good' : currentScore >= 0.45 ? 'warning' : 'critical',
+                        satellite_date: currentDate,
+                        recommendation_uz: "Joriy sun'iy yo'ldosh monitoringi",
+                        recommendation_ru: "Текущий спутниковый мониторинг",
+                        recommendation_en: "Current satellite monitoring",
+                      });
+                    }
+
+                    // Sort descending: newest on top
+                    const sorted = list.sort((a, b) => new Date(b.satellite_date).getTime() - new Date(a.satellite_date).getTime());
+
+                    if (sorted.length === 0) {
                       return (
-                        <tr key={item.id || item.satellite_date} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
-                          <td className="py-2.5 px-3 font-medium text-slate-900">{item.satellite_date}</td>
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-500 font-sans text-xs">
+                            <p className="font-medium text-slate-700">{currentLang === 'ru' ? 'Спутниковые данные пока не поступили' : currentLang === 'en' ? 'No satellite telemetry recorded yet' : "Sun'iy yo'ldosh ma'lumoti hozircha mavjud emas"}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{currentLang === 'ru' ? 'Следующий пролет Sentinel-2 ожидается в течение 3-5 дней' : currentLang === 'en' ? 'Next Sentinel-2 pass scheduled within 3-5 days' : "Sentinel-2 sun'iy yo'ldoshi navbatdagi tahlili 3-5 kunda amalga oshiriladi"}</p>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return sorted.map((item, idx) => {
+                      const badge = getNdviStatusBadge(item.ndvi_score, currentLang);
+                      const isLatest = idx === 0;
+
+                      return (
+                        <tr key={item.id || item.satellite_date} className={`border-b border-slate-100 hover:bg-slate-50/80 transition-colors ${isLatest ? 'bg-emerald-50/40 font-semibold' : ''}`}>
+                          <td className="py-2.5 px-3 font-medium text-slate-900 flex items-center gap-1.5">
+                            <span>{item.satellite_date}</span>
+                            {isLatest && (
+                              <span className="text-[9px] font-sans px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                {currentLang === 'ru' ? 'Текущий' : currentLang === 'en' ? 'Latest' : 'Joriy'}
+                              </span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3 font-bold text-slate-800">{formatNdviScore(item.ndvi_score, currentLang)}</td>
                           <td className="py-2.5 px-3 text-slate-600">{item.moisture_percentage}%</td>
                           <td className="py-2.5 px-3 font-sans text-[11px] text-slate-600">
@@ -701,8 +800,8 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
                           </td>
                         </tr>
                       );
-                    })
-                  )}
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>
