@@ -9,6 +9,8 @@ import { UnifiedFieldDetailView } from '@/components/UnifiedFieldDetailView';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
+import { useMultipleFieldsNdvi } from '@/hooks/useFieldNdvi';
+import { formatNdviScore, getNdviStatusBadge } from '@/lib/ndviService';
 import { Button } from '@/components/ui/Button';
 import { 
   Plus, 
@@ -82,6 +84,9 @@ export function MyFieldsSection({
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Single source of truth NDVI telemetry across all fields
+  const { ndviMap } = useMultipleFieldsNdvi(internalFields, effectiveLang);
 
   // Search & Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -477,16 +482,10 @@ export function MyFieldsSection({
             const calc = calculateGrowthStage(field.crop_type, field.planting_date || '2026-04-10');
             const stage = calc.currentStage;
 
-            // Health status tag
-            let healthStatus: 'healthy' | 'moderate' | 'critical' = 'healthy';
-            let fieldNdvi = 0.72;
-            if (field.id.includes('2')) {
-              healthStatus = 'moderate';
-              fieldNdvi = 0.58;
-            } else if (field.id.includes('5')) {
-              healthStatus = 'critical';
-              fieldNdvi = 0.42;
-            }
+            const ndviData = ndviMap[field.id];
+            const ndviScore = ndviData?.ndviScore ?? null;
+            const badge = getNdviStatusBadge(ndviScore, effectiveLang);
+            const formattedScore = formatNdviScore(ndviScore, effectiveLang);
 
             return (
               <div
@@ -507,7 +506,10 @@ export function MyFieldsSection({
                         {field.region}
                       </p>
                     </div>
-                    {getStatusBadge(healthStatus)}
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badge.bg} ${badge.text} ${badge.border}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+                      {badge.label}
+                    </span>
                   </div>
 
                   {/* Satellite Thumbnail Map */}
@@ -534,7 +536,7 @@ export function MyFieldsSection({
                       </div>
                       <span className="text-xs font-mono font-bold text-emerald-800 flex items-center gap-1 mt-0.5">
                         <Activity className="w-3 h-3 text-emerald-600" />
-                        {fieldNdvi.toFixed(2)}
+                        {formattedScore}
                       </span>
                     </div>
                   </div>

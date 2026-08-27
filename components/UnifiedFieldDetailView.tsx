@@ -11,6 +11,7 @@ import {
   RealIrrigationAdvice,
   formatNdviScore,
   getNdviStatusBadge,
+  getCachedNdvi,
 } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { getFieldSeasonProgress } from '@/lib/seasonMilestones';
@@ -102,9 +103,9 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'ndvi' | 'irrigation' | 'guide'>('overview');
 
   // Telemetry State
-  const [ndviResult, setNdviResult] = useState<NdviResult | null>(null);
+  const [ndviResult, setNdviResult] = useState<NdviResult | null>(() => getCachedNdvi(field.id));
   const [ndviHistory, setNdviHistory] = useState<NDVIReading[]>([]);
-  const [loadingNdvi, setLoadingNdvi] = useState(true);
+  const [loadingNdvi, setLoadingNdvi] = useState(() => !getCachedNdvi(field.id));
   const [simulateCloudMode, setSimulateCloudMode] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -274,6 +275,11 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
 
   useEffect(() => {
     let isMounted = true;
+    const cached = getCachedNdvi(field.id);
+    if (cached) {
+      setNdviResult(cached);
+    }
+
     async function loadTelemetry() {
       try {
         const [currentReading, history] = await Promise.all([
