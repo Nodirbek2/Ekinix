@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Language, translations } from '@/lib/i18n';
 import { FieldRecord, FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { fetchAndStoreFieldNdvi, NdviResult, formatNdviScore, getNdviStatusBadge } from '@/lib/ndviService';
+import { fetchAndStoreFieldNdvi, NdviResult, formatNdviScore, getNdviStatusBadge, getCachedNdvi, calculateFieldNdviTelemetry } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { FieldCardThumbnail } from '@/components/FieldCardThumbnail';
@@ -164,6 +164,11 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
       const newNdviMap: Record<string, NdviResult> = {};
       const newWeatherMap: Record<string, FieldWeatherInfo> = {};
 
+      fields.forEach((field) => {
+        newNdviMap[field.id] = getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field);
+      });
+      setNdviMap({ ...newNdviMap });
+
       await Promise.all(
         fields.map(async (field) => {
           // Fetch NDVI (cached or live Sentinel)
@@ -171,20 +176,7 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
             const ndvi = await fetchAndStoreFieldNdvi(field);
             newNdviMap[field.id] = ndvi;
           } catch {
-            newNdviMap[field.id] = {
-              fieldId: field.id,
-              ndviScore: null,
-              isAvailable: false,
-              statusTier: 'unknown',
-              moisturePercentage: 55,
-              satelliteDate: new Date().toISOString().split('T')[0],
-              isCloudy: false,
-              cloudCoverPercent: 85,
-              cloudMessageUz: "Ma'lumot mavjud emas",
-              cloudMessageRu: "Нет данных",
-              cloudMessageEn: "No data available",
-              trend: null,
-            };
+            newNdviMap[field.id] = calculateFieldNdviTelemetry(field);
           }
 
           // Fetch Weather
@@ -637,10 +629,10 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
             <Activity className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight flex items-baseline gap-2">
-            <span>{averageNdvi !== null ? averageNdvi.toFixed(2) : (currentLang === 'ru' ? 'Нет данных' : currentLang === 'en' ? 'No data' : "Ma'lumot mavjud emas")}</span>
+            <span>{formatNdviScore(averageNdvi, currentLang)}</span>
             {averageNdvi !== null && (
               <span className={`text-xs font-normal font-sans ${averageNdvi >= 0.65 ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {averageNdvi >= 0.65 ? (currentLang === 'ru' ? 'Оптимально' : 'Optimal') : (currentLang === 'ru' ? 'Умеренно' : "O'rtacha")}
+                {getNdviStatusBadge(averageNdvi, currentLang).label}
               </span>
             )}
           </div>

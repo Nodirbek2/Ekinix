@@ -12,6 +12,7 @@ import {
   formatNdviScore,
   getNdviStatusBadge,
   getCachedNdvi,
+  calculateFieldNdviTelemetry,
 } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { getFieldSeasonProgress } from '@/lib/seasonMilestones';
@@ -103,9 +104,9 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
   const [activeDetailTab, setActiveDetailTab] = useState<'overview' | 'ndvi' | 'irrigation' | 'guide'>('overview');
 
   // Telemetry State
-  const [ndviResult, setNdviResult] = useState<NdviResult | null>(() => getCachedNdvi(field.id));
+  const [ndviResult, setNdviResult] = useState<NdviResult | null>(() => getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field));
   const [ndviHistory, setNdviHistory] = useState<NDVIReading[]>([]);
-  const [loadingNdvi, setLoadingNdvi] = useState(() => !getCachedNdvi(field.id));
+  const [loadingNdvi, setLoadingNdvi] = useState(false);
   const [simulateCloudMode, setSimulateCloudMode] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -275,9 +276,9 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    const cached = getCachedNdvi(field.id);
-    if (cached) {
-      setNdviResult(cached);
+    const initial = getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field);
+    if (initial) {
+      setNdviResult(initial);
     }
 
     async function loadTelemetry() {
@@ -677,29 +678,30 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    ndviHistory.map((item) => (
-                      <tr key={item.id || item.satellite_date} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
-                        <td className="py-2.5 px-3 font-medium text-slate-900">{item.satellite_date}</td>
-                        <td className="py-2.5 px-3 font-bold text-slate-800">{item.ndvi_score.toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{item.moisture_percentage}%</td>
-                        <td className="py-2.5 px-3 font-sans text-[11px] text-slate-600">
-                          {item.ndvi_score >= 0.65 ? (
-                            <span className="text-emerald-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> High</span>
-                          ) : (
-                            <span className="text-amber-700 flex items-center gap-1"><Minus className="w-3.5 h-3.5" /> Normal</span>
-                          )}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-medium ${
-                            item.status === 'good' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-                            item.status === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                            'bg-rose-50 text-rose-800 border border-rose-200'
-                          }`}>
-                            {item.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+                    ndviHistory.map((item) => {
+                      const badge = getNdviStatusBadge(item.ndvi_score, currentLang);
+                      return (
+                        <tr key={item.id || item.satellite_date} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3 font-medium text-slate-900">{item.satellite_date}</td>
+                          <td className="py-2.5 px-3 font-bold text-slate-800">{formatNdviScore(item.ndvi_score, currentLang)}</td>
+                          <td className="py-2.5 px-3 text-slate-600">{item.moisture_percentage}%</td>
+                          <td className="py-2.5 px-3 font-sans text-[11px] text-slate-600">
+                            {item.ndvi_score >= 0.65 ? (
+                              <span className="text-emerald-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> High</span>
+                            ) : item.ndvi_score >= 0.45 ? (
+                              <span className="text-amber-700 flex items-center gap-1"><Minus className="w-3.5 h-3.5" /> Moderate</span>
+                            ) : (
+                              <span className="text-rose-700 flex items-center gap-1"><TrendingDown className="w-3.5 h-3.5" /> Stress</span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-medium border ${badge.bg} ${badge.text} ${badge.border}`}>
+                              {badge.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>

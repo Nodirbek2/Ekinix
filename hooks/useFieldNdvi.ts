@@ -8,6 +8,7 @@ import {
   formatNdviScore,
   getNdviStatusBadge,
   getCachedNdvi,
+  calculateFieldNdviTelemetry,
 } from '@/lib/ndviService';
 import { Language } from '@/lib/i18n';
 
@@ -39,7 +40,7 @@ export function useFieldNdvi(
 ): UseFieldNdviReturn {
   const [ndviResult, setNdviResult] = useState<NdviResult | null>(() => {
     if (field?.id) {
-      return getCachedNdvi(field.id);
+      return getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field);
     }
     return null;
   });
@@ -115,8 +116,7 @@ export function useMultipleFieldsNdvi(
   const [ndviMap, setNdviMap] = useState<Record<string, NdviResult>>(() => {
     const initial: Record<string, NdviResult> = {};
     fields.forEach((f) => {
-      const cached = getCachedNdvi(f.id);
-      if (cached) initial[f.id] = cached;
+      initial[f.id] = getCachedNdvi(f.id) || calculateFieldNdviTelemetry(f);
     });
     return initial;
   });

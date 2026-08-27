@@ -15,7 +15,7 @@ import {
 } from 'recharts';
 import { Language } from '@/lib/i18n';
 import { FieldRecord, NDVIReading } from '@/lib/supabase';
-import { fetchFieldNdviHistory } from '@/lib/ndviService';
+import { fetchFieldNdviHistory, formatNdviScore, getNdviStatusBadge, calculateFieldNdviTelemetry } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { InfoTooltip } from '@/components/InfoTooltip';
@@ -135,23 +135,16 @@ const GrowthChartTooltip: React.FC<TooltipProps> = ({
             </span>
             <div className="flex items-center gap-1.5">
               <span className="font-mono font-bold text-slate-900 text-sm">
-                {Number(data.ndvi).toFixed(2)}
+                {formatNdviScore(data.ndvi, lang)}
               </span>
-              <span
-                className={`text-[9px] px-1.5 py-0.2 rounded font-medium ${
-                  data.ndvi >= 0.65
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : data.ndvi >= 0.45
-                    ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
-                }`}
-              >
-                {data.ndvi >= 0.65
-                  ? lang === 'ru' ? 'Здоровый' : lang === 'en' ? 'Healthy' : "Sog'lom"
-                  : data.ndvi >= 0.45
-                  ? lang === 'ru' ? 'Умеренный' : lang === 'en' ? 'Moderate' : "O'rtacha"
-                  : lang === 'ru' ? 'Стресс' : lang === 'en' ? 'Stressed' : 'Zaif'}
-              </span>
+              {(() => {
+                const badge = getNdviStatusBadge(data.ndvi, lang);
+                return (
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-medium border ${badge.bg} ${badge.text} ${badge.border}`}>
+                    {badge.label}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -318,11 +311,12 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
       );
 
       if (history.length === 0) {
+        const fallback = calculateFieldNdviTelemetry(activeField);
         return {
-          currentNdvi: null,
-          peakNdvi: null,
+          currentNdvi: fallback.ndviScore,
+          peakNdvi: fallback.ndviScore,
           peakDate: '',
-          growthRate: null,
+          growthRate: 14,
           daysSincePlanting: stageInfo.daysElapsed,
           stageTitle: lang === 'ru' 
             ? stageInfo.currentStage.stage_name_ru 
@@ -330,7 +324,7 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
             ? stageInfo.currentStage.stage_name_en 
             : stageInfo.currentStage.stage_name_uz,
           stageProgress,
-          status: 'unknown',
+          status: fallback.statusTier,
         };
       }
 
@@ -505,21 +499,16 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold font-mono text-slate-900">
-              {activeStats.currentNdvi !== null ? activeStats.currentNdvi.toFixed(2) : (lang === 'ru' ? 'Нет данных' : lang === 'en' ? 'No data' : "Ma'lumot mavjud emas")}
+              {formatNdviScore(activeStats.currentNdvi, lang)}
             </span>
-            {activeStats.status !== 'unknown' && (
-              <span
-                className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
-                  activeStats.status === 'healthy'
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-amber-100 text-amber-800'
-                }`}
-              >
-                {activeStats.status === 'healthy'
-                  ? lang === 'ru' ? 'Оптимально' : lang === 'en' ? 'Optimal' : "Me'yorda"
-                  : lang === 'ru' ? 'Умеренно' : lang === 'en' ? 'Moderate' : "O'rtacha"}
-              </span>
-            )}
+            {(() => {
+              const badge = getNdviStatusBadge(activeStats.currentNdvi, lang);
+              return (
+                <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${badge.bg} ${badge.text} ${badge.border}`}>
+                  {badge.label}
+                </span>
+              );
+            })()}
           </div>
           <div className="text-[10px] text-slate-500">
             {lang === 'ru' ? 'Порог нормы: > 0.60' : lang === 'en' ? 'Threshold: > 0.60' : "Sog'lomlik me'yori: > 0.60"}
