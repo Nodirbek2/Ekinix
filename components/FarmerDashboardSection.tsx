@@ -106,27 +106,33 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
       }
 
       const client = supabase;
-      if (isSupabaseConfigured && client && userProfile?.user_id) {
+      if (isSupabaseConfigured && client) {
         try {
-          const { data, error } = await client
-            .from('fields')
-            .select('*')
-            .or(`user_id.eq.${userProfile.user_id},farmer_id.eq.${userProfile.id || 'none'}`)
-            .order('created_at', { ascending: false });
+          const { data: sessionData } = await client.auth.getSession();
+          const targetUserId = sessionData.session?.user?.id || userProfile?.user_id;
 
-          if (!error && data && data.length > 0) {
-            const parsed = data.map((item: any) => ({
-              id: item.id,
-              user_id: item.user_id,
-              farmer_id: item.farmer_id,
-              name: item.name,
-              crop_type: item.crop_type,
-              planting_date: item.planting_date || '2026-04-10',
-              area_hectares: Number(item.area_hectares) || 1.5,
-              region: item.region || userProfile.region || "Toshkent viloyati",
-              coordinates: item.coordinates_json || item.coordinates || [],
-            }));
-            list = parsed;
+          if (targetUserId) {
+            const { data, error } = await client
+              .from('fields')
+              .select('*')
+              .eq('user_id', targetUserId)
+              .order('created_at', { ascending: false });
+
+            if (!error && data) {
+              const parsed = data.map((item: any) => ({
+                id: item.id,
+                user_id: item.user_id,
+                farmer_id: item.farmer_id,
+                name: item.name,
+                crop_type: item.crop_type,
+                planting_date: item.planting_date || '2026-04-10',
+                area_hectares: Number(item.area_hectares) || 1.5,
+                region: item.region || userProfile?.region || "Toshkent viloyati",
+                coordinates: item.coordinates_json || item.coordinates || [],
+              }));
+              list = parsed;
+              localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsed));
+            }
           }
         } catch (err) {
           console.warn("Supabase dashboard load notice:", err);
@@ -240,27 +246,33 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
     }
 
     const client = supabase;
-    if (isSupabaseConfigured && client && userProfile?.user_id) {
+    if (isSupabaseConfigured && client) {
       try {
-        const { data, error } = await client
-          .from('fields')
-          .select('*')
-          .or(`user_id.eq.${userProfile.user_id},farmer_id.eq.${userProfile.id || 'none'}`)
-          .order('created_at', { ascending: false });
+        const { data: sessionData } = await client.auth.getSession();
+        const targetUserId = sessionData.session?.user?.id || userProfile?.user_id;
 
-        if (!error && data && data.length > 0) {
-          const parsed = data.map((item: any) => ({
-            id: item.id,
-            user_id: item.user_id,
-            farmer_id: item.farmer_id,
-            name: item.name,
-            crop_type: item.crop_type,
-            planting_date: item.planting_date || '2026-04-10',
-            area_hectares: Number(item.area_hectares) || 1.5,
-            region: item.region || userProfile.region || "Toshkent viloyati",
-            coordinates: item.coordinates_json || item.coordinates || [],
-          }));
-          list = parsed;
+        if (targetUserId) {
+          const { data, error } = await client
+            .from('fields')
+            .select('*')
+            .eq('user_id', targetUserId)
+            .order('created_at', { ascending: false });
+
+          if (!error && data) {
+            const parsed = data.map((item: any) => ({
+              id: item.id,
+              user_id: item.user_id,
+              farmer_id: item.farmer_id,
+              name: item.name,
+              crop_type: item.crop_type,
+              planting_date: item.planting_date || '2026-04-10',
+              area_hectares: Number(item.area_hectares) || 1.5,
+              region: item.region || userProfile?.region || "Toshkent viloyati",
+              coordinates: item.coordinates_json || item.coordinates || [],
+            }));
+            list = parsed;
+            localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsed));
+          }
         }
       } catch (err) {
         console.warn("Supabase dashboard refresh notice:", err);

@@ -80,61 +80,82 @@ export default function Home() {
     }
   }, [activeTab]);
 
-  // Load profile from localStorage & Supabase session after mount
+  // Load profile & sync Supabase auth session after mount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      try {
-        const savedProfile = localStorage.getItem('ekinix_farmer_profile');
-        if (savedProfile) {
-          setUserProfile(JSON.parse(savedProfile));
-        }
-      } catch {
-        // ignore
+    try {
+      const savedProfile = localStorage.getItem('ekinix_farmer_profile');
+      if (savedProfile) {
+        setUserProfile(JSON.parse(savedProfile));
       }
-    }, 0);
+    } catch {
+      // ignore
+    }
 
     const client = supabase;
     if (isSupabaseConfigured && client) {
-      client.auth.getSession().then(({ data }) => {
+      // Check active session immediately
+      client.auth.getSession().then(async ({ data }) => {
         if (data.session?.user) {
           const userMeta = data.session.user.user_metadata || {};
-          const profile: FarmerProfile = {
-            id: data.session.user.id,
-            user_id: data.session.user.id,
-            full_name: userMeta.full_name || 'Dehqon',
-            phone: userMeta.phone || data.session.user.email || '',
-            region: userMeta.region || "Toshkent viloyati",
-            farm_type: userMeta.farm_type || 'smallholder',
-            primary_crops: userMeta.primary_crops || ['cotton', 'wheat'],
-          };
+          const userId = data.session.user.id;
 
-          client
+          const { data: dbFarmer } = await client
             .from('farmers')
             .select('*')
-            .eq('user_id', data.session.user.id)
-            .single()
-            .then(({ data: dbFarmer }) => {
-              if (dbFarmer) {
-                const updated: FarmerProfile = {
-                  id: dbFarmer.id,
-                  user_id: dbFarmer.user_id,
-                  full_name: dbFarmer.full_name,
-                  phone: dbFarmer.phone,
-                  region: dbFarmer.region,
-                  farm_type: dbFarmer.farm_type || 'smallholder',
-                  primary_crops: dbFarmer.primary_crops || ['cotton', 'wheat'],
-                };
-                setUserProfile(updated);
-                localStorage.setItem('ekinix_farmer_profile', JSON.stringify(updated));
-              } else {
-                setUserProfile(profile);
-              }
-            });
+            .eq('user_id', userId)
+            .maybeSingle();
+
+          const profile: FarmerProfile = {
+            id: dbFarmer?.id || userId,
+            user_id: userId,
+            full_name: dbFarmer?.full_name || userMeta.full_name || 'Dehqon',
+            phone: dbFarmer?.phone || userMeta.phone || data.session.user.email || '',
+            region: dbFarmer?.region || userMeta.region || "Toshkent viloyati",
+            farm_type: dbFarmer?.farm_type || userMeta.farm_type || 'smallholder',
+            primary_crops: dbFarmer?.primary_crops || userMeta.primary_crops || ['cotton', 'wheat'],
+            telegram_chat_id: dbFarmer?.telegram_chat_id,
+          };
+
+          setUserProfile(profile);
+          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(profile));
+
+          // Preload user's fields from Supabase
+          const { data: dbFields } = await client
+            .from('fields')
+            .select('*')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
+
+          if (dbFields) {
+            const parsedFields: FieldRecord[] = dbFields.map((item: any) => ({
+              id: item.id,
+              user_id: item.user_id,
+              farmer_id: item.farmer_id,
+              name: item.name,
+              crop_type: item.crop_type,
+              planting_date: item.planting_date || '2026-04-10',
+              area_hectares: Number(item.area_hectares) || 1.5,
+              region: item.region || profile.region || "Toshkent viloyati",
+              coordinates: item.coordinates_json || item.coordinates || [],
+            }));
+            localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedFields));
+          }
         }
       });
-    }
 
-    return () => clearTimeout(timer);
+      // Listen for auth state changes (login, logout)
+      const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT' || !session) {
+          setUserProfile(null);
+          localStorage.removeItem('ekinix_farmer_profile');
+          localStorage.removeItem('ekinix_farmer_fields');
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    }
   }, []);
 
   // Listen for custom tab switch events from inner components (e.g. Dashboard quick links)
@@ -196,6 +217,7 @@ export default function Home() {
   const handleLogout = async () => {
     setUserProfile(null);
     localStorage.removeItem('ekinix_farmer_profile');
+    localStorage.removeItem('ekinix_farmer_fields');
     const client = supabase;
     if (isSupabaseConfigured && client) {
       await client.auth.signOut();

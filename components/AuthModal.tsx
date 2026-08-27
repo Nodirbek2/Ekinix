@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Language, translations } from '@/lib/i18n';
-import { FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { FarmerProfile, FieldRecord, isSupabaseConfigured, supabase } from '@/lib/supabase';
 import { User, Phone, Lock, MapPin, Database, CheckCircle, AlertCircle, X } from 'lucide-react';
 
 interface AuthModalProps {
@@ -102,38 +102,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const sanitizedEmail = normalizePhoneToEmail(cleanInput);
     const standardPhone = digitsOnly.length >= 9 ? formatStandardUzbekPhone(cleanInput) : cleanInput;
 
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      setMessage({
+        type: 'error',
+        text: currentLang === 'uz'
+          ? "Supabase ma'lumotlar bazasi ulanmagan. Iltimos, administratorga murojaat qiling."
+          : currentLang === 'ru'
+          ? "База данных Supabase не подключена. Пожалуйста, обратитесь к администратору."
+          : "Supabase database is not configured. Please contact administrator.",
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setLoading(false);
+      setMessage({
+        type: 'error',
+        text: currentLang === 'uz'
+          ? "Parol kamida 6 ta belgidan iborat bo'lishi kerak."
+          : currentLang === 'ru'
+          ? "Пароль должен содержать не менее 6 символов."
+          : "Password must be at least 6 characters long.",
+      });
+      return;
+    }
+
     try {
-      if (isSupabaseConfigured && supabase) {
-        if (mode === 'register') {
-          const { data, error } = await supabase.auth.signUp({
-            email: sanitizedEmail,
-            password,
-            options: {
-              data: {
-                full_name: fullName.trim(),
-                phone: standardPhone,
-                region,
-              },
+      if (mode === 'register') {
+        const { data, error } = await supabase.auth.signUp({
+          email: sanitizedEmail,
+          password,
+          options: {
+            data: {
+              full_name: fullName.trim(),
+              phone: standardPhone,
+              region,
             },
-          });
+          },
+        });
 
-          if (error) throw error;
+        if (error) throw error;
 
-          const createdUserId = data.user?.id || `user_${Date.now()}`;
-          const newProfile: Partial<FarmerProfile> = {
-            id: `farmer_${createdUserId}`,
-            user_id: createdUserId,
-            full_name: fullName.trim(),
-            phone: standardPhone,
-            region: region,
-            farm_type: 'smallholder',
-            primary_crops: ['cotton', 'wheat'],
-            telegram_notifications_enabled: true,
-          };
+        const createdUserId = data.user?.id;
+        if (!createdUserId) {
+          throw new Error(
+            currentLang === 'uz'
+              ? "Foydalanuvchi hisobini yaratib bo'lmadi. Qaytadan urinib ko'ring."
+              : "Could not create user account. Please try again."
+          );
+        }
 
-          // Also insert/upsert into farmers table immediately
-          try {
-            await supabase.from('farmers').upsert({
+        // Upsert into farmers table immediately
+        let farmerId = createdUserId;
+        try {
+          const { data: dbFarmer } = await supabase
+            .from('farmers')
+            .upsert({
               user_id: createdUserId,
               full_name: fullName.trim(),
               phone: standardPhone,
@@ -141,116 +166,172 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               farm_type: 'smallholder',
               primary_crops: ['cotton', 'wheat'],
               telegram_notifications_enabled: true,
-            }, { onConflict: 'user_id' });
-          } catch (dbErr) {
-            console.warn('[Supabase Farmer Record Upsert Warning]', dbErr);
-          }
+            }, { onConflict: 'user_id' })
+            .select()
+            .single();
 
-          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(newProfile));
-
-          setMessage({
-            type: 'success',
-            text: currentLang === 'uz'
-              ? `Ro'yxatdan o'tdingiz! Telegram bot orqali ${standardPhone} raqamingizni ulab, dalalaringizni boshqarishingiz mumkin.`
-              : currentLang === 'ru'
-              ? `Регистрация завершена! Вы можете подключить номер ${standardPhone} к Telegram-боту.`
-              : `Registration complete! You can connect ${standardPhone} to the Telegram bot.`,
-          });
-
-          setTimeout(() => {
-            onAuthSuccess(newProfile, true);
-            onClose();
-          }, 900);
-
-        } else {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email: sanitizedEmail,
-            password,
-          });
-
-          if (error) throw error;
-
-          const loggedUserId = data.user?.id || `user_${Date.now()}`;
-          const loggedProfile: Partial<FarmerProfile> = {
-            id: `farmer_${loggedUserId}`,
-            user_id: loggedUserId,
-            full_name: data.user?.user_metadata?.full_name || fullName || 'Dehqon',
-            phone: data.user?.user_metadata?.phone || standardPhone,
-            region: data.user?.user_metadata?.region || region,
-          };
-
-          // Fetch from farmers table if exists
-          try {
-            const { data: dbFarmer } = await supabase
-              .from('farmers')
-              .select('*')
-              .eq('user_id', loggedUserId)
-              .maybeSingle();
-
-            if (dbFarmer) {
-              loggedProfile.full_name = dbFarmer.full_name;
-              loggedProfile.phone = dbFarmer.phone;
-              loggedProfile.region = dbFarmer.region;
-              loggedProfile.telegram_chat_id = dbFarmer.telegram_chat_id;
-            }
-          } catch {}
-
-          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(loggedProfile));
-
-          setMessage({
-            type: 'success',
-            text: currentLang === 'uz'
-              ? "Tizimga muvaffaqiyatli kirdingiz!"
-              : currentLang === 'ru'
-              ? "Успешный вход в систему!"
-              : "Signed in successfully!",
-          });
-
-          setTimeout(() => {
-            onAuthSuccess(loggedProfile, false);
-            onClose();
-          }, 800);
+          if (dbFarmer?.id) farmerId = dbFarmer.id;
+        } catch (dbErr) {
+          console.warn('[Supabase Farmer Record Upsert Notice]', dbErr);
         }
-      } else {
-        // Demo / Standalone Mode Simulation
+
+        const newProfile: FarmerProfile = {
+          id: farmerId,
+          user_id: createdUserId,
+          full_name: fullName.trim(),
+          phone: standardPhone,
+          region: region,
+          farm_type: 'smallholder',
+          primary_crops: ['cotton', 'wheat'],
+          telegram_notifications_enabled: true,
+        };
+
+        localStorage.setItem('ekinix_farmer_profile', JSON.stringify(newProfile));
+        localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
+
+        setMessage({
+          type: 'success',
+          text: currentLang === 'uz'
+            ? `Ro'yxatdan muvaffaqiyatli o'tdingiz!`
+            : currentLang === 'ru'
+            ? `Регистрация успешно завершена!`
+            : `Registration successful!`,
+        });
+
         setTimeout(() => {
-          const demoProfile: Partial<FarmerProfile> = {
-            id: `farmer_demo_${Date.now()}`,
-            user_id: `demo_${Date.now()}`,
-            full_name: fullName.trim() || 'Nodirbek Baratov',
-            phone: standardPhone || '+998 90 123 45 67',
-            region: region,
-            farm_type: 'smallholder',
-            primary_crops: ['cotton', 'wheat'],
-            telegram_notifications_enabled: true,
-          };
+          onAuthSuccess(newProfile, true);
+          onClose();
+        }, 800);
 
-          localStorage.setItem('ekinix_farmer_profile', JSON.stringify(demoProfile));
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: sanitizedEmail,
+          password,
+        });
 
-          setMessage({
-            type: 'success',
-            text: mode === 'register'
-              ? (currentLang === 'uz'
-                  ? `Xush kelibsiz, ${fullName || 'Dehqon'}! Telefoningiz (${standardPhone}) saqlandi.`
-                  : `Добро пожаловать! Номер (${standardPhone}) сохранен.`)
-              : (currentLang === 'uz'
-                  ? "Tizimga muvaffaqiyatli kirdingiz!"
-                  : "Успешный вход!"),
-          });
+        if (error) throw error;
 
-          setLoading(false);
+        const loggedUserId = data.user?.id;
+        if (!loggedUserId) {
+          throw new Error(
+            currentLang === 'uz'
+              ? "Tizimga kirib bo'lmadi. Qaytadan urinib ko'ring."
+              : "Authentication failed. Please try again."
+          );
+        }
 
-          setTimeout(() => {
-            onAuthSuccess(demoProfile, mode === 'register');
-            onClose();
-          }, 600);
-        }, 500);
+        // Fetch user farmer profile from public.farmers table
+        let farmerRecord: any = null;
+        try {
+          const { data: dbFarmer } = await supabase
+            .from('farmers')
+            .select('*')
+            .eq('user_id', loggedUserId)
+            .maybeSingle();
+
+          farmerRecord = dbFarmer;
+        } catch {}
+
+        if (!farmerRecord) {
+          try {
+            const { data: insertedFarmer } = await supabase
+              .from('farmers')
+              .insert({
+                user_id: loggedUserId,
+                full_name: data.user?.user_metadata?.full_name || fullName.trim() || 'Dehqon',
+                phone: data.user?.user_metadata?.phone || standardPhone,
+                region: data.user?.user_metadata?.region || region,
+                farm_type: 'smallholder',
+                primary_crops: ['cotton', 'wheat'],
+              })
+              .select()
+              .single();
+            farmerRecord = insertedFarmer;
+          } catch {}
+        }
+
+        const loggedProfile: FarmerProfile = {
+          id: farmerRecord?.id || loggedUserId,
+          user_id: loggedUserId,
+          full_name: farmerRecord?.full_name || data.user?.user_metadata?.full_name || 'Dehqon',
+          phone: farmerRecord?.phone || data.user?.user_metadata?.phone || standardPhone,
+          region: farmerRecord?.region || data.user?.user_metadata?.region || region,
+          farm_type: farmerRecord?.farm_type || 'smallholder',
+          primary_crops: farmerRecord?.primary_crops || ['cotton', 'wheat'],
+          telegram_chat_id: farmerRecord?.telegram_chat_id,
+        };
+
+        // Fetch real fields from Supabase immediately on login
+        try {
+          const { data: dbFields } = await supabase
+            .from('fields')
+            .select('*')
+            .eq('user_id', loggedUserId)
+            .order('created_at', { ascending: false });
+
+          if (dbFields) {
+            const parsedFields: FieldRecord[] = dbFields.map((item: any) => ({
+              id: item.id,
+              user_id: item.user_id,
+              farmer_id: item.farmer_id,
+              name: item.name,
+              crop_type: item.crop_type,
+              planting_date: item.planting_date || '2026-04-10',
+              area_hectares: Number(item.area_hectares) || 1.5,
+              region: item.region || loggedProfile.region || "Toshkent viloyati",
+              coordinates: item.coordinates_json || item.coordinates || [],
+            }));
+            localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedFields));
+          } else {
+            localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
+          }
+        } catch {
+          localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
+        }
+
+        localStorage.setItem('ekinix_farmer_profile', JSON.stringify(loggedProfile));
+
+        setMessage({
+          type: 'success',
+          text: currentLang === 'uz'
+            ? "Tizimga muvaffaqiyatli kirdingiz!"
+            : currentLang === 'ru'
+            ? "Успешный вход в систему!"
+            : "Signed in successfully!",
+        });
+
+        setTimeout(() => {
+          onAuthSuccess(loggedProfile, false);
+          onClose();
+        }, 700);
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      let localizedError = rawMessage;
+
+      if (rawMessage.includes("Invalid login credentials")) {
+        localizedError = currentLang === 'uz'
+          ? "Telefon raqam yoki parol noto'g'ri. Agar hisobingiz bo'lmasa, avval 'Ro'yxatdan o'tish' bo'limida yangi hisob yarating."
+          : currentLang === 'ru'
+          ? "Неверный номер телефона или пароль. Если у вас нет аккаунта, сначала зарегистрируйтесь."
+          : "Invalid phone number or password. If you do not have an account, please register first.";
+      } else if (rawMessage.includes("User already registered") || rawMessage.includes("user_already_exists")) {
+        localizedError = currentLang === 'uz'
+          ? "Ushbu telefon raqam allaqachon ro'yxatdan o'tgan. Iltimos, 'Kirish' bo'limi orqali kiring."
+          : currentLang === 'ru'
+          ? "Этот номер телефона уже зарегистрирован. Пожалуйста, войдите в систему."
+          : "This phone number is already registered. Please sign in.";
+      } else if (rawMessage.includes("Password should be at least 6 characters")) {
+        localizedError = currentLang === 'uz'
+          ? "Parol kamida 6 ta belgidan iborat bo'lishi kerak."
+          : currentLang === 'ru'
+          ? "Пароль должен содержать не менее 6 символов."
+          : "Password must be at least 6 characters long.";
+      }
+
       setMessage({
         type: 'error',
-        text: errorMessage || "Xatolik yuz berdi. Qaytadan urinib ko'ring.",
+        text: localizedError,
       });
       setLoading(false);
     }

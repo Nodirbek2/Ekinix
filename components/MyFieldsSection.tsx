@@ -130,28 +130,34 @@ export function MyFieldsSection({
       }
 
       const client = supabase;
-      if (isSupabaseConfigured && client && userProfile?.user_id) {
+      if (isSupabaseConfigured && client) {
         try {
-          const { data, error } = await client
-            .from('fields')
-            .select('*')
-            .or(`user_id.eq.${userProfile.user_id},farmer_id.eq.${userProfile.id || 'none'}`)
-            .order('created_at', { ascending: false });
+          const { data: sessionData } = await client.auth.getSession();
+          const targetUserId = sessionData.session?.user?.id || userProfile?.user_id;
 
-          if (!error && data && data.length > 0) {
-            const parsedDbFields: FieldRecord[] = data.map((item: any) => ({
-              id: item.id,
-              farmer_id: item.farmer_id,
-              user_id: item.user_id,
-              name: item.name,
-              crop_type: item.crop_type,
-              planting_date: item.planting_date || '2026-04-15',
-              area_hectares: Number(item.area_hectares) || 1.5,
-              region: item.region || userProfile.region || "Toshkent viloyati",
-              coordinates: item.coordinates_json || item.coordinates || [],
-            }));
+          if (targetUserId) {
+            const { data, error } = await client
+              .from('fields')
+              .select('*')
+              .eq('user_id', targetUserId)
+              .order('created_at', { ascending: false });
 
-            loaded = parsedDbFields;
+            if (!error && data) {
+              const parsedDbFields: FieldRecord[] = data.map((item: any) => ({
+                id: item.id,
+                farmer_id: item.farmer_id,
+                user_id: item.user_id,
+                name: item.name,
+                crop_type: item.crop_type,
+                planting_date: item.planting_date || '2026-04-15',
+                area_hectares: Number(item.area_hectares) || 1.5,
+                region: item.region || userProfile?.region || "Toshkent viloyati",
+                coordinates: item.coordinates_json || item.coordinates || [],
+              }));
+
+              loaded = parsedDbFields;
+              localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedDbFields));
+            }
           }
         } catch (err) {
           console.warn("Error fetching fields from Supabase:", err);
@@ -184,11 +190,61 @@ export function MyFieldsSection({
     coordinates: [number, number][];
   }) => {
     const selectedRegion = fieldData.region || userProfile?.region || "Toshkent viloyati";
+    const client = supabase;
+    let savedRecordId = `field_${Date.now()}`;
+    let activeUserId = userProfile?.user_id;
+    let activeFarmerId = userProfile?.id;
+
+    if (isSupabaseConfigured && client) {
+      try {
+        const { data: sessionData } = await client.auth.getSession();
+        if (sessionData.session?.user) {
+          activeUserId = sessionData.session.user.id;
+        }
+
+        if (activeUserId) {
+          // Look up farmer UUID in public.farmers
+          const { data: farmerRec } = await client
+            .from('farmers')
+            .select('id')
+            .eq('user_id', activeUserId)
+            .maybeSingle();
+
+          if (farmerRec?.id) {
+            activeFarmerId = farmerRec.id;
+          }
+
+          const { data: insertedField, error: insertError } = await client
+            .from('fields')
+            .insert({
+              user_id: activeUserId,
+              farmer_id: farmerRec?.id || null,
+              name: fieldData.name.trim(),
+              crop_type: fieldData.crop_type,
+              planting_date: fieldData.planting_date,
+              area_hectares: fieldData.area_hectares,
+              region: selectedRegion,
+              coordinates_json: fieldData.coordinates,
+            })
+            .select()
+            .single();
+
+          if (!insertError && insertedField) {
+            savedRecordId = insertedField.id;
+          } else if (insertError) {
+            console.error("Supabase field insertion error:", insertError);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed saving field to Supabase:", e);
+      }
+    }
+
     const newRecord: FieldRecord = {
-      id: `field_${Date.now()}`,
-      user_id: userProfile?.user_id,
-      farmer_id: userProfile?.id,
-      name: fieldData.name,
+      id: savedRecordId,
+      user_id: activeUserId,
+      farmer_id: activeFarmerId,
+      name: fieldData.name.trim(),
       crop_type: fieldData.crop_type,
       planting_date: fieldData.planting_date,
       area_hectares: fieldData.area_hectares,
@@ -196,27 +252,9 @@ export function MyFieldsSection({
       coordinates: fieldData.coordinates,
     };
 
-    const updatedList = [newRecord, ...internalFields];
+    const updatedList = [newRecord, ...internalFields.filter((f) => f.id !== savedRecordId)];
     setInternalFields(updatedList);
     localStorage.setItem('ekinix_farmer_fields', JSON.stringify(updatedList));
-
-    const client = supabase;
-    if (isSupabaseConfigured && client) {
-      try {
-        await client.from('fields').insert({
-          user_id: userProfile?.user_id || null,
-          farmer_id: userProfile?.id || null,
-          name: fieldData.name,
-          crop_type: fieldData.crop_type,
-          planting_date: fieldData.planting_date,
-          area_hectares: fieldData.area_hectares,
-          region: selectedRegion,
-          coordinates_json: fieldData.coordinates,
-        });
-      } catch (e) {
-        console.warn("Failed saving field to Supabase:", e);
-      }
-    }
 
     setNotification({
       type: 'success',
@@ -240,11 +278,11 @@ export function MyFieldsSection({
     localStorage.setItem('ekinix_farmer_fields', JSON.stringify(updated));
 
     const client = supabase;
-    if (isSupabaseConfigured && client && !id.startsWith('field_sample')) {
+    if (isSupabaseConfigured && client && !id.startsWith('field_sample') && !id.startsWith('field_')) {
       try {
         await client.from('fields').delete().eq('id', id);
-      } catch {
-        // ignore
+      } catch (err) {
+        console.warn("Error deleting field from Supabase:", err);
       }
     }
   };
