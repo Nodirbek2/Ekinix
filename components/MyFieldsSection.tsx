@@ -211,41 +211,49 @@ export function MyFieldsSection({
           activeUserId = sessionData.session.user.id;
         }
 
-        if (activeUserId) {
-          // Look up farmer UUID in public.farmers
-          const { data: farmerRec } = await client
-            .from('farmers')
-            .select('id')
-            .eq('user_id', activeUserId)
-            .maybeSingle();
+        if (!activeUserId) {
+          console.error('[Ekinix] Cannot save field: no active auth session. User must be logged in.');
+          setNotification({
+            type: 'error' as any,
+            text: "Maydonni saqlash uchun tizimga kirgan bo'lishingiz kerak.",
+          });
+          setLoading(false);
+          return;
+        }
 
-          if (farmerRec?.id) {
-            activeFarmerId = farmerRec.id;
-          }
+        // Look up farmer UUID in public.farmers
+        const { data: farmerRec } = await client
+          .from('farmers')
+          .select('id')
+          .eq('user_id', activeUserId)
+          .maybeSingle();
 
-          const { data: insertedField, error: insertError } = await client
-            .from('fields')
-            .insert({
-              user_id: activeUserId,
-              farmer_id: farmerRec?.id || null,
-              name: fieldData.name.trim(),
-              crop_type: fieldData.crop_type,
-              planting_date: fieldData.planting_date,
-              area_hectares: fieldData.area_hectares,
-              region: selectedRegion,
-              coordinates_json: fieldData.coordinates,
-            })
-            .select()
-            .single();
+        if (farmerRec?.id) {
+          activeFarmerId = farmerRec.id;
+        }
 
-          if (!insertError && insertedField) {
-            savedRecordId = insertedField.id;
-          } else if (insertError) {
-            console.error("Supabase field insertion error:", insertError);
-          }
+        const { data: insertedField, error: insertError } = await client
+          .from('fields')
+          .insert({
+            user_id: activeUserId,
+            farmer_id: farmerRec?.id || null,
+            name: fieldData.name.trim(),
+            crop_type: fieldData.crop_type,
+            planting_date: fieldData.planting_date,
+            area_hectares: fieldData.area_hectares,
+            region: selectedRegion,
+            coordinates_json: fieldData.coordinates,
+          })
+          .select()
+          .single();
+
+        if (!insertError && insertedField) {
+          savedRecordId = insertedField.id;
+        } else if (insertError) {
+          console.error('[Ekinix] Supabase field insertion error:', insertError.message, insertError.details);
         }
       } catch (e) {
-        console.warn("Failed saving field to Supabase:", e);
+        console.warn('Failed saving field to Supabase:', e);
       }
     }
 

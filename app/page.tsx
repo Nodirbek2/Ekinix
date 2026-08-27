@@ -80,82 +80,87 @@ export default function Home() {
     }
   }, [activeTab]);
 
+  // =========================================================================
+  // CENTRALIZED SESSION SYNC — single function used by useEffect and handleAuthSuccess
+  // =========================================================================
+  const syncSession = React.useCallback(async (sessionUser: any) => {
+    if (!sessionUser) return;
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) return;
+
+    const userId = sessionUser.id;
+    const userMeta = sessionUser.user_metadata || {};
+
+    // 1. Always query the canonical farmers record for real profile data
+    const { data: dbFarmer } = await client
+      .from('farmers')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // Use the registered region from the DB row — never fall back to a different user's metadata
+    const actualRegion = dbFarmer?.region || userMeta.region || null;
+
+    const profile: FarmerProfile = {
+      id: dbFarmer?.id || userId,
+      user_id: userId,
+      full_name: dbFarmer?.full_name || userMeta.full_name || 'Dehqon',
+      phone: dbFarmer?.phone || userMeta.phone || sessionUser.email || '',
+      region: actualRegion || "Toshkent viloyati",
+      farm_type: dbFarmer?.farm_type || userMeta.farm_type || 'smallholder',
+      primary_crops: dbFarmer?.primary_crops || userMeta.primary_crops || ['cotton', 'wheat'],
+      telegram_chat_id: dbFarmer?.telegram_chat_id,
+    };
+
+    setUserProfile(profile);
+    localStorage.setItem('ekinix_farmer_profile', JSON.stringify(profile));
+
+    // 2. Query ALL fields tied to this user — use both user_id and farmer_id to catch every row
+    let fieldsQuery = client.from('fields').select('*');
+    if (dbFarmer?.id) {
+      fieldsQuery = fieldsQuery.or(`user_id.eq.${userId},farmer_id.eq.${dbFarmer.id}`);
+    } else {
+      fieldsQuery = fieldsQuery.eq('user_id', userId);
+    }
+
+    const { data: dbFields, error: fieldsError } = await fieldsQuery.order('created_at', { ascending: false });
+
+    if (fieldsError) {
+      console.error('[Ekinix] Fields fetch error:', fieldsError.message);
+    }
+
+    // Always write the DB result (even if empty []) — never fall back to stale localStorage
+    const parsedFields: FieldRecord[] = (dbFields || []).map((item: any) => ({
+      id: item.id,
+      user_id: item.user_id,
+      farmer_id: item.farmer_id,
+      name: item.name,
+      crop_type: item.crop_type,
+      planting_date: item.planting_date || '2026-04-10',
+      area_hectares: Number(item.area_hectares) || 1.5,
+      region: item.region || profile.region,
+      coordinates: item.coordinates_json || item.coordinates || [],
+    }));
+    localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedFields));
+  }, []);
+
   // Load profile & sync Supabase auth session after mount
   useEffect(() => {
+    // Optimistically render last known profile from localStorage while DB query runs
     try {
       const savedProfile = localStorage.getItem('ekinix_farmer_profile');
-      if (savedProfile) {
-        setUserProfile(JSON.parse(savedProfile));
-      }
-    } catch {
-      // ignore
-    }
+      if (savedProfile) setUserProfile(JSON.parse(savedProfile));
+    } catch { /* ignore */ }
 
     const client = supabase;
     if (isSupabaseConfigured && client) {
-      const syncSession = async (sessionUser: any) => {
-        if (!sessionUser) return;
-        const userId = sessionUser.id;
-        const userMeta = sessionUser.user_metadata || {};
-
-        // Query farmers table
-        const { data: dbFarmer } = await client
-          .from('farmers')
-          .select('*')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        const actualRegion = dbFarmer?.region || userMeta.region || "Toshkent viloyati";
-
-        const profile: FarmerProfile = {
-          id: dbFarmer?.id || userId,
-          user_id: userId,
-          full_name: dbFarmer?.full_name || userMeta.full_name || 'Dehqon',
-          phone: dbFarmer?.phone || userMeta.phone || sessionUser.email || '',
-          region: actualRegion,
-          farm_type: dbFarmer?.farm_type || userMeta.farm_type || 'smallholder',
-          primary_crops: dbFarmer?.primary_crops || userMeta.primary_crops || ['cotton', 'wheat'],
-          telegram_chat_id: dbFarmer?.telegram_chat_id,
-        };
-
-        setUserProfile(profile);
-        localStorage.setItem('ekinix_farmer_profile', JSON.stringify(profile));
-
-        // Preload user's fields from Supabase (querying both user_id and farmer_id foreign key)
-        let fieldsQuery = client.from('fields').select('*');
-        if (dbFarmer?.id) {
-          fieldsQuery = fieldsQuery.or(`user_id.eq.${userId},farmer_id.eq.${dbFarmer.id}`);
-        } else {
-          fieldsQuery = fieldsQuery.eq('user_id', userId);
-        }
-
-        const { data: dbFields } = await fieldsQuery.order('created_at', { ascending: false });
-
-        if (dbFields) {
-          const parsedFields: FieldRecord[] = dbFields.map((item: any) => ({
-            id: item.id,
-            user_id: item.user_id,
-            farmer_id: item.farmer_id,
-            name: item.name,
-            crop_type: item.crop_type,
-            planting_date: item.planting_date || '2026-04-10',
-            area_hectares: Number(item.area_hectares) || 1.5,
-            region: item.region || actualRegion,
-            coordinates: item.coordinates_json || item.coordinates || [],
-          }));
-          localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedFields));
-        }
-      };
-
       // Check active session immediately
       client.auth.getSession().then(({ data }) => {
-        if (data.session?.user) {
-          syncSession(data.session.user);
-        }
+        if (data.session?.user) syncSession(data.session.user);
       });
 
       // Listen for auth state changes (login, token refresh, logout)
-      const { data: authListener } = client.auth.onAuthStateChange(async (event, session) => {
+      const { data: authListener } = client.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_OUT' || !session) {
           setUserProfile(null);
           localStorage.removeItem('ekinix_farmer_profile');
@@ -165,11 +170,9 @@ export default function Home() {
         }
       });
 
-      return () => {
-        authListener.subscription.unsubscribe();
-      };
+      return () => { authListener.subscription.unsubscribe(); };
     }
-  }, []);
+  }, [syncSession]);
 
   // Listen for custom tab switch events from inner components (e.g. Dashboard quick links)
   useEffect(() => {
@@ -184,9 +187,7 @@ export default function Home() {
 
     window.addEventListener('ekinix-switch-tab', handleSwitchTabEvent);
 
-    const handleOpenTelegramEvent = () => {
-      setTelegramModalOpen(true);
-    };
+    const handleOpenTelegramEvent = () => { setTelegramModalOpen(true); };
     window.addEventListener('ekinix-open-telegram', handleOpenTelegramEvent);
 
     return () => {
@@ -200,25 +201,33 @@ export default function Home() {
     setAuthModalOpen(true);
   };
 
-  const handleAuthSuccess = (profileData: Partial<FarmerProfile>, isNewUser: boolean) => {
-    const fullProf: FarmerProfile = {
-      id: profileData.id || profileData.user_id || `farmer_${Date.now()}`,
-      user_id: profileData.user_id,
-      full_name: profileData.full_name || 'Dehqon',
-      phone: profileData.phone || '+998 90 123 45 67',
-      region: profileData.region || "Toshkent viloyati",
-      farm_type: profileData.farm_type || 'smallholder',
-      primary_crops: profileData.primary_crops || ['cotton', 'wheat'],
-    };
+  const handleAuthSuccess = async (profileData: Partial<FarmerProfile>, isNewUser: boolean) => {
+    // Delegate fully to syncSession so we get the real DB region and fields
+    const client = supabase;
+    if (isSupabaseConfigured && client) {
+      const { data: sessionData } = await client.auth.getSession();
+      if (sessionData.session?.user) {
+        await syncSession(sessionData.session.user);
+      }
+    } else {
+      // Offline / unconfigured: use whatever AuthModal gave us (no Supabase)
+      const fullProf: FarmerProfile = {
+        id: profileData.id || profileData.user_id || `farmer_${Date.now()}`,
+        user_id: profileData.user_id,
+        full_name: profileData.full_name || 'Dehqon',
+        phone: profileData.phone || '',
+        region: profileData.region || "Toshkent viloyati",
+        farm_type: profileData.farm_type || 'smallholder',
+        primary_crops: profileData.primary_crops || ['cotton', 'wheat'],
+      };
+      setUserProfile(fullProf);
+      localStorage.setItem('ekinix_farmer_profile', JSON.stringify(fullProf));
+    }
 
-    setUserProfile(fullProf);
     setActiveTab('dashboard');
-    localStorage.setItem('ekinix_farmer_profile', JSON.stringify(fullProf));
 
     if (isNewUser) {
-      setTimeout(() => {
-        setOnboardingOpen(true);
-      }, 300);
+      setTimeout(() => { setOnboardingOpen(true); }, 500);
     }
   };
 
