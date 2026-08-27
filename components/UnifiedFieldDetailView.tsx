@@ -9,6 +9,8 @@ import {
   calculateRealIrrigationRecommendation,
   NdviResult,
   RealIrrigationAdvice,
+  formatNdviScore,
+  getNdviStatusBadge,
 } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { getFieldSeasonProgress } from '@/lib/seasonMilestones';
@@ -563,9 +565,14 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
                     <span className="text-[11px] font-medium uppercase text-slate-500 block">NDVI Score</span>
                     <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id={`detail-overview-ndvi-${field.id}`} />
                   </div>
-                  <div className="text-xl font-mono font-bold text-slate-900">{ndviResult?.ndviScore ?? 0.74}</div>
+                  <div className="text-xl font-mono font-bold text-slate-900">{formatNdviScore(ndviResult?.ndviScore, currentLang)}</div>
                   <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-600" style={{ width: `${((ndviResult?.ndviScore ?? 0.74) / 1.0) * 100}%` }} />
+                    <div
+                      className="h-full bg-emerald-600"
+                      style={{
+                        width: `${typeof ndviResult?.ndviScore === 'number' ? Math.min(100, Math.max(0, (ndviResult.ndviScore / 1.0) * 100)) : 0}%`,
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -656,29 +663,38 @@ export const UnifiedFieldDetailView: React.FC<UnifiedFieldDetailViewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {ndviHistory.map((item) => (
-                    <tr key={item.id || item.satellite_date} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
-                      <td className="py-2.5 px-3 font-medium text-slate-900">{item.satellite_date}</td>
-                      <td className="py-2.5 px-3 font-bold text-slate-800">{item.ndvi_score}</td>
-                      <td className="py-2.5 px-3 text-slate-600">{item.moisture_percentage}%</td>
-                      <td className="py-2.5 px-3 font-sans text-[11px] text-slate-600">
-                        {item.ndvi_score >= 0.65 ? (
-                          <span className="text-emerald-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> High</span>
-                        ) : (
-                          <span className="text-amber-700 flex items-center gap-1"><Minus className="w-3.5 h-3.5" /> Normal</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-medium ${
-                          item.status === 'good' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-                          item.status === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                          'bg-rose-50 text-rose-800 border border-rose-200'
-                        }`}>
-                          {item.status}
-                        </span>
+                  {ndviHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-slate-500 font-sans text-xs">
+                        <p className="font-medium text-slate-700">{currentLang === 'ru' ? 'Спутниковые данные пока не поступили' : currentLang === 'en' ? 'No satellite telemetry recorded yet' : "Sun'iy yo'ldosh ma'lumoti hozircha mavjud emas"}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{currentLang === 'ru' ? 'Следующий пролет Sentinel-2 ожидается в течение 3-5 дней' : currentLang === 'en' ? 'Next Sentinel-2 pass scheduled within 3-5 days' : "Sentinel-2 sun'iy yo'ldoshi navbatdagi tahlili 3-5 kunda amalga oshiriladi"}</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    ndviHistory.map((item) => (
+                      <tr key={item.id || item.satellite_date} className="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3 font-medium text-slate-900">{item.satellite_date}</td>
+                        <td className="py-2.5 px-3 font-bold text-slate-800">{item.ndvi_score.toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-slate-600">{item.moisture_percentage}%</td>
+                        <td className="py-2.5 px-3 font-sans text-[11px] text-slate-600">
+                          {item.ndvi_score >= 0.65 ? (
+                            <span className="text-emerald-700 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> High</span>
+                          ) : (
+                            <span className="text-amber-700 flex items-center gap-1"><Minus className="w-3.5 h-3.5" /> Normal</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-sans font-medium ${
+                            item.status === 'good' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
+                            item.status === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                            'bg-rose-50 text-rose-800 border border-rose-200'
+                          }`}>
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

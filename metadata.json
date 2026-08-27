@@ -1,6 +1,1 @@
-{
-  "name": "Ekinix",
-  "description": "O'zbekiston dehqonlari uchun aqlli dehqonchilik, sun'iy yo'ldosh tahlili va hosil bozori platformasi.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
+{"name":"Ekinix","description":"O\u0027zbekiston dehqonlari uchun aqlli dehqonchilik, sun\u0027iy yo\u0027ldosh tahlili va hosil bozori platformasi.","requestFramePermissions":[],"majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}

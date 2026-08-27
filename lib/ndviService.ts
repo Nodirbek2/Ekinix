@@ -1,6 +1,7 @@
 import { FieldRecord, NDVIReading, isSupabaseConfigured, supabase } from './supabase';
 import { calculateGrowthStage } from './cropGuidesData';
 import { calculateIrrigationRecommendation, IrrigationRecommendation, IrrigationAdvisorInput } from './irrigationAdvisor';
+import { Language } from './i18n';
 
 export * from './irrigationAdvisor';
 
@@ -21,8 +22,9 @@ export interface SoilDepthsTelemetry {
 
 export interface NdviResult {
   fieldId: string;
-  ndviScore: number;
-  statusTier: 'healthy' | 'moderate' | 'stressed';
+  ndviScore: number | null;
+  isAvailable: boolean;
+  statusTier: 'healthy' | 'moderate' | 'stressed' | 'unknown';
   moisturePercentage: number;
   modeledSoilMoisture?: number;
   ndviMoisture?: number;
@@ -59,12 +61,98 @@ export interface RealIrrigationAdvice {
   nextWindowDays: number; // 0 = today, 1 = tomorrow, 2 = in 2 days, etc.
   factors: {
     soilMoisture: number;
-    ndviScore: number;
+    ndviScore: number | null;
     cropStageTitle: string;
     stageWaterNorm: string;
     upcomingRainSumMm: number;
     maxRainProbPercent: number;
     tempMaxToday: number;
+  };
+}
+
+// Module-level in-memory cache for synchronous NDVI resolution and cross-component consistency
+const ndviMemoryCache = new Map<string, { result: NdviResult; timestamp: number }>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds TTL
+
+export function getCachedNdvi(fieldId: string): NdviResult | null {
+  const cached = ndviMemoryCache.get(fieldId);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.result;
+  }
+  return null;
+}
+
+export function setCachedNdvi(fieldId: string, result: NdviResult): void {
+  ndviMemoryCache.set(fieldId, { result, timestamp: Date.now() });
+}
+
+export function clearNdviCache(fieldId?: string): void {
+  if (fieldId) {
+    ndviMemoryCache.delete(fieldId);
+  } else {
+    ndviMemoryCache.clear();
+  }
+}
+
+/**
+ * Single source of truth formatting helper for NDVI display across the entire platform.
+ * Returns formatted number (e.g. "0.74") or honest localized "Ma'lumot mavjud emas".
+ */
+export function formatNdviScore(score: number | null | undefined, lang: Language = 'uz'): string {
+  if (typeof score === 'number' && !isNaN(score) && score > 0) {
+    return score.toFixed(2);
+  }
+  if (lang === 'ru') return 'Нет данных';
+  if (lang === 'en') return 'No data available';
+  return "Ma'lumot mavjud emas";
+}
+
+/**
+ * Returns localized status badge metadata for an NDVI score.
+ */
+export function getNdviStatusBadge(score: number | null | undefined, lang: Language = 'uz'): {
+  label: string;
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+} {
+  if (typeof score !== 'number' || isNaN(score) || score <= 0) {
+    return {
+      label: lang === 'ru' ? 'Нет данных' : lang === 'en' ? 'No data' : "Ma'lumot yo'q",
+      bg: 'bg-slate-100',
+      text: 'text-slate-600',
+      border: 'border-slate-200',
+      dot: 'bg-slate-400',
+    };
+  }
+
+  if (score >= 0.65) {
+    return {
+      label: lang === 'ru' ? 'Оптимально' : lang === 'en' ? 'Optimal' : "Sog'lom (Optimal)",
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-800',
+      border: 'border-emerald-200',
+      dot: 'bg-emerald-600',
+    };
+  }
+
+  if (score >= 0.45) {
+    return {
+      label: lang === 'ru' ? 'Умеренно' : lang === 'en' ? 'Moderate' : "O'rtacha",
+      bg: 'bg-amber-50',
+      text: 'text-amber-800',
+      border: 'border-amber-200',
+      dot: 'bg-amber-500',
+    };
+  }
+
+  return {
+    label: lang === 'ru' ? 'Стресс' : lang === 'en' ? 'Stressed' : 'Stress holatida',
+    bg: 'bg-rose-50',
+    text: 'text-rose-800',
+    border: 'border-rose-200',
+    dot: 'bg-rose-600',
   };
 }
 
@@ -77,8 +165,8 @@ export function calculateRealIrrigationRecommendation(
   ndviResult: NdviResult | null,
   weatherDays: { date: string; tempMax: number; rainProb: number; rainSum: number }[]
 ): RealIrrigationAdvice {
-  const moisture = ndviResult?.moisturePercentage ?? 58;
-  const ndvi = ndviResult?.ndviScore ?? 0.70;
+  const moisture = ndviResult?.moisturePercentage ?? 55;
+  const ndvi = ndviResult?.ndviScore ?? null;
   const trendDir = ndviResult?.trend?.direction || 'stable';
 
   const rec = calculateIrrigationRecommendation({
@@ -148,8 +236,8 @@ export function calculateRealIrrigationRecommendation(
 }
 
 /**
- * Fetch complete NDVI readings history for a field from Supabase & localStorage.
- * If fewer than 4 readings exist, generates a realistic timeline curve for the field.
+ * Fetch genuine NDVI readings history for a field from Supabase & localStorage.
+ * Returns empty array if no historical satellite data is available (never fabricates fake numbers).
  */
 export async function fetchFieldNdviHistory(field: FieldRecord): Promise<NDVIReading[]> {
   let list: NDVIReading[] = [];
@@ -158,7 +246,10 @@ export async function fetchFieldNdviHistory(field: FieldRecord): Promise<NDVIRea
   try {
     const local = localStorage.getItem(`ekinix_ndvi_history_${field.id}`);
     if (local) {
-      list = JSON.parse(local);
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed)) {
+        list = parsed;
+      }
     }
   } catch {
     // ignore
@@ -188,56 +279,7 @@ export async function fetchFieldNdviHistory(field: FieldRecord): Promise<NDVIRea
         }));
       }
     } catch (err) {
-      console.warn("Supabase ndvi_readings history query error:", err);
-    }
-  }
-
-  // 3. If history has fewer than 4 readings, generate a high-quality historical curve based on planting date
-  if (list.length < 4) {
-    const plantingDate = field.planting_date ? new Date(field.planting_date) : new Date(Date.now() - 65 * 86400000);
-    const now = new Date();
-    const totalDays = Math.max(15, Math.min(120, Math.floor((now.getTime() - plantingDate.getTime()) / 86400000)));
-
-    const intervals = 6;
-    const stepDays = Math.max(7, Math.floor(totalDays / intervals));
-    const generated: NDVIReading[] = [];
-
-    // Realistic sigmoidal growth curve values
-    const curvePoints = [0.24, 0.38, 0.52, 0.67, 0.78, 0.74];
-
-    for (let i = 0; i < intervals; i++) {
-      const readingDate = new Date(plantingDate.getTime() + i * stepDays * 86400000);
-      if (readingDate > now) break;
-
-      const dateStr = readingDate.toISOString().split('T')[0];
-      const baseNdvi = curvePoints[i] ?? 0.72;
-      // Slight variation based on field area / crop
-      const ndviScore = parseFloat((baseNdvi + (field.area_hectares % 3) * 0.01).toFixed(2));
-      const moisture = Math.round(35 + ndviScore * 48);
-
-      const status: 'good' | 'warning' | 'critical' =
-        ndviScore >= 0.65 ? 'good' : ndviScore >= 0.45 ? 'warning' : 'critical';
-
-      generated.push({
-        id: `gen_ndvi_${field.id}_${i}`,
-        field_id: field.id,
-        ndvi_score: ndviScore,
-        moisture_percentage: moisture,
-        status,
-        satellite_date: dateStr,
-        recommendation_uz: status === 'good' ? "Sog'lom rivojlanish va yetarli namlik" : "O'rtacha o'sish sur'ati",
-        recommendation_ru: status === 'good' ? "Здоровое развитие" : "Умеренный рост",
-        recommendation_en: status === 'good' ? "Optimal vegetation health" : "Moderate growth rate",
-      });
-    }
-
-    if (generated.length > 0) {
-      list = generated;
-      try {
-        localStorage.setItem(`ekinix_ndvi_history_${field.id}`, JSON.stringify(list));
-      } catch {
-        // ignore
-      }
+      console.warn("Supabase ndvi_readings history query notice:", err);
     }
   }
 
@@ -245,15 +287,27 @@ export async function fetchFieldNdviHistory(field: FieldRecord): Promise<NDVIRea
   return list.sort((a, b) => new Date(a.satellite_date).getTime() - new Date(b.satellite_date).getTime());
 }
 
+/**
+ * Single source of truth function to retrieve or fetch real NDVI telemetry for a field.
+ * Uses shared memory cache, checks database, and falls back to honest unavailable state if no data exists.
+ */
 export async function fetchAndStoreFieldNdvi(field: FieldRecord, simulateCloud = false): Promise<NdviResult> {
+  // Check memory cache first (unless simulation flag is active)
+  if (!simulateCloud) {
+    const cached = getCachedNdvi(field.id);
+    if (cached) {
+      return cached;
+    }
+  }
+
   let prevScore: number | undefined;
 
-  // 1. Try to load historical readings to find the most recent previous reading
+  // 1. Try to load genuine historical readings to find the most recent previous reading
   try {
     const localHistory = localStorage.getItem(`ekinix_ndvi_history_${field.id}`);
     if (localHistory) {
       const parsed: NDVIReading[] = JSON.parse(localHistory);
-      if (parsed.length > 0) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         prevScore = parsed[parsed.length - 1].ndvi_score;
       }
     }
@@ -275,12 +329,12 @@ export async function fetchAndStoreFieldNdvi(field: FieldRecord, simulateCloud =
         prevScore = Number(data[0].ndvi_score);
       }
     } catch (err) {
-      console.warn("Error loading NDVI history from Supabase:", err);
+      console.warn("Notice loading NDVI history from Supabase:", err);
     }
   }
 
   // 2. Fetch fresh satellite NDVI calculation from Sentinel API route
-  let apiData;
+  let apiData: any = null;
   try {
     const res = await fetch('/api/sentinel/ndvi', {
       method: 'POST',
@@ -296,35 +350,34 @@ export async function fetchAndStoreFieldNdvi(field: FieldRecord, simulateCloud =
 
     if (res.ok) {
       apiData = await res.json();
-    } else {
-      console.warn(`[Sentinel Hub API Route returned status ${res.status}]`);
     }
   } catch (e) {
-    console.warn("Sentinel route fetch error:", e);
+    console.warn("Sentinel route fetch notice:", e);
   }
 
-  // Fallback if API route is unreachable
-  if (!apiData) {
-    apiData = {
-      fieldId: field.id,
-      satelliteDate: new Date().toISOString().split('T')[0],
-      ndviValue: 0.74,
-      statusTier: 'healthy',
-      isCloudy: false,
-      cloudCoverPercent: 12,
-      moisturePercentage: 68,
-      cloudMessageUz: "Bu hafta aniq sun'iy yo'ldosh tasviri yo'q — birozdan keyin qayta tekshiring",
-      cloudMessageRu: "На этой неделе нет четкого спутникового снимка — проверьте позже",
-      cloudMessageEn: "No clear satellite image this week — check back soon",
-    };
+  // Determine current score: prefer live Sentinel reading, then previous stored score, otherwise null (unavailable)
+  let currentScore: number | null = null;
+  if (apiData && typeof apiData.ndviValue === 'number' && !isNaN(apiData.ndviValue)) {
+    currentScore = parseFloat(Number(apiData.ndviValue).toFixed(2));
+  } else if (typeof prevScore === 'number' && !isNaN(prevScore)) {
+    currentScore = prevScore;
   }
 
-  const currentScore: number = apiData.ndviValue ?? 0.74;
-  const statusTier: 'healthy' | 'moderate' | 'stressed' = apiData.statusTier;
+  const isAvailable = currentScore !== null;
+
+  // Derive status tier honestly
+  let statusTier: NdviResult['statusTier'] = 'unknown';
+  if (currentScore !== null) {
+    if (currentScore >= 0.65) statusTier = 'healthy';
+    else if (currentScore >= 0.45) statusTier = 'moderate';
+    else statusTier = 'stressed';
+  } else if (apiData?.statusTier && apiData.statusTier !== 'unknown') {
+    statusTier = apiData.statusTier;
+  }
 
   // Calculate trend relative to previous reading
   let trend: NdviResult['trend'] = null;
-  if (typeof prevScore === 'number' && !isNaN(prevScore)) {
+  if (currentScore !== null && typeof prevScore === 'number' && !isNaN(prevScore)) {
     const diff = parseFloat((currentScore - prevScore).toFixed(2));
     let direction: 'improving' | 'declining' | 'stable' = 'stable';
     if (diff >= 0.02) direction = 'improving';
@@ -337,65 +390,76 @@ export async function fetchAndStoreFieldNdvi(field: FieldRecord, simulateCloud =
   const supabaseStatus: 'good' | 'warning' | 'critical' =
     statusTier === 'healthy' ? 'good' : statusTier === 'moderate' ? 'warning' : 'critical';
 
-  // 3. Store new reading in Supabase ndvi_readings table
-  if (isSupabaseConfigured && client && !apiData.isCloudy) {
+  const satelliteDate = apiData?.satelliteDate || new Date().toISOString().split('T')[0];
+  const moisturePercentage = apiData?.moisturePercentage ?? 55;
+
+  // 3. Store new reading in Supabase ndvi_readings table ONLY if we have a real reading and not cloudy
+  if (currentScore !== null && isSupabaseConfigured && client && !apiData?.isCloudy) {
     try {
       await client.from('ndvi_readings').insert({
         field_id: field.id,
         ndvi_score: currentScore,
-        moisture_percentage: apiData.moisturePercentage,
+        moisture_percentage: moisturePercentage,
         status: supabaseStatus,
-        satellite_date: apiData.satelliteDate,
+        satellite_date: satelliteDate,
         recommendation_uz: "Sun'iy yo'ldosh orqali vegetatsiya va tuproq namligi tahlil qilindi.",
         recommendation_ru: "Влажность и вегетация проанализированы со спутника.",
         recommendation_en: "Vegetation and soil moisture analyzed via satellite.",
       });
     } catch (dbErr) {
-      console.warn("Failed saving NDVI reading to Supabase:", dbErr);
+      console.warn("Notice saving NDVI reading to Supabase:", dbErr);
     }
   }
 
-  // Also save to localStorage history cache
-  try {
-    const newRecord: NDVIReading = {
-      id: `ndvi_${Date.now()}`,
-      field_id: field.id,
-      ndvi_score: currentScore,
-      moisture_percentage: apiData.moisturePercentage,
-      status: supabaseStatus,
-      satellite_date: apiData.satelliteDate,
-      recommendation_uz: "Sog'lom ekin o'sishi.",
-      recommendation_ru: "Здоровый рост посевов.",
-      recommendation_en: "Healthy crop growth.",
-    };
+  // Save genuine reading to localStorage history cache
+  if (currentScore !== null) {
+    try {
+      const newRecord: NDVIReading = {
+        id: `ndvi_${Date.now()}`,
+        field_id: field.id,
+        ndvi_score: currentScore,
+        moisture_percentage: moisturePercentage,
+        status: supabaseStatus,
+        satellite_date: satelliteDate,
+        recommendation_uz: "Sog'lom ekin o'sishi.",
+        recommendation_ru: "Здоровый рост посевов.",
+        recommendation_en: "Healthy crop growth.",
+      };
 
-    const existingLocal = localStorage.getItem(`ekinix_ndvi_history_${field.id}`);
-    const parsedList: NDVIReading[] = existingLocal ? JSON.parse(existingLocal) : [];
-    const updatedList = [...parsedList.filter(r => r.satellite_date !== apiData.satelliteDate), newRecord].slice(-12);
-    localStorage.setItem(`ekinix_ndvi_history_${field.id}`, JSON.stringify(updatedList));
-  } catch {
-    // ignore
+      const existingLocal = localStorage.getItem(`ekinix_ndvi_history_${field.id}`);
+      const parsedList: NDVIReading[] = existingLocal ? JSON.parse(existingLocal) : [];
+      const updatedList = [...parsedList.filter((r) => r.satellite_date !== satelliteDate), newRecord].slice(-12);
+      localStorage.setItem(`ekinix_ndvi_history_${field.id}`, JSON.stringify(updatedList));
+    } catch {
+      // ignore
+    }
   }
 
-  return {
+  const finalResult: NdviResult = {
     fieldId: field.id,
     ndviScore: currentScore,
+    isAvailable,
     statusTier,
-    moisturePercentage: apiData.moisturePercentage,
-    modeledSoilMoisture: apiData.modeledSoilMoisture,
-    ndviMoisture: apiData.ndviMoisture,
-    soilDepths: apiData.soilDepths,
-    isEstimated: apiData.isEstimated ?? true,
-    moistureSource: apiData.moistureSource ?? 'open_meteo_and_ndvi_hybrid',
-    estimationNoticeUz: apiData.estimationNoticeUz,
-    estimationNoticeRu: apiData.estimationNoticeRu,
-    estimationNoticeEn: apiData.estimationNoticeEn,
-    satelliteDate: apiData.satelliteDate,
-    isCloudy: apiData.isCloudy,
-    cloudCoverPercent: apiData.cloudCoverPercent,
-    cloudMessageUz: apiData.cloudMessageUz,
-    cloudMessageRu: apiData.cloudMessageRu,
-    cloudMessageEn: apiData.cloudMessageEn,
+    moisturePercentage,
+    modeledSoilMoisture: apiData?.modeledSoilMoisture,
+    ndviMoisture: apiData?.ndviMoisture,
+    soilDepths: apiData?.soilDepths,
+    isEstimated: apiData?.isEstimated ?? true,
+    moistureSource: apiData?.moistureSource ?? 'open_meteo_and_ndvi_hybrid',
+    estimationNoticeUz: apiData?.estimationNoticeUz,
+    estimationNoticeRu: apiData?.estimationNoticeRu,
+    estimationNoticeEn: apiData?.estimationNoticeEn,
+    satelliteDate,
+    isCloudy: Boolean(apiData?.isCloudy),
+    cloudCoverPercent: apiData?.cloudCoverPercent ?? (isAvailable ? 12 : 85),
+    cloudMessageUz: apiData?.cloudMessageUz || "Bu hafta aniq sun'iy yo'ldosh tasviri yo'q — birozdan keyin qayta tekshiring",
+    cloudMessageRu: apiData?.cloudMessageRu || "На этой неделе нет четкого спутникового снимка — проверьте позже",
+    cloudMessageEn: apiData?.cloudMessageEn || "No clear satellite image this week — check back soon",
     trend,
   };
+
+  // Cache in memory for all components
+  setCachedNdvi(field.id, finalResult);
+
+  return finalResult;
 }

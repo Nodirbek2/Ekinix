@@ -500,13 +500,13 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
       </div>
 
       {/* Main Chat Workspace Grid */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs h-[720px] max-h-[82vh] flex overflow-hidden">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xs h-[calc(100dvh-200px)] min-h-[500px] max-h-[820px] flex overflow-hidden relative">
         
         {/* ========================================================= */}
         {/* 1. LEFT COLUMN: CONVERSATION LIST */}
         {/* ========================================================= */}
         <div
-          className={`w-full md:w-80 lg:w-96 border-r border-slate-200 flex flex-col shrink-0 bg-slate-50/50 ${
+          className={`w-full md:w-80 lg:w-96 border-r border-slate-200 flex flex-col shrink-0 bg-slate-50/50 h-full overflow-hidden ${
             mobileShowThread ? 'hidden md:flex' : 'flex'
           }`}
         >
@@ -673,14 +673,14 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
         {/* 2. RIGHT COLUMN: ACTIVE CHAT THREAD */}
         {/* ========================================================= */}
         <div
-          className={`flex-1 flex flex-col bg-slate-50/30 ${
+          className={`flex-1 flex flex-col bg-slate-50/30 h-full overflow-hidden relative ${
             mobileShowThread ? 'flex' : 'hidden md:flex'
           }`}
         >
           {activeConversation ? (
             <>
               {/* Chat Thread Top Header */}
-              <div className="p-3 sm:px-4 bg-white border-b border-slate-200 flex items-center justify-between gap-3 shadow-2xs z-10">
+              <div className="p-3 sm:px-4 bg-white border-b border-slate-200 flex items-center justify-between gap-3 shadow-2xs shrink-0 z-20">
                 <div className="flex items-center gap-2.5 min-w-0">
                   
                   {/* Mobile Back Button */}
@@ -853,7 +853,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
               </div>
 
               {/* Quick Suggestion Chips */}
-              <div className="px-3 py-1.5 bg-slate-100/80 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+              <div className="px-3 py-1.5 bg-slate-100/80 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 z-10">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
                   <Sparkles className="w-3 h-3 text-emerald-700" />
                   <span>Tezkor:</span>
@@ -870,7 +870,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({
               </div>
 
               {/* Message Composer Input Bar */}
-              <div className="p-3 bg-white border-t border-slate-200 flex items-center gap-2">
+              <div className="p-2.5 sm:p-3 bg-white border-t border-slate-200 flex items-center gap-2 shrink-0 z-20">
                 <button
                   type="button"
                   onClick={() => showToast("Fayl biriktirish funksiyasi tez orada faollashtiriladi")}

@@ -6,7 +6,7 @@ export interface IrrigationAdvisorInput {
   cropType: string; // 'cotton' | 'wheat' | 'apple' | 'grape' | 'tomato' | 'pomegranate' | 'corn' | 'orchard'
   daysSincePlanting?: number;
   plantingDate?: string;
-  ndviValue: number; // 0.0 - 1.0 (e.g. 0.72)
+  ndviValue?: number | null; // 0.0 - 1.0 (e.g. 0.72) or null if unavailable
   ndviTrend?: 'improving' | 'stable' | 'declining' | null;
   soilMoisture: number; // 0 - 100 percentage (e.g. 54)
   modeledSoilMoisture?: number; // Open-Meteo root-zone model (0-27cm)
@@ -71,7 +71,7 @@ export interface IrrigationRecommendation {
     en: string;
   };
   factors: {
-    ndviValue: number;
+    ndviValue: number | null;
     ndviTrend: 'improving' | 'stable' | 'declining' | 'unknown';
     soilMoisture: number;
     modeledSoilMoisture?: number;
@@ -172,7 +172,7 @@ export function calculateIrrigationRecommendation(
     cropType,
     daysSincePlanting,
     plantingDate,
-    ndviValue = 0.70,
+    ndviValue = null,
     ndviTrend = 'stable',
     soilMoisture = 55,
     rainForecast = [],
@@ -399,7 +399,7 @@ export function calculateIrrigationRecommendation(
   }
 
   // RULE 4: Moisture Deficit / Plant Stress (Moisture < 48% OR NDVI < 0.58 / declining OR Heat > 36°C with moisture < 54%)
-  if (soilMoisture < 48 || ndviValue < 0.58 || ndviTrend === 'declining' || (tempMaxToday >= 36 && soilMoisture < 54)) {
+  if (soilMoisture < 48 || (typeof ndviValue === 'number' && ndviValue < 0.58) || ndviTrend === 'declining' || (tempMaxToday >= 36 && soilMoisture < 54)) {
     return {
       action: 'irrigate_now',
       actionBadge: {

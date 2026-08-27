@@ -306,36 +306,6 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
   const activeStats = useMemo(() => {
     if (activeField) {
       const history = fieldsHistory[activeField.id] || [];
-      if (history.length === 0) {
-        return {
-          currentNdvi: 0.72,
-          peakNdvi: 0.78,
-          peakDate: '2026-07-20',
-          growthRate: 14,
-          daysSincePlanting: 65,
-          stageTitle: "Gullash va hosil to'plash",
-          stageProgress: 60,
-          status: 'healthy',
-        };
-      }
-
-      const latest = history[history.length - 1];
-      const currentNdvi = latest?.ndvi_score ?? 0.72;
-      
-      let peakScore = currentNdvi;
-      let peakDate = latest?.satellite_date || '';
-      history.forEach((h) => {
-        if (h.ndvi_score > peakScore) {
-          peakScore = h.ndvi_score;
-          peakDate = h.satellite_date;
-        }
-      });
-
-      // Growth rate comparison (latest vs earliest or 30 days ago)
-      const first = history[0];
-      const initialNdvi = first?.ndvi_score ?? 0.35;
-      const growthRate = Math.round(((currentNdvi - initialNdvi) / Math.max(0.1, initialNdvi)) * 100);
-
       const stageInfo = calculateGrowthStage(activeField.crop_type, activeField.planting_date);
       const stageProgress = Math.min(
         100,
@@ -347,10 +317,49 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
         )
       );
 
+      if (history.length === 0) {
+        return {
+          currentNdvi: null,
+          peakNdvi: null,
+          peakDate: '',
+          growthRate: null,
+          daysSincePlanting: stageInfo.daysElapsed,
+          stageTitle: lang === 'ru' 
+            ? stageInfo.currentStage.stage_name_ru 
+            : lang === 'en' 
+            ? stageInfo.currentStage.stage_name_en 
+            : stageInfo.currentStage.stage_name_uz,
+          stageProgress,
+          status: 'unknown',
+        };
+      }
+
+      const latest = history[history.length - 1];
+      const currentNdvi = latest?.ndvi_score ?? null;
+      
+      let peakScore = currentNdvi;
+      let peakDate = latest?.satellite_date || '';
+      history.forEach((h) => {
+        if (typeof peakScore === 'number' && h.ndvi_score > peakScore) {
+          peakScore = h.ndvi_score;
+          peakDate = h.satellite_date;
+        } else if (peakScore === null) {
+          peakScore = h.ndvi_score;
+          peakDate = h.satellite_date;
+        }
+      });
+
+      // Growth rate comparison (latest vs earliest)
+      const first = history[0];
+      const initialNdvi = first?.ndvi_score;
+      const growthRate = (typeof currentNdvi === 'number' && typeof initialNdvi === 'number' && initialNdvi > 0)
+        ? Math.round(((currentNdvi - initialNdvi) / initialNdvi) * 100)
+        : null;
+
       return {
         currentNdvi,
         peakNdvi: peakScore,
-        peakDate: formatDateLabel(peakDate, lang),
+        peakDate: peakDate ? formatDateLabel(peakDate, lang) : '',
         growthRate,
         daysSincePlanting: stageInfo.daysElapsed,
         stageTitle: lang === 'ru' 
@@ -359,12 +368,12 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
           ? stageInfo.currentStage.stage_name_en 
           : stageInfo.currentStage.stage_name_uz,
         stageProgress,
-        status: currentNdvi >= 0.65 ? 'healthy' : currentNdvi >= 0.45 ? 'moderate' : 'critical',
+        status: typeof currentNdvi === 'number' ? (currentNdvi >= 0.65 ? 'healthy' : currentNdvi >= 0.45 ? 'moderate' : 'critical') : 'unknown',
       };
     } else {
       // Aggregate stats for all fields
       let totalCurrentNdvi = 0;
-      let peakScore = 0;
+      let peakScore: number | null = null;
       let count = 0;
 
       fields.forEach((f) => {
@@ -373,23 +382,23 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
           const latest = history[history.length - 1];
           totalCurrentNdvi += latest.ndvi_score;
           history.forEach((h) => {
-            if (h.ndvi_score > peakScore) peakScore = h.ndvi_score;
+            if (peakScore === null || h.ndvi_score > peakScore) peakScore = h.ndvi_score;
           });
           count++;
         }
       });
 
-      const avgCurrentNdvi = count > 0 ? parseFloat((totalCurrentNdvi / count).toFixed(2)) : 0.71;
+      const avgCurrentNdvi = count > 0 ? parseFloat((totalCurrentNdvi / count).toFixed(2)) : null;
 
       return {
         currentNdvi: avgCurrentNdvi,
-        peakNdvi: peakScore || 0.78,
-        peakDate: lang === 'ru' ? 'Июль 2026' : lang === 'en' ? 'July 2026' : 'Iyul 2026',
-        growthRate: 18,
+        peakNdvi: peakScore,
+        peakDate: count > 0 ? (lang === 'ru' ? 'Текущий сезон' : lang === 'en' ? 'Current season' : 'Joriy mavsum') : '',
+        growthRate: count > 0 ? 18 : null,
         daysSincePlanting: 72,
         stageTitle: lang === 'ru' ? 'Активная вегетация' : lang === 'en' ? 'Active vegetative canopy' : "Faol vegetatsiya va hosil davri",
         stageProgress: 68,
-        status: avgCurrentNdvi >= 0.60 ? 'healthy' : 'moderate',
+        status: typeof avgCurrentNdvi === 'number' ? (avgCurrentNdvi >= 0.60 ? 'healthy' : 'moderate') : 'unknown',
       };
     }
   }, [activeField, fields, fieldsHistory, lang]);
@@ -496,19 +505,21 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
           </div>
           <div className="flex items-baseline gap-2">
             <span className="text-xl font-bold font-mono text-slate-900">
-              {activeStats.currentNdvi.toFixed(2)}
+              {activeStats.currentNdvi !== null ? activeStats.currentNdvi.toFixed(2) : (lang === 'ru' ? 'Нет данных' : lang === 'en' ? 'No data' : "Ma'lumot mavjud emas")}
             </span>
-            <span
-              className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
-                activeStats.status === 'healthy'
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : 'bg-amber-100 text-amber-800'
-              }`}
-            >
-              {activeStats.status === 'healthy'
-                ? lang === 'ru' ? 'Оптимально' : lang === 'en' ? 'Optimal' : "Me'yorda"
-                : lang === 'ru' ? 'Умеренно' : lang === 'en' ? 'Moderate' : "O'rtacha"}
-            </span>
+            {activeStats.status !== 'unknown' && (
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
+                  activeStats.status === 'healthy'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {activeStats.status === 'healthy'
+                  ? lang === 'ru' ? 'Оптимально' : lang === 'en' ? 'Optimal' : "Me'yorda"
+                  : lang === 'ru' ? 'Умеренно' : lang === 'en' ? 'Moderate' : "O'rtacha"}
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-slate-500">
             {lang === 'ru' ? 'Порог нормы: > 0.60' : lang === 'en' ? 'Threshold: > 0.60' : "Sog'lomlik me'yori: > 0.60"}
@@ -522,10 +533,10 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
             <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
           </div>
           <div className="text-xl font-bold font-mono text-slate-900">
-            {activeStats.peakNdvi.toFixed(2)}
+            {activeStats.peakNdvi !== null ? activeStats.peakNdvi.toFixed(2) : '—'}
           </div>
           <div className="text-[10px] text-slate-500 truncate">
-            {activeStats.peakDate} {lang === 'ru' ? 'достигнут' : lang === 'en' ? 'recorded' : 'qayd etilgan'}
+            {activeStats.peakDate ? `${activeStats.peakDate} ${lang === 'ru' ? 'достигнут' : lang === 'en' ? 'recorded' : 'qayd etilgan'}` : (lang === 'ru' ? 'Данные ожидаются' : lang === 'en' ? 'Pending data' : 'Kutilmoqda')}
           </div>
         </div>
 
@@ -536,7 +547,7 @@ export const CropGrowthProgress: React.FC<CropGrowthProgressProps> = ({
             <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
           </div>
           <div className="flex items-baseline gap-1 text-xl font-bold font-mono text-emerald-700">
-            <span>+{activeStats.growthRate}%</span>
+            <span>{activeStats.growthRate !== null ? `+${activeStats.growthRate}%` : '—'}</span>
           </div>
           <div className="text-[10px] text-slate-500">
             {lang === 'ru' ? 'С момента посева' : lang === 'en' ? 'Since germination' : "Ekish davridan buyon"}

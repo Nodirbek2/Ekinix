@@ -282,6 +282,8 @@ CREATE TABLE IF NOT EXISTS public.farmers (
 ALTER TABLE public.farmers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Public farmers are viewable by everyone." ON public.farmers FOR SELECT USING (true);
 CREATE POLICY "Users can insert their own farmer profile." ON public.farmers FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own farmer profile." ON public.farmers FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own farmer profile." ON public.farmers FOR DELETE USING (auth.uid() = user_id);
 
 -- 2. Agricultural Fields Table
 CREATE TABLE IF NOT EXISTS public.fields (
@@ -300,7 +302,9 @@ CREATE TABLE IF NOT EXISTS public.fields (
 
 ALTER TABLE public.fields ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Fields viewable by everyone." ON public.fields FOR SELECT USING (true);
-CREATE POLICY "Users can insert their own fields." ON public.fields FOR INSERT WITH CHECK (auth.uid() = user_id OR auth.role() = 'authenticated');
+CREATE POLICY "Users can insert their own fields." ON public.fields FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own fields." ON public.fields FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own fields." ON public.fields FOR DELETE USING (auth.uid() = user_id);
 
 -- 3. Satellite NDVI & Moisture Readings Table
 CREATE TABLE IF NOT EXISTS public.ndvi_readings (
@@ -318,6 +322,9 @@ CREATE TABLE IF NOT EXISTS public.ndvi_readings (
 
 ALTER TABLE public.ndvi_readings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "NDVI readings viewable by everyone." ON public.ndvi_readings FOR SELECT USING (true);
+CREATE POLICY "Users can insert NDVI readings for their fields." ON public.ndvi_readings FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
+CREATE POLICY "Users can update NDVI readings for their fields." ON public.ndvi_readings FOR UPDATE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
+CREATE POLICY "Users can delete NDVI readings for their fields." ON public.ndvi_readings FOR DELETE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 
 -- 4. Marketplace Listings Table
 CREATE TABLE IF NOT EXISTS public.marketplace_listings (
@@ -342,9 +349,9 @@ CREATE TABLE IF NOT EXISTS public.marketplace_listings (
 
 ALTER TABLE public.marketplace_listings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Marketplace viewable by everyone." ON public.marketplace_listings FOR SELECT USING (true);
-CREATE POLICY "Authenticated users can post listings." ON public.marketplace_listings FOR INSERT WITH CHECK (auth.role() = 'authenticated' OR true);
-CREATE POLICY "Users can update their own listings." ON public.marketplace_listings FOR UPDATE USING (auth.uid() = user_id OR true);
-CREATE POLICY "Users can delete their own listings." ON public.marketplace_listings FOR DELETE USING (auth.uid() = user_id OR true);
+CREATE POLICY "Authenticated users can post listings." ON public.marketplace_listings FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own listings." ON public.marketplace_listings FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own listings." ON public.marketplace_listings FOR DELETE USING (auth.uid() = user_id);
 
 -- 5. Crop Guides Table (Structured growth stages, irrigation, pest & harvest care notes)
 CREATE TABLE IF NOT EXISTS public.crop_guides (
@@ -384,6 +391,12 @@ CREATE TABLE IF NOT EXISTS public.agronomist_access (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE public.agronomist_access ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Agronomist access viewable by involved farmers." ON public.agronomist_access FOR SELECT USING (EXISTS (SELECT 1 FROM public.farmers WHERE (public.farmers.id = farmer_id OR public.farmers.id = agronomist_id) AND public.farmers.user_id = auth.uid()));
+CREATE POLICY "Farmers can grant agronomist access." ON public.agronomist_access FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = farmer_id AND public.farmers.user_id = auth.uid()));
+CREATE POLICY "Involved parties can update agronomist access." ON public.agronomist_access FOR UPDATE USING (EXISTS (SELECT 1 FROM public.farmers WHERE (public.farmers.id = farmer_id OR public.farmers.id = agronomist_id) AND public.farmers.user_id = auth.uid()));
+CREATE POLICY "Farmers can revoke agronomist access." ON public.agronomist_access FOR DELETE USING (EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = farmer_id AND public.farmers.user_id = auth.uid()));
+
 CREATE TABLE IF NOT EXISTS public.field_advisor_notes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     field_id UUID REFERENCES public.fields(id) ON DELETE CASCADE,
@@ -398,7 +411,9 @@ CREATE TABLE IF NOT EXISTS public.field_advisor_notes (
 
 ALTER TABLE public.field_advisor_notes ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Notes viewable by everyone." ON public.field_advisor_notes FOR SELECT USING (true);
-CREATE POLICY "Agronomists can insert notes." ON public.field_advisor_notes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Agronomists or field owners can insert notes." ON public.field_advisor_notes FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR (agronomist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = agronomist_id AND public.farmers.user_id = auth.uid())));
+CREATE POLICY "Note authors or field owners can update notes." ON public.field_advisor_notes FOR UPDATE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR (agronomist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = agronomist_id AND public.farmers.user_id = auth.uid())));
+CREATE POLICY "Note authors or field owners can delete notes." ON public.field_advisor_notes FOR DELETE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR (agronomist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = agronomist_id AND public.farmers.user_id = auth.uid())));
 
 -- 7. Watering Log Table (Irrigation task tracking)
 CREATE TABLE IF NOT EXISTS public.watering_log (
@@ -413,7 +428,9 @@ CREATE TABLE IF NOT EXISTS public.watering_log (
 
 ALTER TABLE public.watering_log ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Watering logs viewable by everyone." ON public.watering_log FOR SELECT USING (true);
-CREATE POLICY "Users can insert watering logs." ON public.watering_log FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can insert watering logs for their fields." ON public.watering_log FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
+CREATE POLICY "Users can update watering logs for their fields." ON public.watering_log FOR UPDATE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
+CREATE POLICY "Users can delete watering logs for their fields." ON public.watering_log FOR DELETE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 
 -- 8. Scheduled Notifications & Telegram Alerts Log
 CREATE TABLE IF NOT EXISTS public.notifications_log (
@@ -429,8 +446,9 @@ CREATE TABLE IF NOT EXISTS public.notifications_log (
 );
 
 ALTER TABLE public.notifications_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Notifications viewable by everyone." ON public.notifications_log FOR SELECT USING (true);
-CREATE POLICY "System can insert notification logs." ON public.notifications_log FOR INSERT WITH CHECK (true);
+CREATE POLICY "Notifications viewable by recipient farmer." ON public.notifications_log FOR SELECT USING (EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = farmer_id AND public.farmers.user_id = auth.uid()) OR auth.role() = 'authenticated');
+CREATE POLICY "Users can insert notifications for their farmer profile." ON public.notifications_log FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = farmer_id AND public.farmers.user_id = auth.uid()) OR auth.role() = 'authenticated');
+CREATE POLICY "Users can delete notifications for their farmer profile." ON public.notifications_log FOR DELETE USING (EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = farmer_id AND public.farmers.user_id = auth.uid()));
 
 -- 9. Storage Bucket for Crop & Harvest Images
 -- Create 'marketplace' bucket if not exists in Supabase Storage Dashboard (Public bucket)

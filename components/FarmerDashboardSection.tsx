@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Language, translations } from '@/lib/i18n';
 import { FieldRecord, FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { fetchAndStoreFieldNdvi, NdviResult } from '@/lib/ndviService';
+import { fetchAndStoreFieldNdvi, NdviResult, formatNdviScore, getNdviStatusBadge } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { FieldCardThumbnail } from '@/components/FieldCardThumbnail';
@@ -216,16 +216,17 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
           } catch {
             newNdviMap[field.id] = {
               fieldId: field.id,
-              ndviScore: 0.68,
-              statusTier: 'healthy',
+              ndviScore: null,
+              isAvailable: false,
+              statusTier: 'unknown',
               moisturePercentage: 55,
               satelliteDate: new Date().toISOString().split('T')[0],
               isCloudy: false,
-              cloudCoverPercent: 12,
-              cloudMessageUz: '',
-              cloudMessageRu: '',
-              cloudMessageEn: '',
-              trend: { direction: 'improving', diff: 0.04 },
+              cloudCoverPercent: 85,
+              cloudMessageUz: "Ma'lumot mavjud emas",
+              cloudMessageRu: "Нет данных",
+              cloudMessageEn: "No data available",
+              trend: null,
             };
           }
 
@@ -330,10 +331,10 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
 
   const averageNdvi = useMemo(() => {
     const scores = Object.values(ndviMap)
-      .filter((n) => !n.isCloudy && n.ndviScore > 0)
-      .map((n) => n.ndviScore);
+      .map((n) => n.ndviScore)
+      .filter((s): s is number => typeof s === 'number' && !isNaN(s) && s > 0);
 
-    if (scores.length === 0) return 0.71;
+    if (scores.length === 0) return null;
     const sum = scores.reduce((a, b) => a + b, 0);
     return parseFloat((sum / scores.length).toFixed(2));
   }, [ndviMap]);
@@ -355,7 +356,7 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
       const stage = calc.currentStage;
 
       // Alert 1: Severe / Moderate NDVI Vegetation Stress
-      if (ndvi && !ndvi.isCloudy) {
+      if (ndvi && !ndvi.isCloudy && typeof ndvi.ndviScore === 'number') {
         if (ndvi.ndviScore < 0.45 || ndvi.statusTier === 'stressed') {
           list.push({
             id: `alert_stress_${field.id}`,
@@ -368,9 +369,9 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
             titleUz: "🚨 Yuqori o'simlik stressi / suvsizlik aniqlandi",
             titleRu: "🚨 Обнаружен высокий стресс растений / дефицит влаги",
             titleEn: "🚨 High crop stress / moisture deficiency detected",
-            descUz: `${field.name} maydonida NDVI ko'rsatkichi kritik darajada (${ndvi.ndviScore}). Ildiz tizimini va namlikni zudlik bilan tekshiring.`,
-            descRu: `На поле ${field.name} индекс NDVI на критическом уровне (${ndvi.ndviScore}). Срочно проверьте корневую систему и влажность.`,
-            descEn: `Critical NDVI reading (${ndvi.ndviScore}) on ${field.name}. Inspect root moisture immediately.`,
+            descUz: `${field.name} maydonida NDVI ko'rsatkichi kritik darajada (${ndvi.ndviScore.toFixed(2)}). Ildiz tizimini va namlikni zudlik bilan tekshiring.`,
+            descRu: `На поле ${field.name} индекс NDVI на критическом уровне (${ndvi.ndviScore.toFixed(2)}). Срочно проверьте корневую систему и влажность.`,
+            descEn: `Critical NDVI reading (${ndvi.ndviScore.toFixed(2)}) on ${field.name}. Inspect root moisture immediately.`,
             actionTextUz: "Maydonni ko'rish",
             actionTextRu: "Открыть поле",
             actionTextEn: "View field",
@@ -508,7 +509,7 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
     const rec = calculateIrrigationRecommendation({
       cropType: field.crop_type,
       plantingDate: field.planting_date,
-      ndviValue: ndvi ? ndvi.ndviScore : 0.70,
+      ndviValue: ndvi ? ndvi.ndviScore : null,
       ndviTrend: ndvi?.trend?.direction || 'stable',
       soilMoisture: ndvi?.moisturePercentage || 55,
       rainForecast: weather
@@ -677,12 +678,22 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
             <Activity className="w-4 h-4 text-slate-400" />
           </div>
           <div className="text-2xl font-bold font-mono text-slate-900 tracking-tight flex items-baseline gap-2">
-            <span>{averageNdvi.toFixed(2)}</span>
-            <span className="text-xs font-normal text-emerald-700 font-sans">Optimal</span>
+            <span>{averageNdvi !== null ? averageNdvi.toFixed(2) : (currentLang === 'ru' ? 'Нет данных' : currentLang === 'en' ? 'No data' : "Ma'lumot mavjud emas")}</span>
+            {averageNdvi !== null && (
+              <span className={`text-xs font-normal font-sans ${averageNdvi >= 0.65 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {averageNdvi >= 0.65 ? (currentLang === 'ru' ? 'Оптимально' : 'Optimal') : (currentLang === 'ru' ? 'Умеренно' : "O'rtacha")}
+              </span>
+            )}
           </div>
           <div className="text-[11px] font-medium text-slate-500 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 text-emerald-600" />
-            <span className="text-emerald-700 font-semibold">+0.04</span> vs last week
+            {averageNdvi !== null ? (
+              <>
+                <TrendingUp className="w-3 h-3 text-emerald-600" />
+                <span className="text-emerald-700 font-semibold">+0.04</span> {currentLang === 'ru' ? 'динамика за неделю' : currentLang === 'en' ? 'vs last week' : 'haftalik dinamika'}
+              </>
+            ) : (
+              <span>{currentLang === 'ru' ? 'Спутниковые данные ожидаются' : currentLang === 'en' ? 'Satellite acquisition pending' : "Sun'iy yo'ldosh ma'lumoti kutilmoqda"}</span>
+            )}
           </div>
         </div>
 
@@ -857,7 +868,9 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
               const weather = weatherMap[field.id];
               const priorityAction = getFieldPriorityAction(field);
 
-              const ndviScore = ndvi ? ndvi.ndviScore : 0.70;
+              const ndviScore = ndvi?.ndviScore ?? null;
+              const ndviBadge = getNdviStatusBadge(ndviScore, currentLang);
+              const formattedNdvi = formatNdviScore(ndviScore, currentLang);
               const moisture = ndvi ? ndvi.moisturePercentage : 54;
               const actionText = currentLang === 'ru' ? priorityAction.textRu : currentLang === 'en' ? priorityAction.textEn : priorityAction.textUz;
 
@@ -898,11 +911,9 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
                         <InfoTooltip preset="ndvi" lang={currentLang} size="xs" id={`dashboard-card-ndvi-${field.id}`} />
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className="font-mono font-semibold text-slate-900">{ndviScore.toFixed(2)}</span>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded ${
-                          ndviScore >= 0.65 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                        }`}>
-                          {ndviScore >= 0.65 ? 'Optimal' : 'Moderate'}
+                        <span className="font-mono font-semibold text-slate-900">{formattedNdvi}</span>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.2 rounded border ${ndviBadge.bg} ${ndviBadge.text} ${ndviBadge.border}`}>
+                          {ndviBadge.label}
                         </span>
                       </div>
                     </div>
