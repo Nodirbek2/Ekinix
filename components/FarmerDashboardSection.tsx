@@ -120,9 +120,11 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
 
             let fieldsQuery = client.from('fields').select('*');
             if (farmerRec?.id) {
-              fieldsQuery = fieldsQuery.or(`user_id.eq.${targetUserId},farmer_id.eq.${farmerRec.id}`);
+              // fields table has NO user_id column — filter exclusively by farmer_id
+              fieldsQuery = fieldsQuery.eq('farmer_id', farmerRec.id);
             } else {
-              fieldsQuery = fieldsQuery.eq('user_id', targetUserId);
+              // No farmer record found — cannot query fields; nothing to load
+              return;
             }
 
             const { data, error } = await fieldsQuery.order('created_at', { ascending: false });
@@ -261,9 +263,11 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
 
           let fieldsQuery = client.from('fields').select('*');
           if (farmerRec?.id) {
-            fieldsQuery = fieldsQuery.or(`user_id.eq.${targetUserId},farmer_id.eq.${farmerRec.id}`);
+            // fields table has NO user_id column — filter exclusively by farmer_id
+            fieldsQuery = fieldsQuery.eq('farmer_id', farmerRec.id);
           } else {
-            fieldsQuery = fieldsQuery.eq('user_id', targetUserId);
+            // No farmer record found — cannot query fields; skip
+            return;
           }
 
           const { data, error } = await fieldsQuery.order('created_at', { ascending: false });

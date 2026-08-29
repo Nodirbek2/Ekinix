@@ -210,7 +210,8 @@ async function getFarmerAndTelemetryData(
         const { data: fieldsData } = await supabase
           .from('fields')
           .select('*')
-          .or(`farmer_id.eq.${farmer.id},user_id.eq.${farmer.user_id || farmer.id}`)
+          // fields table has NO user_id column — filter exclusively by farmer_id
+          .eq('farmer_id', farmer.id)
           .order('created_at', { ascending: false });
 
         const fieldsList = (fieldsData as FieldRecord[]) || [];

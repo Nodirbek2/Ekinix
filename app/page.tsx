@@ -115,12 +115,16 @@ export default function Home() {
     setUserProfile(profile);
     localStorage.setItem('ekinix_farmer_profile', JSON.stringify(profile));
 
-    // 2. Query ALL fields tied to this user — use both user_id and farmer_id to catch every row
+    // 2. Query ALL fields tied to this farmer.
+    // The `fields` table has NO `user_id` column — it only has `farmer_id`.
+    // Join path: auth.user → farmers.user_id → farmers.id → fields.farmer_id
     let fieldsQuery = client.from('fields').select('*');
     if (dbFarmer?.id) {
-      fieldsQuery = fieldsQuery.or(`user_id.eq.${userId},farmer_id.eq.${dbFarmer.id}`);
+      fieldsQuery = fieldsQuery.eq('farmer_id', dbFarmer.id);
     } else {
-      fieldsQuery = fieldsQuery.eq('user_id', userId);
+      // No farmer record yet — there cannot be any fields
+      localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
+      return;
     }
 
     const { data: dbFields, error: fieldsError } = await fieldsQuery.order('created_at', { ascending: false });

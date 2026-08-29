@@ -144,9 +144,11 @@ export function MyFieldsSection({
 
             let fieldsQuery = client.from('fields').select('*');
             if (farmerRec?.id) {
-              fieldsQuery = fieldsQuery.or(`user_id.eq.${targetUserId},farmer_id.eq.${farmerRec.id}`);
+              // fields table has NO user_id column — filter exclusively by farmer_id
+              fieldsQuery = fieldsQuery.eq('farmer_id', farmerRec.id);
             } else {
-              fieldsQuery = fieldsQuery.eq('user_id', targetUserId);
+              // No farmer record found — cannot query fields; nothing to load
+              return;
             }
 
             const { data, error } = await fieldsQuery.order('created_at', { ascending: false });
@@ -235,7 +237,7 @@ export function MyFieldsSection({
         const { data: insertedField, error: insertError } = await client
           .from('fields')
           .insert({
-            user_id: activeUserId,
+            // NOTE: fields table has NO user_id column — farmer_id is the only owner reference
             farmer_id: farmerRec?.id || null,
             name: fieldData.name.trim(),
             crop_type: fieldData.crop_type,

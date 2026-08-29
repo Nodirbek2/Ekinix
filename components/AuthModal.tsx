@@ -288,19 +288,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           telegram_chat_id: farmerRecord?.telegram_chat_id,
         };
 
-        // Fetch real fields from Supabase immediately on login (matching user_id or farmer_id)
+        // Fetch real fields from Supabase immediately on login.
+        // The `fields` table has NO `user_id` column — only `farmer_id`.
+        // Always filter by farmer_id; if no farmer row exists yet, there are no fields.
         try {
-          let fieldsQuery = supabase.from('fields').select('*');
           if (farmerRecord?.id) {
-            fieldsQuery = fieldsQuery.or(`user_id.eq.${loggedUserId},farmer_id.eq.${farmerRecord.id}`);
-          } else {
-            fieldsQuery = fieldsQuery.eq('user_id', loggedUserId);
-          }
+            const { data: dbFields } = await supabase
+              .from('fields')
+              .select('*')
+              .eq('farmer_id', farmerRecord.id)
+              .order('created_at', { ascending: false });
 
-          const { data: dbFields } = await fieldsQuery.order('created_at', { ascending: false });
-
-          if (dbFields) {
-            const parsedFields: FieldRecord[] = dbFields.map((item: any) => ({
+            const parsedFields: FieldRecord[] = (dbFields || []).map((item: any) => ({
               id: item.id,
               user_id: item.user_id,
               farmer_id: item.farmer_id,
@@ -313,6 +312,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             }));
             localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedFields));
           } else {
+            // No farmer record found — no fields can exist yet
             localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
           }
         } catch (fieldsErr) {
