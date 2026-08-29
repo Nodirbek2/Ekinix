@@ -254,7 +254,10 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
   if (!isOpen) return null;
 
   const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
-  const botDeepLink = `https://t.me/${botUsername}?start=phone_${cleanPhone.replace('+', '')}`;
+  const userIdParam = userProfile?.user_id || userProfile?.id;
+  const botDeepLink = userIdParam
+    ? `https://t.me/${botUsername}?start=uid_${userIdParam}`
+    : `https://t.me/${botUsername}?start=phone_${cleanPhone.replace('+', '')}`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(botDeepLink);
@@ -672,13 +675,13 @@ export const TelegramNotificationModal: React.FC<TelegramNotificationModalProps>
                   </div>
 
                   <a
-                    href="https://t.me/ekinix_bot"
+                    href={botDeepLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full sm:w-auto h-9 px-4 bg-[#0088cc] hover:bg-[#0077b5] text-white text-xs font-semibold rounded-xl inline-flex items-center justify-center gap-2 transition-colors shadow-xs"
                   >
                     <Send className="w-3.5 h-3.5" />
-                    <span>{currentLang === 'ru' ? 'Запустить в боте (@ekinix_bot)' : currentLang === 'en' ? 'Launch in bot (@ekinix_bot)' : 'Botda ishga tushirish (@ekinix_bot)'}</span>
+                    <span>{currentLang === 'ru' ? `Запустить в боте (@${botUsername})` : currentLang === 'en' ? `Launch in bot (@${botUsername})` : `Botda ishga tushirish (@${botUsername})`}</span>
                   </a>
                 </div>
 

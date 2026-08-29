@@ -127,11 +127,14 @@ interface FarmerTelemetryCacheEntry {
 const farmerTelemetryCache = new Map<string, FarmerTelemetryCacheEntry>();
 const FARMER_CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
-function invalidateFarmerCache(chatId?: string | number, phone?: string) {
+function invalidateFarmerCache(chatId?: string | number, phone?: string, userId?: string) {
   if (chatId) farmerTelemetryCache.delete(`chat:${chatId}`);
   if (phone) {
     const norm = normalizePhoneNumber(phone);
     farmerTelemetryCache.delete(`phone:${norm}`);
+  }
+  if (userId) {
+    farmerTelemetryCache.delete(`uid:${userId}`);
   }
 }
 
@@ -143,14 +146,15 @@ function invalidateFarmerCache(chatId?: string | number, phone?: string) {
  */
 async function getFarmerAndTelemetryData(
   chatId: string | number,
-  phone?: string
+  phone?: string,
+  userId?: string
 ): Promise<{
   farmer: FarmerProfile | null;
   fieldsWithTelemetry: FieldWithTelemetry[];
   isRealDbRecord: boolean;
   timing: { farmerDbMs: number; fieldsDbMs: number };
 }> {
-  const cacheKey = phone ? `phone:${normalizePhoneNumber(phone)}` : `chat:${chatId}`;
+  const cacheKey = userId ? `uid:${userId}` : (phone ? `phone:${normalizePhoneNumber(phone)}` : `chat:${chatId}`);
   const cached = farmerTelemetryCache.get(cacheKey);
   const now = Date.now();
 
@@ -172,8 +176,24 @@ async function getFarmerAndTelemetryData(
     try {
       const t0Farmer = performance.now();
 
+      // 0. Check by exact auth user_id if provided (highest priority, 100% accurate)
+      if (userId) {
+        const { data: farmerData } = await supabase
+          .from('farmers')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (farmerData) {
+          farmer = farmerData as FarmerProfile;
+          isRealDbRecord = true;
+        }
+      }
+
       // 1. Check by phone number if provided
-      if (phone) {
+      if (!farmer && phone) {
         const norm = normalizePhoneNumber(phone);
         const national = norm.slice(-9);
         const { data: farmerData } = await supabase
@@ -1075,7 +1095,75 @@ export async function POST(req: NextRequest) {
     }
 
     // -------------------------------------------------------------------------
-    // 2A. DETECT INCOMING PHONE NUMBER (NATIVE CONTACT OR TEXT)
+    // 2A. DETECT AUTH USER_ID (/start uid_...) - 100% ACCURATE PROFILE LINKING
+    // -------------------------------------------------------------------------
+    let incomingUserId = '';
+    if (text.startsWith('/start uid_')) {
+      incomingUserId = text.replace('/start uid_', '').trim();
+    }
+
+    if (incomingUserId) {
+      const [typingRes, farmerData] = await Promise.all([
+        typingPromise,
+        getFarmerAndTelemetryData(chatId, undefined, incomingUserId),
+      ]);
+
+      const { farmer: matchedFarmer, fieldsWithTelemetry: matchedFields, isRealDbRecord } = farmerData;
+
+      // MATCH FOUND by user_id in Supabase `farmers`
+      if (matchedFarmer && isRealDbRecord) {
+        if (isSupabaseConfigured && supabase) {
+          try {
+            await supabase
+              .from('farmers')
+              .update({
+                telegram_chat_id: String(chatId),
+                telegram_username: telegramUsername,
+                telegram_linked_at: new Date().toISOString(),
+                telegram_notifications_enabled: true,
+              })
+              .eq('id', matchedFarmer.id);
+            invalidateFarmerCache(chatId, matchedFarmer.phone, incomingUserId);
+          } catch (updateErr) {
+            console.error('[Supabase link error by user_id]', updateErr);
+          }
+        }
+
+        const totalArea = matchedFields.reduce((sum, item) => sum + (Number(item.field.area_hectares) || 0), 0);
+        const cropsList = Array.from(new Set(matchedFields.map((item) => item.field.crop_type || 'Ekin'))).join(', ') ||
+          (matchedFarmer.primary_crops?.join(', ') || "Paxta, Bug'doy");
+
+        const linkedGreetingMsg =
+          `✅ <b>Assalomu alaykum, ${matchedFarmer.full_name}!</b>\n\n` +
+          `Sizning Ekinix profilingiz Telegram hisobingizga muvaffaqiyatli bog'landi!\n\n` +
+          `🌾 <b>Sizning dalalaringiz:</b>\n` +
+          `• Maydonlar soni: <b>${matchedFields.length} ta</b> (${totalArea > 0 ? totalArea.toFixed(1) : '0'} ga)\n` +
+          `• Asosiy hudud: <b>${matchedFarmer.region || "O'zbekiston"}</b>\n` +
+          `• Ekinlar: <b>${cropsList}</b>\n\n` +
+          (matchedFields.length > 0
+            ? `👇 <b>Quyidagi tugmalar orqali mavjud maydonni tanlang yoki yangi maydon qo'shing:</b>`
+            : `👇 <b>Sizda hali maydonlar ro'yxatdan o'tmagan. Yangi maydon qo'shish uchun quyidagi tugmani bosing:</b>`);
+
+        await Promise.all([
+          sendTelegramMessage({
+            chatId,
+            text: linkedGreetingMsg,
+            replyMarkup: getFarmerOnboardingFieldsInlineKeyboard(matchedFields.length),
+          }),
+          sendTelegramMessage({
+            chatId,
+            text: `Boshqaruv paneli faollashtirildi.`,
+            replyMarkup: getFarmerReplyKeyboard(),
+          }),
+        ]);
+
+        console.log(`[Telegram Latency] Account linked via user_id in ${(performance.now() - reqStart).toFixed(1)}ms`);
+        return NextResponse.json({ ok: true, action: 'existing_farmer_linked_by_uid', farmer: matchedFarmer.full_name });
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 2B. DETECT INCOMING PHONE NUMBER (NATIVE CONTACT OR TEXT)
     // -------------------------------------------------------------------------
     let incomingPhone = '';
     if (contact && contact.phone_number) {

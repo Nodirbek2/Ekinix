@@ -79,6 +79,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [farmType, setFarmType] = useState<'smallholder' | 'commercial'>(userProfile?.farm_type || 'smallholder');
   const [selectedCrops, setSelectedCrops] = useState<string[]>(userProfile?.primary_crops || ['paxta', 'bugdoy']);
 
+  const userIdParam = userProfile?.user_id || userProfile?.id;
+  const botDeepLink = userIdParam
+    ? `https://t.me/ekinixbot?start=uid_${userIdParam}`
+    : `https://t.me/ekinixbot`;
+
   // Notification state
   const [notifs, setNotifs] = useState<NotificationPreferences>(DEFAULT_NOTIFS);
 
@@ -439,7 +444,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   )}
                   <a
-                    href="https://t.me/ekinix_bot"
+                    href={botDeepLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 sm:flex-none px-3.5 py-2 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center justify-center gap-1.5 shadow-xs"
@@ -598,7 +603,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="flex flex-col sm:flex-row items-center gap-2 pt-1">
                   <a
-                    href="https://t.me/ekinix_bot"
+                    href={botDeepLink}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full sm:flex-1 py-2 px-3 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center justify-center gap-2 shadow-xs"
