@@ -102,7 +102,6 @@ export function MyFieldsSection({
         const normalized: FieldRecord[] = externalFields.map((f: any) => ({
           id: f.id,
           farmer_id: f.farmer_id,
-          user_id: f.user_id,
           name: f.name,
           crop_type: f.crop_type || f.cropType || 'cotton',
           planting_date: f.planting_date || f.plantingDate || '2026-04-10',
@@ -157,7 +156,6 @@ export function MyFieldsSection({
               const parsedDbFields: FieldRecord[] = data.map((item: any) => ({
                 id: item.id,
                 farmer_id: item.farmer_id,
-                user_id: item.user_id,
                 name: item.name,
                 crop_type: item.crop_type,
                 planting_date: item.planting_date || '2026-04-15',
@@ -223,22 +221,45 @@ export function MyFieldsSection({
           return;
         }
 
-        // Look up farmer UUID in public.farmers
-        const { data: farmerRec } = await client
-          .from('farmers')
-          .select('id')
-          .eq('user_id', activeUserId)
-          .maybeSingle();
+        // Look up farmer UUID in public.farmers; if not found, create profile first
+        let farmerId = activeFarmerId;
+        if (!farmerId) {
+          const { data: farmerRec } = await client
+            .from('farmers')
+            .select('id')
+            .eq('user_id', activeUserId)
+            .maybeSingle();
 
-        if (farmerRec?.id) {
-          activeFarmerId = farmerRec.id;
+          if (farmerRec?.id) {
+            farmerId = farmerRec.id;
+            activeFarmerId = farmerRec.id;
+          } else {
+            // Auto-create farmer record if one doesn't exist yet for this auth user
+            const { data: newFarmer } = await client
+              .from('farmers')
+              .insert({
+                user_id: activeUserId,
+                full_name: userProfile?.full_name || 'Dehqon',
+                phone: userProfile?.phone || '',
+                region: selectedRegion,
+                farm_type: 'smallholder',
+                primary_crops: [fieldData.crop_type || 'cotton'],
+              })
+              .select('id')
+              .single();
+
+            if (newFarmer?.id) {
+              farmerId = newFarmer.id;
+              activeFarmerId = newFarmer.id;
+            }
+          }
         }
 
         const { data: insertedField, error: insertError } = await client
           .from('fields')
           .insert({
-            // NOTE: fields table has NO user_id column — farmer_id is the only owner reference
-            farmer_id: farmerRec?.id || null,
+            // fields table only has farmer_id (FK -> farmers.id); NO user_id column
+            farmer_id: farmerId,
             name: fieldData.name.trim(),
             crop_type: fieldData.crop_type,
             planting_date: fieldData.planting_date,
@@ -261,7 +282,6 @@ export function MyFieldsSection({
 
     const newRecord: FieldRecord = {
       id: savedRecordId,
-      user_id: activeUserId,
       farmer_id: activeFarmerId,
       name: fieldData.name.trim(),
       crop_type: fieldData.crop_type,

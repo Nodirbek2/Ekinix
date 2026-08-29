@@ -301,7 +301,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             const parsedFields: FieldRecord[] = (dbFields || []).map((item: any) => ({
               id: item.id,
-              user_id: item.user_id,
               farmer_id: item.farmer_id,
               name: item.name,
               crop_type: item.crop_type,

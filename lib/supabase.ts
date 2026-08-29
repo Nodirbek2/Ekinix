@@ -120,7 +120,6 @@ export interface ServicePlan {
 export interface FieldRecord {
   id: string;
   farmer_id?: string;
-  user_id?: string;
   name: string;
   crop_type: string;
   planting_date?: string;
@@ -285,11 +284,10 @@ CREATE POLICY "Users can insert their own farmer profile." ON public.farmers FOR
 CREATE POLICY "Users can update their own farmer profile." ON public.farmers FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own farmer profile." ON public.farmers FOR DELETE USING (auth.uid() = user_id);
 
--- 2. Agricultural Fields Table
+-- 2. Agricultural Fields Table (Owned by farmer via farmer_id -> farmers.id; NO user_id column)
 CREATE TABLE IF NOT EXISTS public.fields (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     farmer_id UUID REFERENCES public.farmers(id) ON DELETE CASCADE,
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     crop_type TEXT NOT NULL,
     planting_date DATE,
