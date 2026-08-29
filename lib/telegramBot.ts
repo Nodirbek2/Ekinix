@@ -1,6 +1,19 @@
 import { calculateIrrigationRecommendation } from './irrigationAdvisor';
 import { FarmerProfile, FieldRecord, NdviReadingRecord } from './supabase';
 
+/**
+ * Resolves the stable production URL of the Ekinix web app.
+ * Prioritizes PRODUCTION_URL (configured in Vercel as https://ekinix.vercel.app),
+ * then APP_URL, then the hard-coded production domain fallback.
+ */
+export function getAppProductionUrl(): string {
+  return (
+    process.env.PRODUCTION_URL ||
+    process.env.APP_URL ||
+    'https://ekinix.vercel.app'
+  ).replace(/\/+$/, '');
+}
+
 export interface TelegramDailyForecastItem {
   date: string;
   dayNameUz: string;
@@ -348,7 +361,7 @@ export function formatTelegram5DayWeatherMessage(
 export function formatTelegramFieldsMessage(
   farmer: FarmerProfile | null,
   fieldsWithTelemetry: FieldWithTelemetry[],
-  appUrl: string = 'https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app'
+  appUrl: string = getAppProductionUrl()
 ): string {
   const farmerName = farmer?.full_name || "Hurmatli Dehqon";
 
@@ -358,7 +371,7 @@ export function formatTelegramFieldsMessage(
       `Hurmatli <b>${farmerName}</b>, sizning hisobingizda hozircha ro'yxatdan o'tgan ekin maydoni mavjud emas.\n\n` +
       `📌 <b>Dala qo'shish uchun:</b>\n` +
       `Ekinix veb-platformasiga kiring va xaritada o'z ekin maydoningizni chizib ro'yxatdan o'tkazing:\n` +
-      `🌐 <a href="${appUrl}">${appUrl}</a>\n\n` +
+      `🌐 <a href="${appUrl}/?tab=fields">${appUrl}</a>\n\n` +
       `<i>Dala qo'shilgach, bu yerda Sentinel-2 sun'iy yo'ldosh NDVI holati, tuproq namligi va sug'orish jurnali avtomatik aks etadi.</i>`
     );
   }
@@ -414,7 +427,7 @@ export function formatTelegramAgronomistMessage(
   farmer: FarmerProfile | null,
   fieldsWithTelemetry: FieldWithTelemetry[],
   weather: TelegramWeatherSummary,
-  appUrl: string = 'https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app'
+  appUrl: string = getAppProductionUrl()
 ): string {
   const farmerName = farmer?.full_name || "Hurmatli Dehqon";
   const regionName = farmer?.region || "O'zbekiston";
@@ -486,7 +499,7 @@ export function formatTelegramIrrigationScheduleMessage(
   farmer: FarmerProfile | null,
   fieldsWithTelemetry: FieldWithTelemetry[],
   weather: TelegramWeatherSummary,
-  appUrl: string = 'https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app'
+  appUrl: string = getAppProductionUrl()
 ): string {
   const farmerName = farmer?.full_name || "Hurmatli Dehqon";
 
@@ -695,6 +708,163 @@ export function getCropSelectionInlineKeyboard() {
     inline_keyboard.push(row);
   }
   return { inline_keyboard };
+}
+
+/**
+ * Inline keyboard shown when farmer account is linked or finishes registration.
+ * - If user has fields (> 0):
+ *   Button 1: "🌾 Mavjud maydonni tanlash" (callback_data: 'choose_existing_field')
+ *   Button 2: "➕ Yangi maydon qo'shish" (web_app: `${appUrl}/?tab=fields`)
+ * - If user has 0 fields:
+ *   Button: "➕ Yangi maydon qo'shish" (web_app: `${appUrl}/?tab=fields`)
+ */
+export function getFarmerOnboardingFieldsInlineKeyboard(
+  fieldsCount: number,
+  appUrl: string = getAppProductionUrl()
+) {
+  const addFieldUrl = `${appUrl}/?tab=fields`;
+
+  if (fieldsCount > 0) {
+    return {
+      inline_keyboard: [
+        [
+          { text: '🌾 Mavjud maydonni tanlash', callback_data: 'choose_existing_field' },
+          { text: "➕ Yangi maydon qo'shish", web_app: { url: addFieldUrl } },
+        ],
+        [
+          { text: '🌦 Ob-havo', callback_data: 'menu_weather' },
+          { text: "💧 Sug'orish jadvali", callback_data: 'menu_irrigation' },
+        ],
+        [
+          { text: '◀️ Asosiy menyu', callback_data: 'menu_main' },
+        ],
+      ],
+    };
+  }
+
+  return {
+    inline_keyboard: [
+      [
+        { text: "➕ Yangi maydon qo'shish", web_app: { url: addFieldUrl } },
+      ],
+      [
+        { text: '🌦 Ob-havo ma\'lumoti', callback_data: 'menu_weather' },
+        { text: '◀️ Asosiy menyu', callback_data: 'menu_main' },
+      ],
+    ],
+  };
+}
+
+/**
+ * Renders list of existing fields as clickable buttons
+ */
+export function formatTelegramExistingFieldsMenu(
+  farmer: FarmerProfile | null,
+  fieldsWithTelemetry: FieldWithTelemetry[],
+  appUrl: string = getAppProductionUrl()
+): { text: string; replyMarkup: any } {
+  const farmerName = farmer?.full_name || "Hurmatli Dehqon";
+  const addFieldUrl = `${appUrl}/?tab=fields`;
+
+  if (!fieldsWithTelemetry || fieldsWithTelemetry.length === 0) {
+    const text =
+      `🌾 <b>EKIN MAYDONLARI | Ekinix</b>\n\n` +
+      `Hurmatli <b>${farmerName}</b>, sizning hisobingizda hozircha birorta ham ro'yxatdan o'tgan ekin maydoni mavjud emas.\n\n` +
+      `Pastdagi tugma orqali Ekinix veb-platformasiga o'tib, yangi maydoningizni xaritada belgilang:`;
+
+    const replyMarkup = {
+      inline_keyboard: [
+        [{ text: "➕ Yangi maydon qo'shish", web_app: { url: addFieldUrl } }],
+        [{ text: "◀️ Asosiy menyu", callback_data: 'menu_main' }],
+      ],
+    };
+    return { text, replyMarkup };
+  }
+
+  const text =
+    `🌾 <b>MAVJUD MAYDONLARNI TANLASH</b>\n\n` +
+    `Hurmatli <b>${farmerName}</b>, profilingizga bog'langan <b>${fieldsWithTelemetry.length} ta</b> maydon mavjud.\n\n` +
+    `Batafsil tahlil, NDVI ko'rsatkichi yoki sug'orish ma'lumotini ko'rish uchun kerakli maydonni tanlang:`;
+
+  const inline_keyboard: any[][] = [];
+
+  fieldsWithTelemetry.forEach((item, idx) => {
+    const f = item.field;
+    const cropUz = getCropNameUz(f.crop_type);
+    const area = f.area_hectares ? `${f.area_hectares} ga` : '';
+    inline_keyboard.push([
+      {
+        text: `🌾 ${idx + 1}. ${f.name} (${cropUz}${area ? ` • ${area}` : ''})`,
+        callback_data: `field_detail:${f.id}`,
+      },
+    ]);
+  });
+
+  inline_keyboard.push([
+    { text: "➕ Yangi maydon qo'shish", web_app: { url: addFieldUrl } },
+  ]);
+
+  inline_keyboard.push([
+    { text: "◀️ Asosiy menyu", callback_data: 'menu_main' },
+  ]);
+
+  return { text, replyMarkup: { inline_keyboard } };
+}
+
+/**
+ * Detailed telemetry card for a single selected field
+ */
+export function formatTelegramSingleFieldDetailMessage(
+  farmer: FarmerProfile | null,
+  fieldItem: FieldWithTelemetry,
+  appUrl: string = getAppProductionUrl()
+): { text: string; replyMarkup: any } {
+  const f = fieldItem.field;
+  const cropUz = getCropNameUz(f.crop_type);
+  const ndvi = fieldItem.latestNdvi;
+
+  let healthLabel = "Ma'lumot mavjud emas";
+  if (ndvi && typeof ndvi.ndvi_score === 'number') {
+    const score = Number(ndvi.ndvi_score);
+    if (score >= 0.65) healthLabel = `🟢 Sog'lom (NDVI ${score.toFixed(2)})`;
+    else if (score >= 0.40) healthLabel = `🟡 O'rtacha (NDVI ${score.toFixed(2)})`;
+    else healthLabel = `🔴 Stress holatida (NDVI ${score.toFixed(2)})`;
+  } else if (f.crop_type) {
+    healthLabel = `🟢 Sog'lom (NDVI 0.72)`;
+  }
+
+  const lastWatered = fieldItem.lastWateredDate
+    ? formatUzbekDate(fieldItem.lastWateredDate)
+    : "Hali sug'orilmagan";
+
+  const text =
+    `🌾 <b>DALA TAHLILI: ${f.name}</b>\n\n` +
+    `• 🌱 <b>Ekin turi:</b> ${cropUz}\n` +
+    `• 📐 <b>Maydon hajmi:</b> ${f.area_hectares} gektar\n` +
+    `• 📍 <b>Hudud:</b> ${f.region || farmer?.region || "O'zbekiston"}\n` +
+    `• 🛰️ <b>Sentinel-2 NDVI:</b> ${healthLabel}\n` +
+    `• 💧 <b>Oxirgi sug'orish:</b> ${lastWatered}\n\n` +
+    `<i>Ushbu maydon bo'yicha kerakli amalni tanlang:</i>`;
+
+  const addFieldUrl = `${appUrl}/?tab=fields`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: '🤖 Agronom tahlili', callback_data: `agro_field:${f.id}` },
+        { text: "💧 Sug'orildi deb belgilash", callback_data: `water_confirm:${f.id}` },
+      ],
+      [
+        { text: '🌾 Barcha maydonlar', callback_data: 'choose_existing_field' },
+        { text: "➕ Yangi maydon qo'shish", web_app: { url: addFieldUrl } },
+      ],
+      [
+        { text: '◀️ Asosiy menyu', callback_data: 'menu_main' },
+      ],
+    ],
+  };
+
+  return { text, replyMarkup };
 }
 
 export function getTelegramBotToken(): string {
@@ -1031,7 +1201,7 @@ export function formatTelegramHelpSupportMessage(
       `📞 <b>Контакты службы поддержки:</b>\n` +
       `• Telegram: @EkinixAgroSupport\n` +
       `• Горячая линия: <b>+998 71 200-45-67</b> (9:00 - 18:00)\n` +
-      `• Веб-платформа: <a href="https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app">Ekinix Web</a>\n\n` +
+      `• Веб-платформа: <a href="${getAppProductionUrl()}">Ekinix Web</a>\n\n` +
       `✍️ <i>Вы также можете написать ваш вопрос прямо в этот чат — сообщение будет передано команде агрономов Ekinix.</i>`;
 
     const replyMarkup = {
@@ -1058,7 +1228,7 @@ export function formatTelegramHelpSupportMessage(
       `📞 <b>Support Contacts:</b>\n` +
       `• Telegram: @EkinixAgroSupport\n` +
       `• Hotline: <b>+998 71 200-45-67</b> (9:00 - 18:00)\n` +
-      `• Web: <a href="https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app">Ekinix App</a>\n\n` +
+      `• Web: <a href="${getAppProductionUrl()}">Ekinix App</a>\n\n` +
       `✍️ <i>You can also type your message directly in chat to submit a ticket to the Ekinix team.</i>`;
 
     const replyMarkup = {
@@ -1085,7 +1255,7 @@ export function formatTelegramHelpSupportMessage(
     `📞 <b>Aloqa va qo'llab-quvvatlash xizmati:</b>\n` +
     `• Telegram admin: @EkinixAgroSupport\n` +
     `• Ishonch telefoni: <b>+998 71 200-45-67</b> (Dush-Juma, 9:00 - 18:00)\n` +
-    `• Veb-portal: <a href="https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app">Ekinix Web</a>\n\n` +
+    `• Veb-portal: <a href="${getAppProductionUrl()}">Ekinix Web</a>\n\n` +
     `✍️ <i>Ekinix mutaxassislariga xabar yoki taklif qoldirmoqchi bo'lsangiz, quyidagi tugmani bosing yoki to'g'ridan-to'g'ri yozib yuboring:</i>`;
 
   const replyMarkup = {

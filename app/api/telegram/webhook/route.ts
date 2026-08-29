@@ -22,6 +22,10 @@ import {
   editTelegramMessageText,
   FieldWithTelemetry,
   getTelegramBotToken,
+  getAppProductionUrl,
+  getFarmerOnboardingFieldsInlineKeyboard,
+  formatTelegramExistingFieldsMenu,
+  formatTelegramSingleFieldDetailMessage,
 } from '@/lib/telegramBot';
 import {
   getOrGenerateAgronomistSummary,
@@ -418,13 +422,13 @@ export async function POST(req: NextRequest) {
           `• 📱 Telefon: <code>${finalPhone}</code>\n` +
           `• 📍 Hudud: <b>${finalRegion}</b>\n` +
           `• 🌱 Asosiy ekin: <b>${cropName}</b>\n\n` +
-          `👇 <b>Quyidagi menyu orqali kerakli bo'limni tanlang:</b>`;
+          `📌 <i>Ekinix imkoniyatlaridan to'liq foydalanish uchun birinchi ekin maydoningizni qo'shing:</i>`;
 
         await Promise.all([
           sendTelegramMessage({
             chatId,
             text: successMsg,
-            replyMarkup: getMainMenuInlineKeyboard(),
+            replyMarkup: getFarmerOnboardingFieldsInlineKeyboard(0),
           }),
           sendTelegramMessage({
             chatId,
@@ -702,7 +706,67 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, action: 'menu_settings_rendered' });
       }
 
-      // 1F. AGRONOMIST SPECIFIC ACTIONS (FIELD SELECTION, SINGLE FIELD REPORT, REFRESH)
+      // 1F. FIELD SELECTION AND FIELD ACTIONS
+      if (data === 'choose_existing_field') {
+        await answerTelegramCallbackQuery(callbackId);
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer, fieldsWithTelemetry } = farmerData;
+        const fieldsMenu = formatTelegramExistingFieldsMenu(
+          farmer,
+          fieldsWithTelemetry,
+          getAppProductionUrl()
+        );
+
+        if (messageId) {
+          await editTelegramMessageText({
+            chatId,
+            messageId,
+            text: fieldsMenu.text,
+            replyMarkup: fieldsMenu.replyMarkup,
+          });
+        } else {
+          await sendTelegramMessage({
+            chatId,
+            text: fieldsMenu.text,
+            replyMarkup: fieldsMenu.replyMarkup,
+          });
+        }
+        return NextResponse.json({ ok: true, action: 'choose_existing_field_rendered' });
+      }
+
+      if (data.startsWith('field_detail:')) {
+        const targetFieldId = data.replace('field_detail:', '').trim();
+        await answerTelegramCallbackQuery(callbackId);
+        const farmerData = await getFarmerAndTelemetryData(chatId);
+        const { farmer, fieldsWithTelemetry } = farmerData;
+        const fieldItem = fieldsWithTelemetry.find((item) => item.field.id === targetFieldId);
+
+        if (fieldItem) {
+          const detail = formatTelegramSingleFieldDetailMessage(
+            farmer,
+            fieldItem,
+            getAppProductionUrl()
+          );
+
+          if (messageId) {
+            await editTelegramMessageText({
+              chatId,
+              messageId,
+              text: detail.text,
+              replyMarkup: detail.replyMarkup,
+            });
+          } else {
+            await sendTelegramMessage({
+              chatId,
+              text: detail.text,
+              replyMarkup: detail.replyMarkup,
+            });
+          }
+          return NextResponse.json({ ok: true, action: 'field_detail_rendered', fieldId: targetFieldId });
+        }
+      }
+
+      // 1G. AGRONOMIST SPECIFIC ACTIONS (FIELD SELECTION, SINGLE FIELD REPORT, REFRESH)
       if (data === 'agro_select_field') {
         await answerTelegramCallbackQuery(callbackId);
         const farmerData = await getFarmerAndTelemetryData(chatId);
@@ -881,7 +945,8 @@ export async function POST(req: NextRequest) {
       if (data === 'menu_weather') {
         msgText = formatTelegram5DayWeatherMessage(farmer, primaryField, weather);
       } else if (data === 'menu_fields') {
-        msgText = formatTelegramFieldsMessage(farmer, fieldsWithTelemetry);
+        msgText = formatTelegramFieldsMessage(farmer, fieldsWithTelemetry, getAppProductionUrl());
+        customReplyMarkup = getFarmerOnboardingFieldsInlineKeyboard(fieldsWithTelemetry.length);
       } else if (data === 'menu_agronomist') {
         if (fieldsWithTelemetry.length === 0) {
           msgText = formatTelegramAgronomistMessage(farmer, fieldsWithTelemetry, weather);
@@ -1059,13 +1124,15 @@ export async function POST(req: NextRequest) {
           `• Maydonlar soni: <b>${matchedFields.length} ta</b> (${totalArea > 0 ? totalArea.toFixed(1) : '0'} ga)\n` +
           `• Asosiy hudud: <b>${matchedFarmer.region || "O'zbekiston"}</b>\n` +
           `• Ekinlar: <b>${cropsList}</b>\n\n` +
-          `👇 <b>Quyidagi menyu orqali kerakli bo'limni tanlang:</b>`;
+          (matchedFields.length > 0
+            ? `👇 <b>Quyidagi tugmalar orqali mavjud maydonni tanlang yoki yangi maydon qo'shing:</b>`
+            : `👇 <b>Sizda hali maydonlar ro'yxatdan o'tmagan. Yangi maydon qo'shish uchun quyidagi tugmani bosing:</b>`);
 
         await Promise.all([
           sendTelegramMessage({
             chatId,
             text: linkedGreetingMsg,
-            replyMarkup: getMainMenuInlineKeyboard(),
+            replyMarkup: getFarmerOnboardingFieldsInlineKeyboard(matchedFields.length),
           }),
           sendTelegramMessage({
             chatId,
@@ -1213,12 +1280,12 @@ export async function POST(req: NextRequest) {
       lowerText.includes('поля') ||
       lowerText.includes('fields')
     ) {
-      const fieldsText = formatTelegramFieldsMessage(currentFarmer, fieldsWithTelemetry);
+      const fieldsText = formatTelegramFieldsMessage(currentFarmer, fieldsWithTelemetry, getAppProductionUrl());
       const t0Send = performance.now();
       await sendTelegramMessage({
         chatId,
         text: fieldsText,
-        replyMarkup: getMainMenuInlineKeyboard(),
+        replyMarkup: getFarmerOnboardingFieldsInlineKeyboard(fieldsWithTelemetry.length),
       });
       const sendMs = performance.now() - t0Send;
       const totalMs = performance.now() - reqStart;
