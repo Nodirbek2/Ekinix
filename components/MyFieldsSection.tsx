@@ -221,7 +221,7 @@ export function MyFieldsSection({
           return;
         }
 
-        // Look up farmer UUID in public.farmers; if not found, create profile first
+        // 1. Look up farmer UUID in public.farmers; if not found, create profile first
         let farmerId = activeFarmerId;
         if (!farmerId) {
           const { data: farmerRec } = await client
@@ -235,7 +235,7 @@ export function MyFieldsSection({
             activeFarmerId = farmerRec.id;
           } else {
             // Auto-create farmer record if one doesn't exist yet for this auth user
-            const { data: newFarmer } = await client
+            const { data: newFarmer, error: farmerCreateErr } = await client
               .from('farmers')
               .insert({
                 user_id: activeUserId,
@@ -251,10 +251,27 @@ export function MyFieldsSection({
             if (newFarmer?.id) {
               farmerId = newFarmer.id;
               activeFarmerId = newFarmer.id;
+            } else if (farmerCreateErr) {
+              console.error('[Ekinix] Failed to create farmer profile before field insert:', farmerCreateErr);
             }
           }
         }
 
+        // 2. Agar farmerId topilmasa: insert chaqirmasdan oldin foydalanuvchiga aniq xato ko'rsatish
+        if (!farmerId) {
+          console.error('[Ekinix] Farmer record could not be resolved for user:', activeUserId);
+          setNotification({
+            type: 'error',
+            text: effectiveLang === 'uz'
+              ? "Fermer profili topilmadi yoki yaratib bo'lmadi. Iltimos, qaytadan tizimga kiring."
+              : effectiveLang === 'ru'
+              ? "Профиль фермера не найден. Пожалуйста, войдите в систему заново."
+              : "Farmer profile not found. Please log in again.",
+          });
+          return;
+        }
+
+        // 3. Perform insert into Supabase
         const { data: insertedField, error: insertError } = await client
           .from('fields')
           .insert({
@@ -270,16 +287,39 @@ export function MyFieldsSection({
           .select()
           .single();
 
-        if (!insertError && insertedField) {
-          savedRecordId = insertedField.id;
-        } else if (insertError) {
-          console.error('[Ekinix] Supabase field insertion error:', insertError.message, insertError.details);
+        // 4. Agar insertError bo'lsa yoki insertedField topilmasa:
+        // Foydalanuvchiga aniq xato xabarini ko'rsatish, internalFields'ga qo'shmaslik va qaytib ketish
+        if (insertError || !insertedField) {
+          const rawError = insertError?.message || (effectiveLang === 'uz' ? "Kutilmagan xatolik yuz berdi" : "Unknown error");
+          console.error('[Ekinix] Supabase field insertion error:', insertError?.message, insertError?.details);
+          setNotification({
+            type: 'error',
+            text: effectiveLang === 'uz'
+              ? `Maydonni saqlashda xatolik yuz berdi: ${rawError}`
+              : effectiveLang === 'ru'
+              ? `Ошибка при сохранении поля: ${rawError}`
+              : `Failed to save field: ${rawError}`,
+          });
+          return;
         }
-      } catch (e) {
-        console.warn('Failed saving field to Supabase:', e);
+
+        // Faqat insert haqiqatan ham muvaffaqiyatli bo'lganda ID ni yangilash
+        savedRecordId = insertedField.id;
+      } catch (e: any) {
+        console.error('Failed saving field to Supabase:', e);
+        setNotification({
+          type: 'error',
+          text: effectiveLang === 'uz'
+            ? `Maydonni saqlashda xatolik yuz berdi: ${e?.message || String(e)}`
+            : effectiveLang === 'ru'
+            ? `Ошибка при сохранении поля: ${e?.message || String(e)}`
+            : `Failed to save field: ${e?.message || String(e)}`,
+        });
+        return;
       }
     }
 
+    // Faqatgina insert muvaffaqiyatli bo'lganda: maydonni ro'yxatga qo'shish va muvaffaqiyat bildirishnomasini ko'rsatish
     const newRecord: FieldRecord = {
       id: savedRecordId,
       farmer_id: activeFarmerId,
@@ -312,6 +352,7 @@ export function MyFieldsSection({
   };
 
   const handleDeleteField = async (id: string) => {
+    const previousFields = [...internalFields];
     const updated = internalFields.filter((f) => f.id !== id);
     setInternalFields(updated);
     localStorage.setItem('ekinix_farmer_fields', JSON.stringify(updated));
@@ -319,9 +360,33 @@ export function MyFieldsSection({
     const client = supabase;
     if (isSupabaseConfigured && client && !id.startsWith('field_sample') && !id.startsWith('field_')) {
       try {
-        await client.from('fields').delete().eq('id', id);
-      } catch (err) {
-        console.warn("Error deleting field from Supabase:", err);
+        const { error: delError } = await client.from('fields').delete().eq('id', id);
+        if (delError) {
+          console.error("Error deleting field from Supabase:", delError);
+          // Revert optimistic delete if database delete failed
+          setInternalFields(previousFields);
+          localStorage.setItem('ekinix_farmer_fields', JSON.stringify(previousFields));
+          setNotification({
+            type: 'error',
+            text: effectiveLang === 'uz'
+              ? `Maydonni o'chirishda xatolik yuz berdi: ${delError.message}`
+              : effectiveLang === 'ru'
+              ? `Ошибка при удалении поля: ${delError.message}`
+              : `Failed to delete field: ${delError.message}`,
+          });
+        }
+      } catch (err: any) {
+        console.error("Error deleting field from Supabase:", err);
+        setInternalFields(previousFields);
+        localStorage.setItem('ekinix_farmer_fields', JSON.stringify(previousFields));
+        setNotification({
+          type: 'error',
+          text: effectiveLang === 'uz'
+            ? `Maydonni o'chirishda xatolik yuz berdi: ${err?.message || String(err)}`
+            : effectiveLang === 'ru'
+            ? `Ошибка при удалении поля: ${err?.message || String(err)}`
+            : `Failed to delete field: ${err?.message || String(err)}`,
+        });
       }
     }
   };
