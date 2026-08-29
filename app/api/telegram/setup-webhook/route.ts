@@ -17,8 +17,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const origin = req.nextUrl.origin;
-  const appUrl = process.env.APP_URL || origin;
+  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+
+  // Always use the STABLE production URL — never a Vercel preview/deployment URL.
+  // PRODUCTION_URL should be set to "https://ekinix.vercel.app" in Vercel project env vars.
+  // Falling back to req.nextUrl.origin would use the deployment-specific URL, which
+  // changes on every deploy and breaks the Telegram webhook registration.
+  const appUrl =
+    process.env.PRODUCTION_URL ||
+    process.env.APP_URL ||
+    'https://ekinix.vercel.app';
   const webhookUrl = `${appUrl}/api/telegram/webhook`;
 
   try {
@@ -40,12 +48,19 @@ export async function POST(req: NextRequest) {
 
     const botUsername = getMeData.result.username;
 
-    // 2. Set Webhook with full allowed updates
-    const setWebhookUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(
-      webhookUrl
-    )}&allowed_updates=${encodeURIComponent(JSON.stringify(['message', 'callback_query']))}&drop_pending_updates=true`;
+    // 2. Set Webhook — secret_token MUST be included so the webhook handler's
+    // x-telegram-bot-api-secret-token check passes (avoids 401 Unauthorized on every update).
+    const params = new URLSearchParams({
+      url: webhookUrl,
+      allowed_updates: JSON.stringify(['message', 'callback_query']),
+      drop_pending_updates: 'true',
+      ...(webhookSecret ? { secret_token: webhookSecret } : {}),
+    });
 
-    const setRes = await fetch(setWebhookUrl, { cache: 'no-store' });
+    const setRes = await fetch(
+      `https://api.telegram.org/bot${token}/setWebhook?${params.toString()}`,
+      { cache: 'no-store' }
+    );
     const setData = await setRes.json();
 
     if (!setData.ok) {

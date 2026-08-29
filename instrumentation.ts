@@ -5,25 +5,43 @@ export async function register() {
       return;
     }
 
-    // Determine the public URL for Telegram Webhook
-    const publicUrl =
-      process.env.APP_URL ||
-      'https://ais-dev-h5pr52dfmxp4gghj2evogv-62285800322.asia-east1.run.app';
+    const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
 
-    const webhookUrl = `${publicUrl}/api/telegram/webhook`;
+    // Always use the STABLE production URL for webhook registration.
+    //
+    // Priority:
+    //   1. PRODUCTION_URL env var — set this explicitly in Vercel project settings
+    //      to "https://ekinix.vercel.app" so it never changes between deployments.
+    //   2. APP_URL — may be a deployment-specific preview URL on Vercel; avoid relying
+    //      on it alone for production webhook registration.
+    //   3. Hard-coded stable production fallback.
+    //
+    // DO NOT use req.nextUrl.origin or VERCEL_URL here — those resolve to the
+    // per-deployment preview URL and cause 401s because Telegram calls the old URL.
+    const productionUrl =
+      process.env.PRODUCTION_URL ||
+      process.env.APP_URL ||
+      'https://ekinix.vercel.app';
+
+    const webhookUrl = `${productionUrl}/api/telegram/webhook`;
 
     (async () => {
       try {
         console.log(`[Ekinix Telegram Service] Configuring instant Webhook mode -> ${webhookUrl}`);
-        
-        // 1. Set Webhook on Telegram's servers for instant zero-latency push delivery
-        const setWebhookUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(
-          webhookUrl
-        )}&allowed_updates=${encodeURIComponent(
-          JSON.stringify(['message', 'callback_query', 'edited_message'])
-        )}&drop_pending_updates=false`;
 
-        const res = await fetch(setWebhookUrl);
+        // Build the setWebhook URL.
+        // secret_token MUST match TELEGRAM_WEBHOOK_SECRET so the webhook handler's
+        // 401 guard (x-telegram-bot-api-secret-token header check) passes every request.
+        const params = new URLSearchParams({
+          url: webhookUrl,
+          allowed_updates: JSON.stringify(['message', 'callback_query', 'edited_message']),
+          drop_pending_updates: 'false',
+          ...(webhookSecret ? { secret_token: webhookSecret } : {}),
+        });
+
+        const setWebhookApiUrl = `https://api.telegram.org/bot${token}/setWebhook?${params.toString()}`;
+
+        const res = await fetch(setWebhookApiUrl);
         const data = await res.json();
 
         if (data.ok) {
@@ -53,7 +71,12 @@ export async function register() {
               try {
                 await fetch('http://localhost:3000/api/telegram/webhook', {
                   method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: {
+                    'Content-Type': 'application/json',
+                    // Pass the secret header even in fallback polling so the handler
+                    // doesn't reject locally-forwarded updates.
+                    ...(webhookSecret ? { 'x-telegram-bot-api-secret-token': webhookSecret } : {}),
+                  },
                   body: JSON.stringify(update),
                 });
               } catch (postErr: any) {
