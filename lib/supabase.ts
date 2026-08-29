@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS public.farmers (
 
 -- Enable RLS for Farmers
 ALTER TABLE public.farmers ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public farmers are viewable by everyone." ON public.farmers FOR SELECT USING (true);
+CREATE POLICY "Users can view own farmer profile." ON public.farmers FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own farmer profile." ON public.farmers FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own farmer profile." ON public.farmers FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own farmer profile." ON public.farmers FOR DELETE USING (auth.uid() = user_id);
@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS public.fields (
 );
 
 ALTER TABLE public.fields ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Fields viewable by everyone." ON public.fields FOR SELECT USING (true);
+CREATE POLICY "Users can view own fields." ON public.fields FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert their own fields." ON public.fields FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update their own fields." ON public.fields FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own fields." ON public.fields FOR DELETE USING (auth.uid() = user_id);
@@ -427,7 +427,7 @@ CREATE TABLE IF NOT EXISTS public.watering_log (
 );
 
 ALTER TABLE public.watering_log ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Watering logs viewable by everyone." ON public.watering_log FOR SELECT USING (true);
+CREATE POLICY "Users can view own watering logs." ON public.watering_log FOR SELECT USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 CREATE POLICY "Users can insert watering logs for their fields." ON public.watering_log FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 CREATE POLICY "Users can update watering logs for their fields." ON public.watering_log FOR UPDATE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 CREATE POLICY "Users can delete watering logs for their fields." ON public.watering_log FOR DELETE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
