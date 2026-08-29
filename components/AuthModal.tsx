@@ -30,18 +30,25 @@ const REGIONS = [
   "Qoraqalpog'iston Respublikasi"
 ];
 
-const normalizePhoneToEmail = (input: string): string => {
-  if (input.includes('@')) return input.trim().toLowerCase();
-  const digits = input.replace(/\D/g, '');
-  const nationalDigits = digits.length === 9 ? digits : digits.slice(-9);
-  const standardPhone = `998${nationalDigits}`;
-  return `${standardPhone}@ekinix.uz`;
-};
-
+/**
+ * Formats a raw Uzbek phone input into the E.164 standard (+998XXXXXXXXX).
+ */
 const formatStandardUzbekPhone = (input: string): string => {
   const digits = input.replace(/\D/g, '');
   const nationalDigits = digits.length === 9 ? digits : digits.slice(-9);
   return `+998${nationalDigits}`;
+};
+
+/**
+ * Maps a phone number to an internal auth identity for Supabase.
+ * Allows instant registration and login with Number + Password
+ * without requiring an external SMS gateway provider or SMS confirmation.
+ */
+const phoneToAuthEmail = (input: string): string => {
+  if (input.includes('@')) return input.trim().toLowerCase();
+  const digits = input.replace(/\D/g, '');
+  const nationalDigits = digits.length === 9 ? digits : digits.slice(-9);
+  return `998${nationalDigits}@ekinix.uz`;
 };
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -55,7 +62,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const t = translations[currentLang];
 
   const [fullName, setFullName] = useState('');
-  const [phoneOrEmail, setPhoneOrEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [region, setRegion] = useState(REGIONS[0]);
   const [loading, setLoading] = useState(false);
@@ -68,39 +75,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
     setMessage(null);
 
-    const cleanInput = phoneOrEmail.trim();
+    const cleanInput = phone.trim();
     const digitsOnly = cleanInput.replace(/\D/g, '');
+    const isEmailInput = cleanInput.includes('@');
 
-    // Mandatory phone number validation on registration
-    if (mode === 'register') {
-      if (digitsOnly.length < 9) {
-        setLoading(false);
-        setMessage({
-          type: 'error',
-          text: currentLang === 'uz'
-            ? "Iltimos, haqiqiy telefon raqamingizni to'liq kiriting (masalan: +998 90 123 45 67)"
-            : currentLang === 'ru'
-            ? "Пожалуйста, введите корректный номер телефона (например: +998 90 123 45 67)"
-            : "Please enter a valid phone number (e.g. +998 90 123 45 67)",
-        });
-        return;
-      }
-      if (!fullName.trim()) {
-        setLoading(false);
-        setMessage({
-          type: 'error',
-          text: currentLang === 'uz'
-            ? "Iltimos, ism va familiyangizni kiriting"
-            : currentLang === 'ru'
-            ? "Пожалуйста, введите имя и фамилию"
-            : "Please enter your full name",
-        });
-        return;
-      }
+    // Phone number validation (at least 9 digits unless an email is provided)
+    if (!isEmailInput && digitsOnly.length < 9) {
+      setLoading(false);
+      setMessage({
+        type: 'error',
+        text: currentLang === 'uz'
+          ? "Iltimos, haqiqiy telefon raqamingizni to'liq kiriting (masalan: +998 90 123 45 67)"
+          : currentLang === 'ru'
+          ? "Пожалуйста, введите корректный номер телефона (например: +998 90 123 45 67)"
+          : "Please enter a valid phone number (e.g. +998 90 123 45 67)",
+      });
+      return;
     }
 
-    const sanitizedEmail = normalizePhoneToEmail(cleanInput);
-    const standardPhone = digitsOnly.length >= 9 ? formatStandardUzbekPhone(cleanInput) : cleanInput;
+    if (mode === 'register' && !fullName.trim()) {
+      setLoading(false);
+      setMessage({
+        type: 'error',
+        text: currentLang === 'uz'
+          ? "Iltimos, ism va familiyangizni kiriting"
+          : currentLang === 'ru'
+          ? "Пожалуйста, введите имя и фамилию"
+          : "Please enter your full name",
+      });
+      return;
+    }
+
+    const standardPhone = isEmailInput ? cleanInput : formatStandardUzbekPhone(cleanInput);
+    const authIdentifier = phoneToAuthEmail(cleanInput);
 
     if (!isSupabaseConfigured || !supabase) {
       setLoading(false);
@@ -130,8 +137,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     try {
       if (mode === 'register') {
+        // Direct signup with phone & password without SMS confirmation
         const { data, error } = await supabase.auth.signUp({
-          email: sanitizedEmail,
+          email: authIdentifier,
           password,
           options: {
             data: {
@@ -143,6 +151,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         });
 
         if (error) throw error;
+
+        // If session was not immediately established by signUp, sign in directly
+        if (!data.session) {
+          try {
+            await supabase.auth.signInWithPassword({
+              email: authIdentifier,
+              password,
+            });
+          } catch (autoLoginErr) {
+            console.error('[AuthModal] Auto sign-in after register exception', autoLoginErr);
+          }
+        }
 
         const createdUserId = data.user?.id;
         if (!createdUserId) {
@@ -172,7 +192,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           if (dbFarmer?.id) farmerId = dbFarmer.id;
         } catch (dbErr) {
-          console.warn('[Supabase Farmer Record Upsert Notice]', dbErr);
+          console.error('[AuthModal] Farmer record upsert failed after registration', dbErr);
         }
 
         const newProfile: FarmerProfile = {
@@ -204,8 +224,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }, 800);
 
       } else {
+        // Direct login with phone & password without SMS confirmation
         const { data, error } = await supabase.auth.signInWithPassword({
-          email: sanitizedEmail,
+          email: authIdentifier,
           password,
         });
 
@@ -230,7 +251,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             .maybeSingle();
 
           farmerRecord = dbFarmer;
-        } catch {}
+        } catch (fetchErr) {
+          console.error('[AuthModal] Failed to fetch farmer record on login', fetchErr);
+        }
 
         if (!farmerRecord) {
           try {
@@ -247,7 +270,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               .select()
               .single();
             farmerRecord = insertedFarmer;
-          } catch {}
+          } catch (insertErr) {
+            console.error('[AuthModal] Failed to auto-create farmer record on login', insertErr);
+          }
         }
 
         const registeredRegion = farmerRecord?.region || data.user?.user_metadata?.region || "Toshkent viloyati";
@@ -290,7 +315,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           } else {
             localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
           }
-        } catch {
+        } catch (fieldsErr) {
+          console.error('[AuthModal] Failed to fetch fields on login', fieldsErr);
           localStorage.setItem('ekinix_farmer_fields', JSON.stringify([]));
         }
 
@@ -332,6 +358,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           : currentLang === 'ru'
           ? "Пароль должен содержать не менее 6 символов."
           : "Password must be at least 6 characters long.";
+      } else if (rawMessage.toLowerCase().includes("email not confirmed")) {
+        localizedError = currentLang === 'uz'
+          ? "Hisob tasdiqlanmagan. SMS siz to'g'ridan-to'g'ri kirish uchun Supabase Dashboard > Authentication > Providers > Email bo'limida 'Confirm email' sozlamasini o'chirib qo'ying."
+          : currentLang === 'ru'
+          ? "Учетная запись требует подтверждения. Для входа без SMS/Email отключите 'Confirm email' в Supabase Dashboard > Authentication > Providers > Email."
+          : "Confirmation required. To use instant phone+password auth without SMS, disable 'Confirm email' in Supabase Dashboard > Authentication > Providers > Email.";
       }
 
       setMessage({
@@ -421,8 +453,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="text"
                 required
                 placeholder="+998 90 123 45 67"
-                value={phoneOrEmail}
-                onChange={(e) => setPhoneOrEmail(e.target.value)}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="w-full h-9 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-800 focus:border-emerald-800"
               />
             </div>

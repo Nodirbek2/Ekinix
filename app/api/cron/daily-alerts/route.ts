@@ -40,6 +40,14 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleDailyAlertsJob(req: NextRequest) {
+  // =========================================================================
+  // SECURITY: Verify Cron Authorization Token
+  // =========================================================================
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const startTime = performance.now();
   const url = new URL(req.url);
   const isForce = url.searchParams.get('force') === 'true'; // Ignore 1-per-day dedup for testing
@@ -126,7 +134,9 @@ async function handleDailyAlertsJob(req: NextRequest) {
           if (dbFields && dbFields.length > 0) {
             fields = dbFields as unknown as FieldRecord[];
           }
-        } catch {}
+        } catch (fieldsErr) {
+          console.error('[Cron Error] Failed to fetch fields for farmer', farmer.id, fieldsErr);
+        }
       }
 
       // Default fields if empty
@@ -161,7 +171,7 @@ async function handleDailyAlertsJob(req: NextRequest) {
             }
           }
         } catch (notifErr) {
-          console.warn('[Cron Deduplication Check Error]', notifErr);
+          console.error('[Cron Error] Deduplication check failed for farmer', farmer.id, notifErr);
         }
       }
 
@@ -191,7 +201,9 @@ async function handleDailyAlertsJob(req: NextRequest) {
               latestNdvi = typedReadings[0];
               if (typedReadings.length > 1) previousNdvi = typedReadings[1];
             }
-          } catch {}
+          } catch (ndviErr) {
+            console.error('[Cron Error] Failed to fetch NDVI readings for field', field.id, ndviErr);
+          }
         }
 
         // Mock telemetry if no readings exist yet
@@ -290,7 +302,9 @@ async function handleDailyAlertsJob(req: NextRequest) {
                     payload: { maxRainProb, rainDayName, rainSumMm, message: rainMsg },
                     created_at: new Date().toISOString(),
                   });
-                } catch {}
+                } catch (logErr) {
+                  console.error('[Cron Error] Failed to log rain_alert notification to DB', logErr);
+                }
               }
             }
 
@@ -397,7 +411,9 @@ async function handleDailyAlertsJob(req: NextRequest) {
                     },
                     created_at: new Date().toISOString(),
                   });
-                } catch {}
+                } catch (logErr) {
+                  console.error('[Cron Error] Failed to log irrigation_task notification to DB', logErr);
+                }
               }
             }
 
@@ -486,7 +502,9 @@ async function handleDailyAlertsJob(req: NextRequest) {
                     payload: { currentNdviScore, prevNdviScore, message: ndviMsg },
                     created_at: new Date().toISOString(),
                   });
-                } catch {}
+                } catch (logErr) {
+                  console.error('[Cron Error] Failed to log ndvi_stress notification to DB', logErr);
+                }
               }
             }
 

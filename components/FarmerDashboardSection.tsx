@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Language, translations } from '@/lib/i18n';
 import { FieldRecord, FarmerProfile, isSupabaseConfigured, supabase } from '@/lib/supabase';
-import { fetchAndStoreFieldNdvi, NdviResult, formatNdviScore, getNdviStatusBadge, getCachedNdvi, calculateFieldNdviTelemetry } from '@/lib/ndviService';
+import { fetchAndStoreFieldNdvi, NdviResult, formatNdviScore, getNdviStatusBadge, calculateFieldNdviTelemetry } from '@/lib/ndviService';
 import { calculateGrowthStage } from '@/lib/cropGuidesData';
 import { CROP_OPTIONS } from '@/components/FarmerOnboardingModal';
 import { FieldCardThumbnail } from '@/components/FieldCardThumbnail';
@@ -174,7 +174,7 @@ export const FarmerDashboardSection: React.FC<FarmerDashboardSectionProps> = ({
       const newWeatherMap: Record<string, FieldWeatherInfo> = {};
 
       fields.forEach((field) => {
-        newNdviMap[field.id] = getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field);
+        newNdviMap[field.id] = calculateFieldNdviTelemetry(field);
       });
       setNdviMap({ ...newNdviMap });
 

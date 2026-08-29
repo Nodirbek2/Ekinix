@@ -31,7 +31,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { calculateIrrigationRecommendation, IrrigationRecommendation, IrrigationActionType } from '@/lib/irrigationAdvisor';
-import { getCachedNdvi, calculateFieldNdviTelemetry, formatNdviScore, getNdviStatusBadge } from '@/lib/ndviService';
+import { calculateFieldNdviTelemetry, formatNdviScore, getNdviStatusBadge } from '@/lib/ndviService';
 import { CROP_GUIDES } from '@/lib/cropGuidesData';
 import { Button } from '@/components/ui/Button';
 import { WeatherStripSkeleton, ErrorState } from '@/components/ui/StateFeedback';
@@ -218,7 +218,7 @@ export const WeatherIrrigationSection: React.FC<WeatherIrrigationSectionProps> =
         const diffDays = Math.max(1, Math.round((now.getTime() - pDate.getTime()) / (1000 * 3600 * 24)));
         setCalcDaysSincePlanting(diffDays);
       }
-      const telemetry = getCachedNdvi(f.id) || calculateFieldNdviTelemetry(f);
+      const telemetry = calculateFieldNdviTelemetry(f);
       if (typeof telemetry.ndviScore === 'number') {
         setCalcNdviValue(telemetry.ndviScore);
         if (telemetry.trend) setCalcNdviTrend(telemetry.trend.direction);

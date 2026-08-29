@@ -7,7 +7,6 @@ import {
   fetchAndStoreFieldNdvi,
   formatNdviScore,
   getNdviStatusBadge,
-  getCachedNdvi,
   calculateFieldNdviTelemetry,
 } from '@/lib/ndviService';
 import { Language } from '@/lib/i18n';
@@ -40,7 +39,9 @@ export function useFieldNdvi(
 ): UseFieldNdviReturn {
   const [ndviResult, setNdviResult] = useState<NdviResult | null>(() => {
     if (field?.id) {
-      return getCachedNdvi(field.id) || calculateFieldNdviTelemetry(field);
+      // Synchronous baseline from localStorage (client-side). The async fetch
+      // in the useEffect below will always overwrite this with fresh data.
+      return calculateFieldNdviTelemetry(field);
     }
     return null;
   });
@@ -71,13 +72,9 @@ export function useFieldNdvi(
   useEffect(() => {
     let isMounted = true;
     if (field?.id) {
-      const cached = getCachedNdvi(field.id);
-      if (cached && !simulateCloud) {
-        setNdviResult(cached);
-        setLoading(false);
-      } else {
-        fetchNdvi();
-      }
+      // Always fetch fresh — memory cache is unreliable across serverless cold starts.
+      // fetchAndStoreFieldNdvi will populate localStorage for the next client-side render.
+      fetchNdvi();
     } else {
       setNdviResult(null);
       setLoading(false);
@@ -116,7 +113,8 @@ export function useMultipleFieldsNdvi(
   const [ndviMap, setNdviMap] = useState<Record<string, NdviResult>>(() => {
     const initial: Record<string, NdviResult> = {};
     fields.forEach((f) => {
-      initial[f.id] = getCachedNdvi(f.id) || calculateFieldNdviTelemetry(f);
+      // Synchronous baseline from localStorage — async fetchAll() will refresh.
+      initial[f.id] = calculateFieldNdviTelemetry(f);
     });
     return initial;
   });
@@ -139,8 +137,9 @@ export function useMultipleFieldsNdvi(
         try {
           const res = await fetchAndStoreFieldNdvi(field);
           newMap[field.id] = res;
-        } catch {
+        } catch (fetchErr) {
           // If fetch fails, populate honest unavailable result
+          console.error('[useMultipleFieldsNdvi] NDVI fetch failed for field', field.id, fetchErr);
           newMap[field.id] = {
             fieldId: field.id,
             ndviScore: null,

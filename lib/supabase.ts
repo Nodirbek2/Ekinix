@@ -321,7 +321,7 @@ CREATE TABLE IF NOT EXISTS public.ndvi_readings (
 );
 
 ALTER TABLE public.ndvi_readings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "NDVI readings viewable by everyone." ON public.ndvi_readings FOR SELECT USING (true);
+CREATE POLICY "NDVI readings viewable by field owner." ON public.ndvi_readings FOR SELECT USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 CREATE POLICY "Users can insert NDVI readings for their fields." ON public.ndvi_readings FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 CREATE POLICY "Users can update NDVI readings for their fields." ON public.ndvi_readings FOR UPDATE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
 CREATE POLICY "Users can delete NDVI readings for their fields." ON public.ndvi_readings FOR DELETE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()));
@@ -410,7 +410,7 @@ CREATE TABLE IF NOT EXISTS public.field_advisor_notes (
 );
 
 ALTER TABLE public.field_advisor_notes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Notes viewable by everyone." ON public.field_advisor_notes FOR SELECT USING (true);
+CREATE POLICY "Notes viewable by field owner or assigned agronomist." ON public.field_advisor_notes FOR SELECT USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR field_advisor_notes.agronomist_id = auth.uid());
 CREATE POLICY "Agronomists or field owners can insert notes." ON public.field_advisor_notes FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR (agronomist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = agronomist_id AND public.farmers.user_id = auth.uid())));
 CREATE POLICY "Note authors or field owners can update notes." ON public.field_advisor_notes FOR UPDATE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR (agronomist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = agronomist_id AND public.farmers.user_id = auth.uid())));
 CREATE POLICY "Note authors or field owners can delete notes." ON public.field_advisor_notes FOR DELETE USING (EXISTS (SELECT 1 FROM public.fields WHERE public.fields.id = field_id AND public.fields.user_id = auth.uid()) OR (agronomist_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.farmers WHERE public.farmers.id = agronomist_id AND public.farmers.user_id = auth.uid())));
@@ -532,21 +532,28 @@ export async function uploadMarketplaceImage(file: File): Promise<string> {
         if (urlData?.publicUrl) {
           return urlData.publicUrl;
         }
+        // Public URL could not be derived even though upload succeeded
+        throw new Error('Image uploaded but public URL could not be retrieved. Please check your Supabase Storage bucket policy.');
       } else if (uploadError) {
-        console.warn('Supabase storage upload error:', uploadError.message);
+        console.error('[Storage] Supabase storage upload error:', uploadError.message);
+        throw new Error(`Failed to upload image to storage: ${uploadError.message}`);
       }
     } catch (err) {
-      console.warn('Supabase storage upload exception:', err);
+      // Re-throw errors that we already created intentionally above
+      if (err instanceof Error && (
+        err.message.startsWith('Failed to upload') ||
+        err.message.startsWith('Image uploaded')
+      )) throw err;
+      console.error('[Storage] Supabase storage upload exception:', err);
+      throw new Error('Failed to upload image to storage. Please try again.');
     }
   }
 
-  // 3. Fallback: Convert compressed blob to high-quality Base64 Data URL
-  return new Promise<string>((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      resolve(reader.result as string);
-    };
-    reader.readAsDataURL(compressedBlob);
-  });
+  // Supabase Storage is not configured — we cannot fall back to Base64 because
+  // storing multi-megabyte Data URLs in a database text column causes severe
+  // row-size bloat and will hit Postgres row-size limits.
+  throw new Error(
+    'Image storage is not configured. Please set up Supabase Storage before uploading marketplace images.'
+  );
 }
 

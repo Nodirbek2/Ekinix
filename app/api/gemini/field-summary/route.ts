@@ -55,52 +55,23 @@ Quyidagi JSON formatda to'liq javob qaytaring (faqat toza JSON, hech qanday mark
 }`;
 
     if (!apiKey) {
-      // Return high quality structured fallback if API key is not yet configured
+      // AI module is unconfigured — return a safe, non-prescriptive offline notice.
+      // IMPORTANT: Do NOT put specific irrigation volumes, chemical names, or dosages
+      // here. Unverified agronomic advice without real field data is a liability.
+      const offlineNotice = {
+        uz: "Ekinix AI tahlil moduli hozirda ishlamayapti yoki sozlanmagan. Iltimos, mintaqangiz uchun standart agrotexnik qoidalarga rioya qiling va agronomingiz bilan maslahatlashing.",
+        ru: "Модуль ИИ-анализа Ekinix в настоящее время недоступен или не настроен. Пожалуйста, руководствуйтесь стандартными агротехническими нормами вашего региона и проконсультируйтесь с агрономом.",
+        en: "The Ekinix AI analysis module is currently offline or unconfigured. Please rely on standard regional farming practices and consult your local agronomist.",
+      };
+      const notice = lang === 'ru' ? offlineNotice.ru : lang === 'en' ? offlineNotice.en : offlineNotice.uz;
       return NextResponse.json({
-        executive_summary:
-          lang === 'ru'
-            ? `Поле «${fieldName || 'Основное'}» (${cropType}) находится в активной фазе развития. Индекс NDVI (${ndviScore ?? 0.68}) указывает на стабильное вегетативное состояние.`
-            : lang === 'en'
-            ? `Field "${fieldName || 'Main'}" (${cropType}) is in active vegetative development. Current NDVI score (${ndviScore ?? 0.68}) reflects stable canopy growth.`
-            : `«${fieldName || 'Asosiy'}» maydoni (${cropType}) faol o'sish pallasida. NDVI indeksi (${ndviScore ?? 0.68}) barqaror yashillik va biologik massani ko'rsatmoqda.`,
-        what_happened:
-          lang === 'ru'
-            ? `За последние 7-10 дней наблюдается умеренный прирост биомассы. Влажность почвы поддерживается на уровне ${moisturePercentage ?? 62}%, что соответствует агрономической норме для текущего периода.`
-            : lang === 'en'
-            ? `Over the last 7-10 days, moderate biomass development was observed. Soil moisture is at ${moisturePercentage ?? 62}%, matching the agronomic target for this stage.`
-            : `Oxirgi 7-10 kunda vegetativ massa rivojlanishi ijobiy dinamika ko'rsatmoqda. Tuproq namligi ${moisturePercentage ?? 62}% atrofida saqlanib, mavsumiy me'yorga to'liq javob bermoqda.`,
-        concerns_and_risks:
-          lang === 'ru'
-            ? `В связи с ожидаемым повышением дневной температуры рекомендуется уделить внимание микроорошению и проверить нижний ярус листьев на предмет ранних признаков трипса или клеща.`
-            : lang === 'en'
-            ? `With rising daytime temperatures forecast, monitor root zone moisture depletion and inspect lower leaves for early spider mite or pest pressure.`
-            : `Kutilayotgan issiq harorat to'lqini tufayli namlik bug'lanishi tezlashishi mumkin. Shuningdek, ekin ildiz qismi va barg ostida so'ruvchi zararkunandalar (o'rgimchakkana/shira) borligini tekshirish tavsiya etiladi.`,
-        recommended_actions:
-          lang === 'ru'
-            ? [
-                "Провести плановый полив в утренние или вечерние часы с расчетом 70-80 м³/га.",
-                "Внести листовую подкормку хелатом калия и цинка для повышения жаростойкости.",
-                "Осмотреть контрольные точки поля на наличие вредителей."
-              ]
-            : lang === 'en'
-            ? [
-                "Schedule precision irrigation in morning or evening hours (approx. 70-80 m³/ha).",
-                "Apply foliar potassium and zinc micronutrients to boost heat tolerance.",
-                "Conduct scouting at perimeter field checkpoints for early pest detection."
-              ]
-            : [
-                "Erta tongda yoki kechki salqinda tomchilatib/jo'yaklab 70-80 m³/ga me'yorda sug'orishni amalga oshiring.",
-                "Issiqqa chidamlilikni oshirish uchun kaliy va mikroelementli bargdan oziqlantirish o'tkazing.",
-                "Dala chetlari va o'rtasida 4-5 nazorat nuqtasida zararkunandalar monitoringini olib boring."
-              ],
-        irrigation_tip:
-          lang === 'ru'
-            ? "Норма полива: 70-80 м³/га в течение 48 часов."
-            : lang === 'en'
-            ? "Target irrigation: 70-80 m³/ha within next 48 hours."
-            : "Sug'orish tavsiyasi: 48 soat ichida 70-80 m³/ga me'yorda.",
-        confidence_score: 93,
-        source: "fallback_engine",
+        executive_summary: notice,
+        what_happened: notice,
+        concerns_and_risks: notice,
+        recommended_actions: [notice],
+        irrigation_tip: notice,
+        confidence_score: 0,
+        source: "offline_fallback",
       });
     }
 

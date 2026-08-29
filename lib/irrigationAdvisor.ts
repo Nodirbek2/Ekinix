@@ -9,8 +9,8 @@ export interface IrrigationAdvisorInput {
   ndviValue?: number | null; // 0.0 - 1.0 (e.g. 0.72) or null if unavailable
   ndviTrend?: 'improving' | 'stable' | 'declining' | null;
   soilMoisture: number; // 0 - 100 percentage (e.g. 54)
-  modeledSoilMoisture?: number; // Open-Meteo root-zone model (0-27cm)
-  ndviMoisture?: number; // Sentinel-2 NDVI derived estimate
+  modeledSoilMoisture?: number | null; // Open-Meteo root-zone model (0-27cm)
+  ndviMoisture?: number | null; // Sentinel-2 NDVI derived estimate
   moistureSource?: 'open_meteo_and_ndvi_hybrid' | 'agrometeorological_model' | 'ndvi_estimated';
   rainForecast?: Array<{
     date?: string;
@@ -74,8 +74,8 @@ export interface IrrigationRecommendation {
     ndviValue: number | null;
     ndviTrend: 'improving' | 'stable' | 'declining' | 'unknown';
     soilMoisture: number;
-    modeledSoilMoisture?: number;
-    ndviMoisture?: number;
+    modeledSoilMoisture?: number | null;
+    ndviMoisture?: number | null;
     moistureSource: string;
     isEstimated: boolean;
     rainProbNext48h: number;

@@ -41,19 +41,77 @@ import {
   NdviReadingRecord,
 } from '@/lib/supabase';
 
-// In-memory registration session store for multi-step onboarding
-interface RegistrationSession {
+/**
+ * Persistent registration session helpers backed by Supabase `telegram_sessions` table.
+ *
+ * SQL to run once in Supabase SQL Editor:
+ * -----------------------------------------------------------------------
+ * CREATE TABLE IF NOT EXISTS public.telegram_sessions (
+ *   chat_id      TEXT PRIMARY KEY,
+ *   phone        TEXT NOT NULL,
+ *   full_name    TEXT NOT NULL,
+ *   region       TEXT,
+ *   step         TEXT NOT NULL DEFAULT 'ask_region',
+ *   created_at   TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+ * );
+ * ALTER TABLE public.telegram_sessions ENABLE ROW LEVEL SECURITY;
+ * -- Service role (used server-side) bypasses RLS, so no extra policy needed.
+ * -----------------------------------------------------------------------
+ */
+async function upsertRegistrationSession(chatId: string, data: {
+  phone?: string;
+  full_name?: string;
+  region?: string;
+  step: 'ask_region' | 'ask_crop';
+}): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    await supabase.from('telegram_sessions').upsert(
+      { chat_id: chatId, ...data },
+      { onConflict: 'chat_id' }
+    );
+  } catch (err) {
+    console.error('[Supabase upsertRegistrationSession error]', err);
+  }
+}
+
+async function getRegistrationSession(chatId: string): Promise<{
   phone: string;
   full_name: string;
   region?: string;
-  primary_crop?: string;
-  step: 'ask_region' | 'ask_crop';
-  startedAt: number;
+  step: string;
+} | null> {
+  if (!isSupabaseConfigured || !supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('telegram_sessions')
+      .select('phone, full_name, region, step')
+      .eq('chat_id', chatId)
+      .maybeSingle();
+    if (error) {
+      console.error('[Supabase getRegistrationSession error]', error);
+      return null;
+    }
+    return data || null;
+  } catch (err) {
+    console.error('[Supabase getRegistrationSession exception]', err);
+    return null;
+  }
 }
 
-const registrationSessions = new Map<string, RegistrationSession>();
+async function deleteRegistrationSession(chatId: string): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    await supabase.from('telegram_sessions').delete().eq('chat_id', chatId);
+  } catch (err) {
+    console.error('[Supabase deleteRegistrationSession error]', err);
+  }
+}
 
-// In-memory Short-term cache for Farmer & Fields Telemetry (60-second TTL)
+// Short-term cache for Farmer & Fields Telemetry (60-second TTL per instance).
+// NOTE: This is intentionally kept for within-request and warm-instance deduplication
+// (avoids redundant DB roundtrips within a single request). It is NOT relied upon
+// for cross-request state correctness — every cold start fetches fresh from Supabase.
 interface FarmerTelemetryCacheEntry {
   data: {
     farmer: FarmerProfile | null;
@@ -234,6 +292,14 @@ async function getFarmerAndTelemetryData(
 }
 
 export async function POST(req: NextRequest) {
+  // =========================================================================
+  // SECURITY: Verify Telegram Webhook Secret Token
+  // =========================================================================
+  const secretHeader = req.headers.get('x-telegram-bot-api-secret-token');
+  if (!secretHeader || secretHeader !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const reqStart = performance.now();
 
   try {
@@ -261,23 +327,19 @@ export async function POST(req: NextRequest) {
       // 1A. Region Selection during in-bot registration
       if (data.startsWith('reg:')) {
         const selectedRegion = data.replace('reg:', '').trim();
-        let session = registrationSessions.get(String(chatId));
 
-        if (!session) {
-          session = {
-            phone: '998901234567',
-            full_name: userFullName,
-            region: selectedRegion,
-            step: 'ask_crop',
-            startedAt: Date.now(),
-          };
-        } else {
-          session.region = selectedRegion;
-          session.step = 'ask_crop';
-        }
-        registrationSessions.set(String(chatId), session);
+        // Retrieve existing session from DB (may have phone/full_name from step 1)
+        const existingSession = await getRegistrationSession(String(chatId));
 
-        const [answerRes] = await Promise.all([
+        // Upsert the updated state (region + advance step) into Supabase
+        await upsertRegistrationSession(String(chatId), {
+          phone: existingSession?.phone || '998901234567',
+          full_name: existingSession?.full_name || userFullName,
+          region: selectedRegion,
+          step: 'ask_crop',
+        });
+
+        await Promise.all([
           answerTelegramCallbackQuery(callbackId, `📍 ${selectedRegion} tanlandi!`, false),
           typingPromise,
         ]);
@@ -312,7 +374,8 @@ export async function POST(req: NextRequest) {
         const cropOption = CROP_SELECTION_OPTIONS.find((c) => c.id === cropId);
         const cropName = cropOption ? cropOption.nameUz : cropId;
 
-        const session = registrationSessions.get(String(chatId));
+        // Retrieve persisted session from Supabase (survives serverless cold starts)
+        const session = await getRegistrationSession(String(chatId));
         const finalPhone = session?.phone ? `+${session.phone}` : '+998901234567';
         const finalName = session?.full_name || userFullName;
         const finalRegion = session?.region || 'Toshkent viloyati';
@@ -338,7 +401,9 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        registrationSessions.delete(String(chatId));
+        // Delete the now-complete session from the DB
+        await deleteRegistrationSession(String(chatId));
+
         await Promise.all([
           answerTelegramCallbackQuery(callbackId, `🎉 Ro'yxatdan muvaffaqiyatli o'tdingiz!`, false),
           typingPromise,
@@ -387,7 +452,9 @@ export async function POST(req: NextRequest) {
               .eq('id', fieldId)
               .maybeSingle();
             if (fieldData?.name) fieldName = fieldData.name;
-          } catch {}
+          } catch (fieldErr) {
+            console.error('[Webhook] Failed to fetch field name for watering log', fieldId, fieldErr);
+          }
         }
 
         // Write directly to Supabase `watering_log` table
@@ -1011,11 +1078,11 @@ export async function POST(req: NextRequest) {
       }
 
       // CASE 2: NO MATCH in Supabase -> In-bot registration
-      registrationSessions.set(String(chatId), {
+      // Persist session to DB so it survives serverless cold starts between steps
+      await upsertRegistrationSession(String(chatId), {
         phone: incomingPhone,
         full_name: userFullName,
         step: 'ask_region',
-        startedAt: Date.now(),
       });
 
       const askRegionMsg =

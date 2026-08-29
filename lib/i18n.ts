@@ -257,7 +257,7 @@ export const translations: Record<Language, Translations> = {
 
     authLoginTitle: "Tizimga kirish",
     authRegisterTitle: "Dehqon sifatida ro'yxatdan o'tish",
-    phoneOrEmail: "Telefon raqam yoki Email",
+    phoneOrEmail: "Telefon raqam",
     password: "Parol",
     fullName: "Ism va Familiya",
     region: "Viloyatingiz",
@@ -421,7 +421,7 @@ export const translations: Record<Language, Translations> = {
 
     authLoginTitle: "Вход в систему",
     authRegisterTitle: "Регистрация фермера",
-    phoneOrEmail: "Телефон или Email",
+    phoneOrEmail: "Номер телефона",
     password: "Пароль",
     fullName: "ФИО",
     region: "Область в Узбекистане",
@@ -585,7 +585,7 @@ export const translations: Record<Language, Translations> = {
 
     authLoginTitle: "Farmer Login",
     authRegisterTitle: "Register New Account",
-    phoneOrEmail: "Phone Number or Email",
+    phoneOrEmail: "Phone Number",
     password: "Password",
     fullName: "Full Name",
     region: "Region in Uzbekistan",
