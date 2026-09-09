@@ -100,6 +100,7 @@ export const FieldMapDrawer: React.FC<FieldMapDrawerProps> = ({
   const [searchResults, setSearchResults] = useState<NominatimResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Form State
@@ -363,7 +364,7 @@ export const FieldMapDrawer: React.FC<FieldMapDrawerProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!fieldName.trim()) {
       setError(
         currentLang === 'ru'
@@ -395,14 +396,19 @@ export const FieldMapDrawer: React.FC<FieldMapDrawerProps> = ({
       return;
     }
 
-    onSaveField({
-      name: fieldName.trim(),
-      crop_type: cropType,
-      planting_date: plantingDate,
-      area_hectares: calculatedArea > 0 ? calculatedArea : 1.5,
-      region: selectedRegion,
-      coordinates: points,
-    });
+    setIsSaving(true);
+    try {
+      await onSaveField({
+        name: fieldName.trim(),
+        crop_type: cropType,
+        planting_date: plantingDate,
+        area_hectares: calculatedArea > 0 ? calculatedArea : 1.5,
+        region: selectedRegion,
+        coordinates: points,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -674,11 +680,20 @@ export const FieldMapDrawer: React.FC<FieldMapDrawerProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              disabled={points.length < 4 || !isPolygonClosed}
-              className="h-9 px-4 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-800 text-white hover:bg-emerald-900 flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs"
+              disabled={points.length < 4 || !isPolygonClosed || isSaving}
+              className="h-9 px-4 text-xs sm:text-sm font-semibold rounded-lg bg-emerald-800 text-white hover:bg-emerald-900 flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs cursor-pointer"
             >
-              <Check className="w-4 h-4" />
-              <span>{currentLang === 'ru' ? 'Сохранить поле' : currentLang === 'en' ? 'Save Field' : 'Saqlash'}</span>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>{currentLang === 'ru' ? 'Сохранение...' : currentLang === 'en' ? 'Saving...' : 'Saqlanmoqda...'}</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>{currentLang === 'ru' ? 'Сохранить поле' : currentLang === 'en' ? 'Save Field' : 'Saqlash'}</span>
+                </>
+              )}
             </button>
           </div>
 

@@ -63,6 +63,7 @@ export interface MyFieldsSectionProps {
   fields?: FieldItem[] | FieldRecord[] | any[];
   onSelectField?: (field: any) => void;
   onOpenDrawer?: () => void;
+  initialOpenDrawer?: boolean;
 }
 
 export function MyFieldsSection({
@@ -75,15 +76,23 @@ export function MyFieldsSection({
   fields: externalFields,
   onSelectField: externalOnSelectField,
   onOpenDrawer: externalOnOpenDrawer,
+  initialOpenDrawer = false,
 }: MyFieldsSectionProps) {
   const effectiveLang: Language = propCurrentLang || propLang || 'uz';
   const t = translations[effectiveLang] || translations.uz;
 
   const [internalFields, setInternalFields] = useState<FieldRecord[]>([]);
   const [activeDetailField, setActiveDetailField] = useState<FieldRecord | null>(null);
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(initialOpenDrawer);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Sync initialOpenDrawer if prop changes
+  useEffect(() => {
+    if (initialOpenDrawer) {
+      setIsRegistering(true);
+    }
+  }, [initialOpenDrawer]);
 
   // Single source of truth NDVI telemetry across all fields
   const { ndviMap } = useMultipleFieldsNdvi(internalFields, effectiveLang);
@@ -129,8 +138,8 @@ export function MyFieldsSection({
       }
 
       const client = supabase;
-      if (isSupabaseConfigured && client) {
-        try {
+      try {
+        if (isSupabaseConfigured && client) {
           const { data: sessionData } = await client.auth.getSession();
           const targetUserId = sessionData.session?.user?.id || userProfile?.user_id;
 
@@ -141,45 +150,45 @@ export function MyFieldsSection({
               .eq('user_id', targetUserId)
               .maybeSingle();
 
-            let fieldsQuery = client.from('fields').select('*');
             if (farmerRec?.id) {
               // fields table has NO user_id column — filter exclusively by farmer_id
-              fieldsQuery = fieldsQuery.eq('farmer_id', farmerRec.id);
+              const { data, error } = await client
+                .from('fields')
+                .select('*')
+                .eq('farmer_id', farmerRec.id)
+                .order('created_at', { ascending: false });
+
+              if (!error && data) {
+                const parsedDbFields: FieldRecord[] = data.map((item: any) => ({
+                  id: item.id,
+                  farmer_id: item.farmer_id,
+                  name: item.name,
+                  crop_type: item.crop_type,
+                  planting_date: item.planting_date || '2026-04-15',
+                  area_hectares: Number(item.area_hectares) || 1.5,
+                  region: item.region || userProfile?.region || "Toshkent viloyati",
+                  coordinates: item.coordinates_json || item.coordinates || [],
+                }));
+
+                loaded = parsedDbFields;
+                localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedDbFields));
+              }
             } else {
-              // No farmer record found — cannot query fields; nothing to load
-              return;
-            }
-
-            const { data, error } = await fieldsQuery.order('created_at', { ascending: false });
-
-            if (!error && data) {
-              const parsedDbFields: FieldRecord[] = data.map((item: any) => ({
-                id: item.id,
-                farmer_id: item.farmer_id,
-                name: item.name,
-                crop_type: item.crop_type,
-                planting_date: item.planting_date || '2026-04-15',
-                area_hectares: Number(item.area_hectares) || 1.5,
-                region: item.region || userProfile?.region || "Toshkent viloyati",
-                coordinates: item.coordinates_json || item.coordinates || [],
-              }));
-
-              loaded = parsedDbFields;
-              localStorage.setItem('ekinix_farmer_fields', JSON.stringify(parsedDbFields));
+              console.log('[Ekinix] No farmer profile in DB yet for user:', targetUserId);
             }
           }
-        } catch (err) {
-          console.warn("Error fetching fields from Supabase:", err);
         }
-      }
-
-      if (isMounted) {
-        setInternalFields(loaded);
-        if (selectedFieldId) {
-          const found = loaded.find((f) => f.id === selectedFieldId);
-          if (found) setActiveDetailField(found);
+      } catch (err) {
+        console.warn("Error fetching fields from Supabase:", err);
+      } finally {
+        if (isMounted) {
+          setInternalFields(loaded);
+          if (selectedFieldId) {
+            const found = loaded.find((f) => f.id === selectedFieldId);
+            if (found) setActiveDetailField(found);
+          }
+          setLoading(false);
         }
-        setLoading(false);
       }
     }
 
