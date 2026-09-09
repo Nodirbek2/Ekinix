@@ -230,39 +230,37 @@ export function MyFieldsSection({
           return;
         }
 
-        // 1. Look up farmer UUID in public.farmers; if not found, create profile first
-        let farmerId = activeFarmerId;
-        if (!farmerId) {
-          const { data: farmerRec } = await client
+        // 1. Always look up farmer UUID from Supabase using the verified auth UID.
+        //    Never trust userProfile.id directly — it may be stale or belong to a
+        //    different auth user, which would fail the fields RLS policy check.
+        let farmerId: string | null = null;
+        const { data: farmerRec } = await client
+          .from('farmers')
+          .select('id')
+          .eq('user_id', activeUserId)
+          .maybeSingle();
+
+        if (farmerRec?.id) {
+          farmerId = farmerRec.id;
+        } else {
+          // Auto-create farmer record if one doesn't exist yet for this auth user
+          const { data: newFarmer, error: farmerCreateErr } = await client
             .from('farmers')
+            .insert({
+              user_id: activeUserId,
+              full_name: userProfile?.full_name || 'Dehqon',
+              phone: userProfile?.phone || '+998000000000',
+              region: selectedRegion,
+              farm_type: 'smallholder',
+              primary_crops: [fieldData.crop_type || 'cotton'],
+            })
             .select('id')
-            .eq('user_id', activeUserId)
-            .maybeSingle();
+            .single();
 
-          if (farmerRec?.id) {
-            farmerId = farmerRec.id;
-            activeFarmerId = farmerRec.id;
-          } else {
-            // Auto-create farmer record if one doesn't exist yet for this auth user
-            const { data: newFarmer, error: farmerCreateErr } = await client
-              .from('farmers')
-              .insert({
-                user_id: activeUserId,
-                full_name: userProfile?.full_name || 'Dehqon',
-                phone: userProfile?.phone || '',
-                region: selectedRegion,
-                farm_type: 'smallholder',
-                primary_crops: [fieldData.crop_type || 'cotton'],
-              })
-              .select('id')
-              .single();
-
-            if (newFarmer?.id) {
-              farmerId = newFarmer.id;
-              activeFarmerId = newFarmer.id;
-            } else if (farmerCreateErr) {
-              console.error('[Ekinix] Failed to create farmer profile before field insert:', farmerCreateErr);
-            }
+          if (newFarmer?.id) {
+            farmerId = newFarmer.id;
+          } else if (farmerCreateErr) {
+            console.error('[Ekinix] Failed to create farmer profile before field insert:', farmerCreateErr);
           }
         }
 
