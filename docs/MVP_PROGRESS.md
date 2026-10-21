@@ -38,3 +38,6 @@ Sentinel fallback fabricated values; no sensor ingestion; chat generated canned 
 
 ## Continuation instructions
 Read this file, git status/log, latest docs/VERIFICATION.md (when present). Do not restart or repeat completed work. Never include env secrets in commits or logs. Keep checkpoint synced to branch at milestones. Physical sensor end-to-end and external account provisioning cannot be claimed without evidence.
+
+## Checkpoint 2026-10-21 (implementation, not deployed)
+Migration 20261021114459 applied successfully. Focused app and authenticated monitoring/AI/device APIs implemented. Telegram routes and cron removed. Lint/type/build verification underway; tests in tests/domain.test.mjs. Cache bound to boundary hash; cross-account async state guarded. Remaining: RLS integration tests, browser QA, provider validation, deployment. GEMINI_API_KEY absent in production; AI must report unavailable honestly. Physical device not tested.

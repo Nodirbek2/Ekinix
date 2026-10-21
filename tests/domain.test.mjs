@@ -1,0 +1,14 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {irrigationAdvice,polygonError,areaHectares,normalizeLogin,growthStage} from '../lib/domain.ts';
+const now=new Date('2026-07-15T12:00:00Z');
+const field={crop_type:'cotton',planting_date:'2026-04-10',stage_override:'mid',field_capacity:32,wilting_point:12,root_depth_cm:40,irrigation_method:'drip',area_hectares:2};
+const reading={moisture_vwc:18,calibrated:true,measured_at:'2026-07-15T11:00:00Z'};
+const weather={status:'available',fetchedAt:now.toISOString(),days:[{rainMm:0,rainProbability:5},{rainMm:0,rainProbability:5}]};
+const advise=(f=field,r=reading,w=weather,last=null)=>irrigationAdvice(f,r,w,last,now);
+test('calibrated irrigation: 40 mm net, 444 m3/ha gross, 889 m3 for two hectares',()=>{const a=advise();assert.equal(a.code,'irrigate');assert.equal(a.netMm,40);assert.equal(a.grossM3Ha,444);assert.equal(a.totalM3,889)});
+test('no volume without measured, fresh, calibrated inputs',()=>{for(const [r,code] of [[null,'no_measurement'],[{...reading,calibrated:false},'uncalibrated'],[{...reading,measured_at:'2026-07-13'},'stale_measurement']]){const a=advise(field,r);assert.equal(a.code,code);assert.equal(a.totalM3,null)}assert.equal(advise({...field,field_capacity:null}).code,'calibration_needed')});
+test('weather, rain, harvest, and newer watering prevent irrigation advice',()=>{assert.equal(advise(field,reading,null).code,'weather_unavailable');assert.equal(advise(field,reading,{...weather,days:[{rainMm:8,rainProbability:80},weather.days[1]]}).code,'rain_expected');assert.equal(advise({...field,stage_override:'harvest'}).code,'harvest');assert.equal(advise(field,reading,weather,{watered_at:now.toISOString()}).code,'recent_irrigation');assert.equal(advise(field,{...reading,moisture_vwc:25}).code,'sufficient')});
+test('invalid weather date and invalid calibration fail closed',()=>{assert.equal(advise(field,reading,{...weather,fetchedAt:'bad'}).code,'weather_unavailable');assert.equal(advise({...field,field_capacity:NaN}).code,'calibration_needed')});
+test('polygons reject crossed, repeated, out-of-range boundaries',()=>{const p=[[41,69],[41,69.002],[41.002,69.002],[41.002,69]];assert.equal(polygonError(p),null);assert.ok(areaHectares(p)>3&&areaHectares(p)<4);assert.equal(polygonError([p[0],p[2],p[1],p[3]]),'polygon_intersection');assert.equal(polygonError([...p,p[0]]),'polygon_duplicate');assert.equal(polygonError([[0,0],[0,1],[1,1]]),'polygon_bounds')});
+test('legacy login preserved and future crop stage unknown',()=>{assert.equal(normalizeLogin('+998 90 123 45 67'),'998901234567@ekinix.uz');assert.equal(normalizeLogin(' Test@Example.com '),'test@example.com');assert.throws(()=>normalizeLogin('123'));assert.equal(growthStage({...field,stage_override:null,planting_date:'2027-01-01'},now).stage,null)});
