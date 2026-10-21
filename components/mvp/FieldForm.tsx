@@ -1,29 +1,379 @@
-'use client';
-import {useMemo,useState} from 'react';
-import dynamic from 'next/dynamic';
-import {areaHectares,crops,polygonError,pick,type Field,type Point,type Lang,type Stage} from '@/lib/domain';
-import {ALL_UZBEKISTAN_REGIONS,UZBEKISTAN_REGIONS_GEO} from '@/lib/geoConstants';
-import {stageLabel,t} from '@/lib/copy';
-import {requireClient} from '@/lib/supabase';
-import {Modal,Busy,ErrorNotice} from './ui';
-const FieldMap=dynamic(()=>import('./FieldMap'),{ssr:false,loading:()=> <div className="map-placeholder"/>});
-export function FieldForm({lang,farmerId,field,onClose,onSaved}:{lang:Lang;farmerId:string;field?:Field;onClose:()=>void;onSaved:()=>Promise<void>}){
- const [points,setPoints]=useState<Point[]>(field?.coordinates_json??[]),[region,setRegion]=useState(field?.region??'Toshkent viloyati'),[error,setError]=useState(''),[busy,setBusy]=useState(false),[lat,setLat]=useState(''),[lng,setLng]=useState('');
- const center=useMemo<Point>(()=>{const r=UZBEKISTAN_REGIONS_GEO[region]??UZBEKISTAN_REGIONS_GEO['Toshkent viloyati'];return [r.lat,r.lng]},[region]);
- async function save(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setError('');const pError=polygonError(points);if(pError){setError(pError);return;}
-  const form=new FormData(e.currentTarget),optional=(key:string)=>String(form.get(key)??'').trim()===''?null:Number(form.get(key));
-  if(!String(form.get('name')??'').trim()){setError('invalid_request');return;}
-  const fc=optional('fc'),wp=optional('wp'),root=optional('root');
-  if([fc,wp,root].some(v=>v!==null)&&([fc,wp,root].some(v=>v===null)||fc!<=wp!)){setError('calibration_invalid');return;}
-  setBusy(true);try{
-   const payload={farmer_id:farmerId,name:String(form.get('name')).trim(),crop_type:String(form.get('crop')),planting_date:form.get('planted')||null,region,coordinates_json:points,area_hectares:Math.round(areaHectares(points)*100)/100,field_capacity:fc,wilting_point:wp,root_depth_cm:root,stage_override:form.get('stage')||null,irrigation_method:form.get('method')};
-   const client=requireClient();const query=field?client.from('fields').update(payload).eq('id',field.id):client.from('fields').insert(payload);
-   const {data,error}=await query.select('id').single();if(error||!data)throw error??Error();
-   await onSaved();onClose();
-  }catch(e){setError(e instanceof Error?e.message:'request_failed')}finally{setBusy(false)}
- }
- return <Modal lang={lang} wide title={field?t(lang,'edit'):t(lang,'addField')} onClose={onClose}><form onSubmit={save} className="form-stack"><ErrorNotice lang={lang} error={error}/><div className="form-grid"><label>{t(lang,'fieldName')}<input name="name" required maxLength={100} defaultValue={field?.name}/></label><label>{t(lang,'region')}<select value={region} onChange={e=>setRegion(e.target.value)}>{ALL_UZBEKISTAN_REGIONS.map(r=><option key={r}>{r}</option>)}</select></label><label>{t(lang,'crop')}<select name="crop" defaultValue={field?.crop_type??'cotton'}>{field&&!crops.some(c=>c.id===field.crop_type)&&<option value={field.crop_type}>{field.crop_type}</option>}{crops.map(c=><option key={c.id} value={c.id}>{c[lang]}</option>)}</select></label><label>{t(lang,'planted')}<input type="date" name="planted" defaultValue={field?.planting_date??''}/></label><label>{t(lang,'stage')}<select name="stage" defaultValue={field?.stage_override??''}><option value="">{t(lang,'autoStage')}</option>{(['initial','development','mid','late','harvest'] as Stage[]).map(s=><option key={s} value={s}>{stageLabel(lang,s)}</option>)}</select></label><label>{t(lang,'method')}<select name="method" defaultValue={field?.irrigation_method??'drip'}>{(['drip','sprinkler','furrow'] as const).map(m=><option key={m} value={m}>{t(lang,m)}</option>)}</select></label></div>
- <FieldMap lang={lang} points={points} center={center} editable onChange={setPoints}/><div className="row spread wrap"><span>{points.length} {pick(lang,'nuqta','точек','points')} · <strong>{areaHectares(points).toFixed(2)} ha</strong></span><div className="row"><button type="button" className="text-button" onClick={()=>setPoints(p=>p.slice(0,-1))}>{t(lang,'undo')}</button><button type="button" className="text-button" onClick={()=>setPoints([])}>{t(lang,'clear')}</button></div></div>
- <details><summary>{pick(lang,'Koordinatalarni qo‘lda kiritish','Ввести координаты вручную','Enter coordinates manually')}</summary><div className="coordinate-input"><label>{t(lang,'latitude')}<input type="number" step="any" value={lat} onChange={e=>setLat(e.target.value)}/></label><label>{t(lang,'longitude')}<input type="number" step="any" value={lng} onChange={e=>setLng(e.target.value)}/></label><button type="button" className="button secondary" disabled={!lat||!lng||points.length>=100} onClick={()=>{setPoints([...points,[Number(lat),Number(lng)]]);setLat('');setLng('')}}>{t(lang,'addPoint')}</button></div></details>
- <details open={!!field?.field_capacity}><summary>{t(lang,'soil')} <span className="muted">— {pick(lang,'ixtiyoriy','необязательно','optional')}</span></summary><p className="small muted">{pick(lang,'Laboratoriya yoki agronom tasdiqlagan qiymatlarni kiriting. Tasdiqlanmagan taxminlarni ishlatmang.','Введите значения, подтверждённые лабораторией или агрономом.','Use values confirmed by soil testing or an agronomist, not unverified guesses.')}</p><div className="form-grid three"><label>{t(lang,'fc')}<input name="fc" type="number" min="1" max="70" step="0.1" defaultValue={field?.field_capacity??''}/></label><label>{t(lang,'wp')}<input name="wp" type="number" min="0" max="69" step="0.1" defaultValue={field?.wilting_point??''}/></label><label>{t(lang,'root')}<input name="root" type="number" min="5" max="200" step="1" defaultValue={field?.root_depth_cm??''}/></label></div></details><div className="form-actions"><button type="button" className="button secondary" onClick={onClose}>{t(lang,'cancel')}</button><button className="button primary" disabled={busy}>{busy?<Busy label={t(lang,'loading')}/>:t(lang,'save')}</button></div></form></Modal>;
+"use client";
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import {
+  areaHectares,
+  crops,
+  polygonError,
+  pick,
+  type Field,
+  type Point,
+  type Lang,
+  type Stage,
+} from "@/lib/domain";
+import {
+  ALL_UZBEKISTAN_REGIONS,
+  UZBEKISTAN_REGIONS_GEO,
+} from "@/lib/geoConstants";
+import { stageLabel, t } from "@/lib/copy";
+import { requireClient } from "@/lib/supabase";
+import { Modal, Busy, ErrorNotice } from "./ui";
+const FieldMap = dynamic(() => import("./FieldMap"), {
+  ssr: false,
+  loading: () => <div className="map-placeholder" />,
+});
+export function FieldForm({
+  lang,
+  farmerId,
+  field,
+  preview = false,
+  onClose,
+  onSaved,
+}: {
+  lang: Lang;
+  farmerId: string;
+  field?: Field;
+  preview?: boolean;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [closed, setClosed] = useState(Boolean(field));
+  const [points, setPoints] = useState<Point[]>(field?.coordinates_json ?? []),
+    [region, setRegion] = useState(field?.region ?? "Toshkent viloyati"),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [lat, setLat] = useState(""),
+    [lng, setLng] = useState("");
+  const center = useMemo<Point>(() => {
+    const r =
+      UZBEKISTAN_REGIONS_GEO[region] ??
+      UZBEKISTAN_REGIONS_GEO["Toshkent viloyati"];
+    return [r.lat, r.lng];
+  }, [region]);
+  async function save(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (preview) return;
+    setError("");
+    if (!closed) {
+      setError("boundary_open");
+      return;
+    }
+    const pError = polygonError(points);
+    if (pError) {
+      setError(pError);
+      return;
+    }
+    const form = new FormData(e.currentTarget),
+      optional = (key: string) =>
+        String(form.get(key) ?? "").trim() === ""
+          ? null
+          : Number(form.get(key));
+    if (!String(form.get("name") ?? "").trim()) {
+      setError("invalid_request");
+      return;
+    }
+    const fc = optional("fc"),
+      wp = optional("wp"),
+      root = optional("root");
+    if (
+      [fc, wp, root].some((v) => v !== null) &&
+      ([fc, wp, root].some((v) => v === null) || fc! <= wp!)
+    ) {
+      setError("calibration_invalid");
+      return;
+    }
+    setBusy(true);
+    try {
+      const payload = {
+        farmer_id: farmerId,
+        name: String(form.get("name")).trim(),
+        crop_type: String(form.get("crop")),
+        planting_date: form.get("planted") || null,
+        region,
+        coordinates_json: points,
+        area_hectares: Math.round(areaHectares(points) * 100) / 100,
+        field_capacity: fc,
+        wilting_point: wp,
+        root_depth_cm: root,
+        stage_override: form.get("stage") || null,
+        irrigation_method: form.get("method"),
+      };
+      const client = requireClient();
+      const query = field
+        ? client.from("fields").update(payload).eq("id", field.id)
+        : client.from("fields").insert(payload);
+      const { data, error } = await query.select("id").single();
+      if (error || !data) throw error ?? Error();
+      await onSaved();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "request_failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal
+      lang={lang}
+      wide
+      title={field ? t(lang, "edit") : t(lang, "addField")}
+      onClose={onClose}
+    >
+      <form onSubmit={save} className="form-stack">
+        <ErrorNotice lang={lang} error={error} />
+        <div className="form-grid">
+          <label>
+            {t(lang, "fieldName")}
+            <input
+              name="name"
+              required
+              maxLength={100}
+              defaultValue={field?.name}
+            />
+          </label>
+          <label>
+            {t(lang, "region")}
+            <select value={region} onChange={(e) => setRegion(e.target.value)}>
+              {ALL_UZBEKISTAN_REGIONS.map((r) => (
+                <option key={r}>{r}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t(lang, "crop")}
+            <select name="crop" defaultValue={field?.crop_type ?? "cotton"}>
+              {field && !crops.some((c) => c.id === field.crop_type) && (
+                <option value={field.crop_type}>{field.crop_type}</option>
+              )}
+              {crops.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c[lang]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t(lang, "planted")}
+            <input
+              type="date"
+              name="planted"
+              defaultValue={field?.planting_date ?? ""}
+            />
+          </label>
+          <label>
+            {t(lang, "stage")}
+            <select name="stage" defaultValue={field?.stage_override ?? ""}>
+              <option value="">{t(lang, "autoStage")}</option>
+              {(
+                ["initial", "development", "mid", "late", "harvest"] as Stage[]
+              ).map((s) => (
+                <option key={s} value={s}>
+                  {stageLabel(lang, s)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {t(lang, "method")}
+            <select
+              name="method"
+              defaultValue={field?.irrigation_method ?? "drip"}
+            >
+              {(["drip", "sprinkler", "furrow"] as const).map((m) => (
+                <option key={m} value={m}>
+                  {t(lang, m)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <FieldMap
+          lang={lang}
+          points={points}
+          center={center}
+          editable
+          closed={closed}
+          onChange={(p) => {
+            setPoints(p);
+            setClosed(false);
+          }}
+        />
+        <div className="row spread wrap">
+          <span>
+            {points.length} / 10 {pick(lang, "nuqta", "точек", "points")} ·{" "}
+            <strong>{closed ? areaHectares(points).toFixed(2) : "—"} ha</strong>
+          </span>
+          <div className="row">
+            <button
+              type="button"
+              className="button secondary small"
+              disabled={points.length < 3}
+              onClick={() => {
+                if (closed) {
+                  setClosed(false);
+                  return;
+                }
+                const issue = polygonError(points);
+                if (issue) {
+                  setError(issue);
+                  return;
+                }
+                setClosed(true);
+                setError("");
+              }}
+            >
+              {closed
+                ? pick(
+                    lang,
+                    "Qayta ochish",
+                    "Открыть границу",
+                    "Reopen boundary",
+                  )
+                : pick(
+                    lang,
+                    "Chegarani yopish",
+                    "Закрыть границу",
+                    "Close boundary",
+                  )}
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                setPoints((p) => p.slice(0, -1));
+                setClosed(false);
+              }}
+            >
+              {t(lang, "undo")}
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => {
+                setPoints([]);
+                setClosed(false);
+              }}
+            >
+              {t(lang, "clear")}
+            </button>
+          </div>
+        </div>
+        <details>
+          <summary>
+            {pick(
+              lang,
+              "Koordinatalarni qo‘lda kiritish",
+              "Ввести координаты вручную",
+              "Enter coordinates manually",
+            )}
+          </summary>
+          <div className="coordinate-input">
+            <label>
+              {t(lang, "latitude")}
+              <input
+                type="number"
+                step="any"
+                value={lat}
+                onChange={(e) => setLat(e.target.value)}
+              />
+            </label>
+            <label>
+              {t(lang, "longitude")}
+              <input
+                type="number"
+                step="any"
+                value={lng}
+                onChange={(e) => setLng(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={!lat || !lng || points.length >= 10 || closed}
+              onClick={() => {
+                setPoints([...points, [Number(lat), Number(lng)]]);
+                setClosed(false);
+                setLat("");
+                setLng("");
+              }}
+            >
+              {t(lang, "addPoint")}
+            </button>
+          </div>
+        </details>
+        <details open={!!field?.field_capacity}>
+          <summary>
+            {t(lang, "soil")}{" "}
+            <span className="muted">
+              — {pick(lang, "ixtiyoriy", "необязательно", "optional")}
+            </span>
+          </summary>
+          <p className="small muted">
+            {pick(
+              lang,
+              "Laboratoriya yoki agronom tasdiqlagan qiymatlarni kiriting. Tasdiqlanmagan taxminlarni ishlatmang.",
+              "Введите значения, подтверждённые лабораторией или агрономом.",
+              "Use values confirmed by soil testing or an agronomist, not unverified guesses.",
+            )}
+          </p>
+          <div className="form-grid three">
+            <label>
+              {t(lang, "fc")}
+              <input
+                name="fc"
+                type="number"
+                min="1"
+                max="70"
+                step="0.1"
+                defaultValue={field?.field_capacity ?? ""}
+              />
+            </label>
+            <label>
+              {t(lang, "wp")}
+              <input
+                name="wp"
+                type="number"
+                min="0"
+                max="69"
+                step="0.1"
+                defaultValue={field?.wilting_point ?? ""}
+              />
+            </label>
+            <label>
+              {t(lang, "root")}
+              <input
+                name="root"
+                type="number"
+                min="5"
+                max="200"
+                step="1"
+                defaultValue={field?.root_depth_cm ?? ""}
+              />
+            </label>
+          </div>
+        </details>
+        {preview && (
+          <p className="notice">
+            {pick(
+              lang,
+              "Xaritani sinab ko‘rishingiz mumkin. Saqlash uchun hisobga kiring.",
+              "Вы можете попробовать карту. Войдите, чтобы сохранить.",
+              "You can try drawing the boundary. Sign in to save it.",
+            )}
+          </p>
+        )}
+        <div className="form-actions">
+          <button type="button" className="button secondary" onClick={onClose}>
+            {t(lang, "cancel")}
+          </button>
+          <button
+            className="button primary"
+            disabled={busy || !closed || preview}
+          >
+            {busy ? <Busy label={t(lang, "loading")} /> : t(lang, "save")}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
 }

@@ -21,6 +21,7 @@ export const adviceText=(l:Lang,c:AdviceCode)=>pick(l,...({
 } as Record<AdviceCode,[string,string,string]>)[c]);
 export function errorText(l:Lang,code:string){
  const errors:Record<string,[string,string,string]>={
+ boundary_open:['Avval “Chegarani yopish” tugmasini bosing.','Сначала нажмите «Закрыть границу».','Press “Close boundary” before saving.'],
  invalid_login:['To‘g‘ri email yoki telefon kiriting.','Введите корректный email или телефон.','Enter a valid email or phone number.'],
  session_expired:['Qayta kiring. Sessiya tugagan.','Войдите снова. Сессия завершена.','Your session expired. Please sign in again.'],
  rate_limited:['So‘rovlar limiti tugadi. Keyinroq qayta urinib ko‘ring.','Лимит запросов исчерпан. Повторите позже.','Request limit reached. Please try again later.'],

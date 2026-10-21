@@ -50,3 +50,8 @@ Core app production browser and authenticated API tests passed; see VERIFICATION
 Implementation commit 24ba8c3c5e6b38df9d80039d532dc0a56688d290 is deployed to https://ekinix.vercel.app (dpl_XQkjuDGQDzHXGgZ38u7Xx1VCgv9T READY). Nine tests, lint, types/build passed. Real public Sentinel fallback verified on deployed authenticated route (200, two real observations); weather and simulated hardware ingestion verified. Telegram code, cron, and external webhook disabled. Final QA fixtures removed.
 
 Remaining user/account/hardware inputs are explicitly recorded in docs/VERIFICATION.md: Gemini key, email delivery round trip, real sensor calibration/trial, optional leaked-password protection. Do not claim those complete. Do not repeat the rebuild on continuation. Resume from these dependencies or new user feedback.
+
+## Design correction now in progress
+User rejected the previous design, requested distinct restored sections, proper settings, no moisture hardware dependency, and map drawing with up to10 points plus explicit closure and location search. See docs/REDESIGN_PROGRESS.md for current code and next steps. A one-time continuation task was created for 2026-10-22 05:00 Asia/Tashkent. The redesign is not yet deployed; do not confuse new source files with a finished UI.
+
+Redesign implementation now integrated and locally passes types/lint/build + 9 tests. Source files include owner-scoped shared data, eight actual section components, settings panels, new map-first landing, manual-close 10-point drawing and place search. Awaiting production browser QA; see REDESIGN_PROGRESS.
