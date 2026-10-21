@@ -28,13 +28,13 @@ Supabase farmers.user_id lacked unique constraint and update policy. Registratio
 Sentinel fallback fabricated values; no sensor ingestion; chat generated canned replies locally. Demo showed contradictory irrigation/harvest advice.
 
 ## Execution checklist
-- [in progress] Additive database migration, RLS, device ingestion, rate limits.
-- [ ] Replace unreliable data services with validated/authenticated APIs.
-- [ ] Rebuild focused responsive workspace + accessible auth/forms; all UZ/RU/EN strings.
-- [ ] Remove Telegram and obsolete feature code.
-- [ ] Meaningful unit + DB/RLS + API integration tests, lint/typecheck/build.
-- [ ] Push reviewed branch, inspect preview, release main, verify production.
-- [ ] Record remaining external provisioning/hardware limitations honestly.
+- [x] Additive database migration, RLS, device ingestion, rate limits.
+- [x] Replace unreliable data services with validated/authenticated APIs.
+- [x] Rebuild focused responsive workspace + accessible auth/forms; all UZ/RU/EN strings.
+- [x] Remove Telegram and obsolete feature code.
+- [x] Meaningful unit + DB/RLS + API integration tests, lint/typecheck/build.
+- [x] Push reviewed branch, inspect preview, release main, verify production.
+- [x] Record remaining external provisioning/hardware limitations honestly.
 
 ## Continuation instructions
 Read this file, git status/log, latest docs/VERIFICATION.md (when present). Do not restart or repeat completed work. Never include env secrets in commits or logs. Keep checkpoint synced to branch at milestones. Physical sensor end-to-end and external account provisioning cannot be claimed without evidence.
@@ -45,3 +45,8 @@ Migration 20261021114459 applied successfully. Focused app and authenticated mon
 ## Latest checkpoint (2026-10-21 continuation)
 Main and remote fix branch at d96bebf16e0777e3adbdd02c975120c0241de174, production deployment dpl_HdPK64u4spMztPScaTtcRaN5fcYc READY. Local git equivalent 7260d66 (connector/local commit SHAs differ).
 Core app production browser and authenticated API tests passed; see VERIFICATION. QA fixture fully removed. Current uncommitted changes: real public Sentinel COG fallback (geotiff 3.0.5, proj4 2.22.0), calibrated pixel tests, Uzbek date formatting, satellite history preservation, trimmed field names, updated provider privacy/attribution. Existing Copernicus credentials invalid (401 unauthorized_client); GEMINI_API_KEY absent. Next: finish checks, commit/push fallback, verify production build and actual fallback via authenticated test fixture, clean fixture, update final verification. Never claim physical sensor or email confirmation tested.
+
+## Released and verified
+Implementation commit 24ba8c3c5e6b38df9d80039d532dc0a56688d290 is deployed to https://ekinix.vercel.app (dpl_XQkjuDGQDzHXGgZ38u7Xx1VCgv9T READY). Nine tests, lint, types/build passed. Real public Sentinel fallback verified on deployed authenticated route (200, two real observations); weather and simulated hardware ingestion verified. Telegram code, cron, and external webhook disabled. Final QA fixtures removed.
+
+Remaining user/account/hardware inputs are explicitly recorded in docs/VERIFICATION.md: Gemini key, email delivery round trip, real sensor calibration/trial, optional leaked-password protection. Do not claim those complete. Do not repeat the rebuild on continuation. Resume from these dependencies or new user feedback.
