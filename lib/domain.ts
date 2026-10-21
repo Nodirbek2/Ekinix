@@ -10,7 +10,7 @@ export interface Watering { id:string; field_id:string; watered_at:string; water
 export interface WeatherDay { date:string; min:number|null; max:number|null; rainMm:number|null; rainProbability:number|null; et0:number|null }
 export interface Weather { status:'available'|'unavailable'; fetchedAt:string; modelTime:string|null; temperature:number|null; soilVwc:number|null; soilTime:string|null; days:WeatherDay[] }
 export interface Observation { date:string; ndvi:number; validPercent:number }
-export interface Satellite { status:'available'|'not_configured'|'unavailable'|'no_clear_scene'; observations:Observation[]; fetchedAt:string }
+export interface Satellite { source?:'copernicus'|'earth-search'; diagnostic?:string; status:'available'|'not_configured'|'unavailable'|'no_clear_scene'; observations:Observation[]; fetchedAt:string }
 export interface Monitoring { weather:Weather; satellite:Satellite; fetchedAt:string }
 export const crops = [
  {id:'cotton',uz:'Paxta',ru:'Хлопок',en:'Cotton',days:[25,60,120,165]},
@@ -86,3 +86,14 @@ export function irrigationAdvice(field:Field,reading:SoilReading|null,weather:We
  return done('irrigate');
 }
 export function newestReading<T extends {measured_at:string}>(rows:T[]):T|null{return [...rows].sort((a,b)=>Date.parse(b.measured_at)-Date.parse(a.measured_at))[0]??null;}
+
+export function formatDate(value:string,lang:Lang,forecast=false):string {
+ const date=new Date(value);if(!Number.isFinite(date.getTime()))return '—';
+ if(lang==='uz'){
+  const parts=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tashkent',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23',weekday:'short'}).formatToParts(date);
+  const get=(type:string)=>parts.find(p=>p.type===type)?.value??'';
+  const weekdays:Record<string,string>={Mon:'Du',Tue:'Se',Wed:'Ch',Thu:'Pa',Fri:'Ju',Sat:'Sh',Sun:'Ya'};
+  return forecast?`${get('day')}, ${weekdays[get('weekday')]}`:`${get('day')}.${get('month')}.${get('year')}, ${get('hour')}:${get('minute')}`;
+ }
+ return forecast?date.toLocaleDateString(lang,{timeZone:'Asia/Tashkent',weekday:'short',day:'numeric'}):date.toLocaleString(lang,{timeZone:'Asia/Tashkent',dateStyle:'medium',timeStyle:'short'});
+}

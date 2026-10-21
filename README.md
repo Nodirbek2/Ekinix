@@ -1,6 +1,6 @@
 # Ekinix
 
-Field monitoring and irrigation decision support for Uzbekistan, in Uzbek, Russian, and English. Next.js, Supabase Auth/Postgres, Open-Meteo, Copernicus Sentinel-2, and optional Gemini explanations.
+Field monitoring and irrigation decision support for Uzbekistan, in Uzbek, Russian, and English. Next.js, Supabase Auth/Postgres, Open-Meteo, Copernicus / Earth Search Sentinel-2, and optional Gemini explanations.
 
 ## Run
 
@@ -8,7 +8,7 @@ Use Node 24, `npm ci`, copy `.env.example` to `.env.local`, configure the projec
 
 ## MVP workflows
 
-Email signup/recovery and legacy phone login; field boundaries, crop/date and optional grower stage; real satellite NDVI with acquisition dates and usable-pixel coverage; weather forecasts clearly separated from measured moisture; manual or authenticated device readings; calibrated irrigation estimates; actual irrigation records; archive/restore; CSV export. Telegram and unfinished marketplace/chat flows are removed.
+Email signup/recovery and legacy phone login; field boundaries, crop/date and optional grower stage; real satellite NDVI with a public Earth Search COG fallback and acquisition dates and usable-pixel coverage; weather forecasts clearly separated from measured moisture; manual or authenticated device readings; calibrated irrigation estimates; actual irrigation records; archive/restore; CSV export. Telegram and unfinished marketplace/chat flows are removed.
 
 Missing providers, stale readings and unconfigured soil calibration are shown explicitly. The demo contains labeled fixtures. No fabricated observation fallbacks. NDVI is a vegetation indicator, not a disease diagnosis. Estimates require fresh calibrated VWC and confirmed field capacity, wilting point and root depth. A single sensor may not represent a whole field: validate representativeness and irrigation efficiency with the grower/agronomist before using estimates. No valve or pump automation.
 

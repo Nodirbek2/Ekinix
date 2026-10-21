@@ -12,6 +12,7 @@ export function FieldForm({lang,farmerId,field,onClose,onSaved}:{lang:Lang;farme
  const center=useMemo<Point>(()=>{const r=UZBEKISTAN_REGIONS_GEO[region]??UZBEKISTAN_REGIONS_GEO['Toshkent viloyati'];return [r.lat,r.lng]},[region]);
  async function save(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setError('');const pError=polygonError(points);if(pError){setError(pError);return;}
   const form=new FormData(e.currentTarget),optional=(key:string)=>String(form.get(key)??'').trim()===''?null:Number(form.get(key));
+  if(!String(form.get('name')??'').trim()){setError('invalid_request');return;}
   const fc=optional('fc'),wp=optional('wp'),root=optional('root');
   if([fc,wp,root].some(v=>v!==null)&&([fc,wp,root].some(v=>v===null)||fc!<=wp!)){setError('calibration_invalid');return;}
   setBusy(true);try{

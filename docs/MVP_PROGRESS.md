@@ -41,3 +41,7 @@ Read this file, git status/log, latest docs/VERIFICATION.md (when present). Do n
 
 ## Checkpoint 2026-10-21 (implementation, not deployed)
 Migration 20261021114459 applied successfully. Focused app and authenticated monitoring/AI/device APIs implemented. Telegram routes and cron removed. Lint/type/build verification underway; tests in tests/domain.test.mjs. Cache bound to boundary hash; cross-account async state guarded. Remaining: RLS integration tests, browser QA, provider validation, deployment. GEMINI_API_KEY absent in production; AI must report unavailable honestly. Physical device not tested.
+
+## Latest checkpoint (2026-10-21 continuation)
+Main and remote fix branch at d96bebf16e0777e3adbdd02c975120c0241de174, production deployment dpl_HdPK64u4spMztPScaTtcRaN5fcYc READY. Local git equivalent 7260d66 (connector/local commit SHAs differ).
+Core app production browser and authenticated API tests passed; see VERIFICATION. QA fixture fully removed. Current uncommitted changes: real public Sentinel COG fallback (geotiff 3.0.5, proj4 2.22.0), calibrated pixel tests, Uzbek date formatting, satellite history preservation, trimmed field names, updated provider privacy/attribution. Existing Copernicus credentials invalid (401 unauthorized_client); GEMINI_API_KEY absent. Next: finish checks, commit/push fallback, verify production build and actual fallback via authenticated test fixture, clean fixture, update final verification. Never claim physical sensor or email confirmation tested.

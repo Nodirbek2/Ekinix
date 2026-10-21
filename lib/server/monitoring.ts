@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import 'server-only';
+import {publicSatelliteFor} from './public-satellite';
 import type {Field,Weather,Satellite,Monitoring,Observation} from '../domain';
 import {polygonError} from '../domain';
 import {adminClient,fetchJson} from './http';
@@ -22,14 +23,16 @@ export async function weatherFor(field:Field):Promise<Weather>{
   return {status:days.length?'available':'unavailable',fetchedAt,modelTime:data.current?.time?new Date(data.current.time*1000).toISOString():null,temperature:number(data.current?.temperature_2m),soilVwc:theta!==null&&theta>=0&&theta<=1?Math.round(theta*1000)/10:null,soilTime:index>=0?new Date(hours[index]*1000).toISOString():null,days};
  }catch{return empty;}
 }
-export async function satelliteFor(field:Field):Promise<Satellite>{
+async function copernicusSatelliteFor(field:Field):Promise<Satellite>{
  const fetchedAt=new Date().toISOString();
  const result:Satellite={status:'unavailable',fetchedAt,observations:[]};
  const id=process.env.SENTINEL_HUB_CLIENT_ID,secret=process.env.SENTINEL_HUB_CLIENT_SECRET;
  if(!id||!secret)return {...result,status:'not_configured'};
  if(polygonError(field.coordinates_json))return result;
+ let phase='authentication';
  try{
   const token=await fetchJson('https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({grant_type:'client_credentials',client_id:id,client_secret:secret})});
+  phase='statistics';
   const ring=field.coordinates_json.map(([lat,lng])=>[lng,lat]);ring.push(ring[0]);
   const to=new Date();to.setUTCHours(0,0,0,0);const from=new Date(to.getTime()-30*86400000);
   const stats=await fetchJson('https://sh.dataspace.copernicus.eu/api/v1/statistics',{method:'POST',headers:{Authorization:`Bearer ${token.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({
@@ -45,11 +48,18 @@ function evaluatePixel(s){let valid=s.dataMask===1 && [4,5,6].includes(s.SCL) &&
    if(mean!==null&&mean>=-1&&mean<=1&&valid>=50&&item.interval?.from)observations.push({date:item.interval.from.slice(0,10),ndvi:Math.round(mean*1000)/1000,validPercent:Math.round(valid)});
   }
   return {...result,status:observations.length?'available':'no_clear_scene',observations:observations.sort((a,b)=>a.date.localeCompare(b.date))};
- }catch{return result;}
+ }catch(error){const status=error instanceof Error?error.message.match(/Upstream (\d{3})/)?.[1]:undefined;return {...result,diagnostic:phase+'_'+(status??'unreachable')};}
+}
+export async function satelliteFor(field:Field):Promise<Satellite>{
+ if(polygonError(field.coordinates_json))return {status:'unavailable',fetchedAt:new Date().toISOString(),observations:[]};
+ const primary=await copernicusSatelliteFor(field);
+ if(primary.status==='available'||primary.status==='no_clear_scene')return {...primary,source:'copernicus'};
+ const fallback=await publicSatelliteFor(field);
+ return {...fallback,diagnostic:primary.diagnostic};
 }
 export async function getMonitoring(field:Field):Promise<Monitoring>{
  const admin=adminClient();const {data:cached}=await admin.from('field_snapshots').select('*').eq('field_id',field.id).maybeSingle();
- const fingerprint=createHash('sha256').update(JSON.stringify(field.coordinates_json)).digest('hex');
+ const fingerprint=createHash('sha256').update(JSON.stringify({version:2,coordinates:field.coordinates_json})).digest('hex');
  const matching=cached?.payload?.boundaryFingerprint===fingerprint?cached:null;
  const age=matching?Date.now()-Date.parse(matching.fetched_at):Infinity;
  if(matching&&age<1800000)return matching.payload as Monitoring;
@@ -58,7 +68,7 @@ export async function getMonitoring(field:Field):Promise<Monitoring>{
  const [weather,satellite]=await Promise.all([weatherFor(field),satellitePromise]);
  const result:Monitoring={weather,satellite,fetchedAt:new Date().toISOString()};
  // Keep previous real observations (with their original dates) if the provider is unavailable.
- if(satellite.observations.length===0&&old?.satellite.observations.length)result.satellite={...satellite,observations:old.satellite.observations};
+ if(old?.satellite.observations.length){const history=new Map(old.satellite.observations.map(o=>[o.date,o]));satellite.observations.forEach(o=>history.set(o.date,o));result.satellite={...satellite,observations:[...history.values()].sort((a,b)=>a.date.localeCompare(b.date)).slice(-100)};}
  const {error}=await admin.from('field_snapshots').upsert({field_id:field.id,payload:{...result,boundaryFingerprint:fingerprint},fetched_at:result.fetchedAt});
  if(error)console.error('[Ekinix] Snapshot persistence failed',error.code);
  return result;
