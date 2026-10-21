@@ -5,7 +5,7 @@ export async function POST(req:Request){try{
  const token=req.headers.get('authorization')?.match(/^Bearer (ek_[0-9a-f]{64})$/)?.[1];if(!token)throw new ApiError(401,'invalid_device_key');
  const body=await jsonBody(req);if(!uuid(body.device_id))throw new ApiError(400,'invalid_device');
  const {moisture_vwc,temperature_c,measured_at}=body;const time=Date.parse(measured_at);
- if(typeof moisture_vwc!=='number'||!Number.isFinite(moisture_vwc)||moisture_vwc<0||moisture_vwc>100||!Number.isFinite(time)||time>Date.now()+300000||time<Date.now()-7*86400000||(temperature_c!=null&&(typeof temperature_c!=='number'||!Number.isFinite(temperature_c)||temperature_c< -50||temperature_c>80)))throw new ApiError(400,'invalid_reading');
+ if(typeof measured_at!=='string'||!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(measured_at)||typeof moisture_vwc!=='number'||!Number.isFinite(moisture_vwc)||moisture_vwc<0||moisture_vwc>100||!Number.isFinite(time)||time>Date.now()+300000||time<Date.now()-7*86400000||(temperature_c!=null&&(typeof temperature_c!=='number'||!Number.isFinite(temperature_c)||temperature_c< -50||temperature_c>80)))throw new ApiError(400,'invalid_reading');
  const admin=adminClient();const {data:device,error}=await admin.from('sensor_devices').select('*,fields!inner(archived_at)').eq('id',body.device_id).maybeSingle();
  if(error)throw new ApiError(503,'database_error');
  const hash=createHash('sha256').update(token).digest('hex');

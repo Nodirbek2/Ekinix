@@ -8,3 +8,5 @@ coverage/
 .antigravity/
 .vscode/
 *.tsbuildinfo
+
+supabase/.temp/
