@@ -69,3 +69,9 @@ New user report: zero NDVI with misleading cloud explanation. Added Collection 1
 
 ## Crop photo analysis extension — 2026-10-22
 New user asks for a dedicated crop/harvest health photo-analysis screen. Implemented camera/file upload, optional field/standalone crop, notes, privacy-preserving JPEG preparation, authenticated bounded multipart Gemini endpoint with shared AI quota, and tri-language structured visual assessment UI. Preview works without a provider key; no fake diagnoses. 29 tests and lint/types/build gates pass. See PHOTO_ANALYSIS.md for data path, configuration and live QA. No DB migrations. GEMINI_API_KEY remains required for real image inference; verify current production availability after release.
+
+## Field detail render fix — 2026-10-22
+- Reproduced production demo crash by clicking a field: error boundary reported page could not load.
+- Removed stray Camera component from planting-date fact tuple in FieldDetail; it had been rendered as a React child in the label position.
+- Production build/type/lint passed. Commit 4d7c21afe0ea84d864896ea54f23ca49ef40664b deployed READY as dpl_4fAaZtQq16F8qBJJRWVaVsuktPFy.
+- Reloaded production and repeated the same demo field click: field profile, planting date, map and NDVI panel render correctly. No private field monitoring triggered.
