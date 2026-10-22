@@ -271,6 +271,11 @@ export function errorText(l: Lang, code: string) {
       "Лимит запросов исчерпан. Повторите позже.",
       "Request limit reached. Please try again later.",
     ],
+    ai_unavailable: [
+      "AI xizmati hozir javob bermadi. Birozdan so‘ng qayta urinib ko‘ring; dala ma’lumotlari saqlangan.",
+      "ИИ сейчас не ответил. Повторите позже; данные поля сохранены.",
+      "AI did not respond. Retry later; your field records are saved.",
+    ],
     ai_not_configured: [
       "AI hozir ulanmagan. Dala ko‘rsatkichlari va hisoblangan tavsiyalar ishlashda davom etadi.",
       "ИИ пока не подключён. Данные поля и расчётные рекомендации доступны.",

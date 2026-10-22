@@ -1,4 +1,6 @@
 "use client";
+import { SimpleIrrigation } from "./SimpleIrrigation";
+import { FieldChat } from "./FieldChat";
 import { useState } from "react";
 import {
   ArrowUpRight,
@@ -400,10 +402,36 @@ export function IrrigationPlanView(
               p.onLoad(v);
             }}
           />
-          <Planner
-            key={`${field.id}:${field.stage_override}:${field.crop_type}:${field.irrigation_method}`}
-            p={p}
+          <SimpleIrrigation
+            key={`simple:${field.id}:${p.lang}`}
             field={field}
+            lang={p.lang}
+            demo={p.demo}
+            monitoring={p.data[field.id]}
+            water={p.water}
+            onRecord={() => p.onRecord(field)}
+            onEdit={() => p.onEdit(field)}
+          />
+          <details className="advanced-planner">
+            <summary>
+              {pick(
+                p.lang,
+                "Hisob tafsilotlari va sozlamalar",
+                "Расчёты и настройки",
+                "Calculation details and settings",
+              )}
+            </summary>
+            <Planner
+              key={`${field.id}:${field.stage_override}:${field.crop_type}:${field.irrigation_method}`}
+              p={p}
+              field={field}
+            />
+          </details>
+          <FieldChat
+            key={`chat:${field.id}:${p.lang}`}
+            fieldId={field.id}
+            lang={p.lang}
+            demo={p.demo}
           />
         </>
       )}

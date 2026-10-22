@@ -1,4 +1,6 @@
 "use client";
+import { SimpleIrrigation } from "./SimpleIrrigation";
+import { FieldChat } from "./FieldChat";
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import {
@@ -150,6 +152,16 @@ export function FieldDetail({
           </small>
         </section>
       </div>
+      <SimpleIrrigation
+        key={`simple:${field.id}:${lang}`}
+        field={field}
+        lang={lang}
+        demo={demo}
+        monitoring={monitoring}
+        water={water}
+        onRecord={onRecord}
+        onEdit={onEdit}
+      />
       <div className="detail-tabs">
         {(
           [
@@ -308,6 +320,12 @@ export function FieldDetail({
           )}
         </section>
       )}
+      <FieldChat
+        key={`chat:${field.id}:${lang}`}
+        fieldId={field.id}
+        lang={lang}
+        demo={demo}
+      />
     </>
   );
 }
