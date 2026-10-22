@@ -57,6 +57,16 @@ export function FieldForm({
       UZBEKISTAN_REGIONS_GEO["Toshkent viloyati"];
     return [r.lat, r.lng];
   }, [region]);
+  function closeBoundary() {
+    if (points.length < 3 || closed) return;
+    const issue = polygonError(points);
+    if (issue) {
+      setError(issue);
+      return;
+    }
+    setClosed(true);
+    setError("");
+  }
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (preview) return;
@@ -222,6 +232,7 @@ export function FieldForm({
           center={center}
           editable
           closed={closed}
+          onCloseBoundary={closeBoundary}
           onChange={(p) => {
             setPoints(p);
             setClosed(false);
@@ -242,13 +253,7 @@ export function FieldForm({
                   setClosed(false);
                   return;
                 }
-                const issue = polygonError(points);
-                if (issue) {
-                  setError(issue);
-                  return;
-                }
-                setClosed(true);
-                setError("");
+                closeBoundary();
               }}
             >
               {closed

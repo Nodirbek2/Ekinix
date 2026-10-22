@@ -11,6 +11,7 @@ export default function FieldMap({
   editable = false,
   closed = !editable,
   onChange,
+  onCloseBoundary,
   lang,
 }: {
   points: Point[];
@@ -18,6 +19,7 @@ export default function FieldMap({
   editable?: boolean;
   closed?: boolean;
   onChange?: (p: Point[]) => void;
+  onCloseBoundary?: () => void;
   lang: Lang;
 }) {
   const container = useRef<HTMLDivElement>(null),
@@ -25,10 +27,16 @@ export default function FieldMap({
     overlay = useRef<L.LayerGroup | null>(null),
     tiles = useRef<L.TileLayer | null>(null),
     leaflet = useRef<typeof L | null>(null);
-  const latest = useRef({ points, onChange, editable, closed });
+  const latest = useRef({
+    points,
+    onChange,
+    onCloseBoundary,
+    editable,
+    closed,
+  });
   useEffect(() => {
-    latest.current = { points, onChange, editable, closed };
-  }, [points, onChange, editable, closed]);
+    latest.current = { points, onChange, onCloseBoundary, editable, closed };
+  }, [points, onChange, onCloseBoundary, editable, closed]);
   const initial = useRef({ points, center });
   const [ready, setReady] = useState(false),
     [layer, setLayer] = useState<"street" | "satellite">("satellite"),
@@ -42,7 +50,7 @@ export default function FieldMap({
         const lib = mod.default;
         leaflet.current = lib;
         const m = lib
-          .map(container.current, { scrollWheelZoom: false })
+          .map(container.current, { scrollWheelZoom: true, maxZoom: 22 })
           .setView(initial.current.center, 14);
         map.current = m;
         overlay.current = lib.layerGroup().addTo(m);
@@ -85,7 +93,8 @@ export default function FieldMap({
           ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
-          maxZoom: 19,
+          maxZoom: 22,
+          maxNativeZoom: layer === "satellite" ? 17 : 19,
           attribution:
             layer === "satellite"
               ? "Tiles © Esri, Maxar, Earthstar Geographics"
@@ -122,15 +131,36 @@ export default function FieldMap({
       points.forEach((p, i) =>
         lib
           .circleMarker(p, {
-            radius: 5,
+            radius: i === 0 && !closed ? 9 : 5,
+            bubblingMouseEvents: false,
             color: "#fff",
             fillColor: "#31523a",
             fillOpacity: 1,
           })
-          .bindTooltip(String(i + 1))
+          .on("click", (e: L.LeafletMouseEvent) => {
+            lib.DomEvent.stopPropagation(e.originalEvent);
+            const current = latest.current;
+            if (
+              i === 0 &&
+              current.editable &&
+              !current.closed &&
+              current.points.length >= 3
+            )
+              current.onCloseBoundary?.();
+          })
+          .bindTooltip(
+            i === 0 && !closed && points.length >= 3
+              ? pick(
+                  lang,
+                  "Chegarani yopish",
+                  "Закрыть границу",
+                  "Close boundary",
+                )
+              : String(i + 1),
+          )
           .addTo(o),
       );
-  }, [points, editable, closed, ready]);
+  }, [points, editable, closed, ready, lang]);
   useEffect(() => {
     if (
       ready &&
@@ -314,9 +344,9 @@ export default function FieldMap({
               )
             : pick(
                 lang,
-                "10 tagacha nuqta qo‘ying, so‘ng “Chegarani yopish” tugmasini bosing.",
-                "Поставьте до 10 точек, затем нажмите «Закрыть границу».",
-                "Place up to 10 points, then press “Close boundary”.",
+                "10 tagacha nuqta qo‘ying. Kamida 3 nuqtadan so‘ng birinchi nuqtani yoki “Chegarani yopish” tugmasini bosing.",
+                "Поставьте от 3 до 10 точек, затем нажмите первую точку или «Закрыть границу».",
+                "Place 3–10 points, then click the first point or “Close boundary”.",
               )
           : pick(
               lang,

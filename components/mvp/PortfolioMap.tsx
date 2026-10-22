@@ -35,7 +35,11 @@ export default function PortfolioMap({
         if (disposed || !host.current) return;
         lib.current = mod.default;
         map.current = mod.default
-          .map(host.current, { scrollWheelZoom: false, zoomControl: false })
+          .map(host.current, {
+            scrollWheelZoom: true,
+            maxZoom: 22,
+            zoomControl: false,
+          })
           .setView([41.12, 69.02], 13);
         mod.default.control
           .zoom({ position: "bottomright" })
@@ -62,7 +66,8 @@ export default function PortfolioMap({
           ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
-          maxZoom: 19,
+          maxZoom: 22,
+          maxNativeZoom: satellite ? 17 : 19,
           attribution: satellite
             ? "© Esri, Maxar, Earthstar Geographics"
             : "© OpenStreetMap contributors",
