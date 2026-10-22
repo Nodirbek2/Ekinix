@@ -32,3 +32,6 @@ GEMINI_API_KEY is absent: optional AI explanation honestly reports unavailable. 
 
 ## Resume safely
 Read this file, MVP_PROGRESS.md, VERIFICATION.md and remote main/fix branch heads first. Do not repeat completed work or recreate test accounts unnecessarily. GitHub connector writes are needed because local push lacks credentials. Main points to the verified production code; fix/ekinix-mvp additionally holds the final documentation/screenshots checkpoint. Exact Vercel project ID prj_82wNd10Jh724BRz27RCMBFWAK4k5 works without teamId. Supabase xncvbfumfmyzucrkrgly. No secrets in logs or commits.
+
+## Latest extension — crop phases and irrigation planning
+The newer user request adds a ninth distinct screen (Irrigation planner) without replacing the actual irrigation journal. Production 864b8a1a9fc74bcef3abbea81c17981c54adf48a / dpl_DrTZU3RMExS2Qp2f6zJNtBXDB7qt READY. 24 crop profiles, 19 reference numeric models, 5 specialist guide-only profiles. See AGRONOMY_SYSTEM.md for authoritative implementation, sources, tests and browser checks. All earlier map/editor requirements remain. Latest code/build/test/browser QA completed; field calibration is an explicit remaining limit, not a reason to fabricate data. Final documentation lives on fix/ekinix-mvp ahead of main's verified code commit.

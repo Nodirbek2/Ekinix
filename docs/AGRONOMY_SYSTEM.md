@@ -43,3 +43,18 @@ Four water-accounting phases: initial, development, mid and late. These are not 
 
 ## Remaining agronomic validation
 Field trials and a local agronomist must calibrate coefficients, stage durations and application efficiency by variety, planting system, soils and local climate before claiming field-validated irrigation prescriptions. Optional FAO soil-water-balance initialization with farmer measurements, EC/groundwater, rice ponding, orchard canopy and alfalfa cutting cycles are future modules. Current estimates are planning support with the boundaries above.
+
+## Production release and browser evidence
+Production commit 864b8a1a9fc74bcef3abbea81c17981c54adf48a, deployment dpl_DrTZU3RMExS2Qp2f6zJNtBXDB7qt: READY, alias https://ekinix.vercel.app/ verified. Build duration ~55 seconds. Main retains this verified code release; fix/ekinix-mvp additionally contains the final QA documentation and screenshot.
+
+Live demo QA (all numeric examples below are explicitly labeled fixtures, not actual account observations):
+- Unconfirmed phase blocks all numeric budget output. Cotton mid-season confirmation shows 24.1–25.2 mm ETc and 3327–3472 m³ weekly planning volume for the 12.4 ha fixture.
+- 80% scenario rain credit changes replacement to 20.8–21.7 mm / 2868–2993 m³. Default does not credit forecast rain.
+- Salinity/groundwater/greenhouse toggle hides numeric output. Selecting dormancy resets confirmation; after confirmation active-season budget remains off.
+- Switching field resets confirmation and assumptions; tomato fixture 3.2 ha shows 24.1 mm / 859 m³ after explicit phase confirmation.
+- The 24 crop selectors and crop-specific phase options render in the editor. Changing tomato to winter wheat clears the inherited phase (value empty). No account records were changed.
+- Crop library search finds rice and winter wheat. Rice guide shows specialist-model limit; winter wheat explains dormancy. EN/RU/UZ navigation, phase and status translation verified.
+- Field register → tomato field detail → Irrigation planner preserves the tomato field (demo-3). Completed irrigation remains separate in the journal.
+- Scenario CSV triggers a download event with a non-null path. Browser-shared download bytes could not be reliably inspected in this environment; no attached CSV or byte-level browser export check is claimed.
+- Screenshot docs/agronomy-planner.jpg inspected and saved from production. Browser console scan showed extension metadata errors only, no Ekinix application errors in the inspected messages. Vercel server-log connector scope is still limited; no server-log scan is claimed.
+- Responsive styles are implemented; physical-phone visual QA and local agronomist/field-trial validation are not claimed. No Supabase migrations, owner fixture creation or destructive changes in this extension.
