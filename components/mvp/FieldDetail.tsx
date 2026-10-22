@@ -116,7 +116,6 @@ export function FieldDetail({
             ],
             [
               CalendarDays,
-              Camera,
               pick(lang, "Ekish sanasi", "Дата посадки", "Planting date"),
               field.planting_date ?? "—",
             ],
