@@ -31,3 +31,6 @@ Code findings:
 
 ## Remaining exact-field verification
 Automatic approval review rejected the direct request using private Supabase field coordinates to Earth Search, requiring explicit consent for precise field location disclosure to Earth Search / Element 84. The rejected request was not retried or routed through another mechanism. Work continued using synthetic test fixtures and unrelated public catalog samples. Do not invoke the private field monitoring API, prime its cache, or use a signed-in browser to bypass this block. Ask the user for permission to transmit their field boundaries to Earth Search and read its public Sentinel COGs for the exact-field final test. No claim that the user's specific field now has an observation is made until that test succeeds.
+
+## Deployment
+Commit e1aac05488be44546815d843e13737f9f5f5903d / deployment dpl_3EEBg7tRJUjiPRh8fiH3xQnnG1yr: READY, alias ekinix.vercel.app verified. Local build (218 kB first load), standalone lint and 25 tests passed. No private-field outbound test was performed after the approval rejection. Final QA checkpoint is on fix/ekinix-mvp; main retains the verified code release.
