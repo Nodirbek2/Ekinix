@@ -45,3 +45,5 @@ The earlier exact-field NDVI outbound approval block remains separate. Do not se
 - Official public example image returned COMPLETED with actual crop and disease suggestions. No private field data or user photo was transmitted.
 - Non-plant detections suppress all disease suggestions. 32 tests passed.
 - Promoting integration to main; authenticated full application inference and physical camera capture remain unverified.
+
+- Production deployment dpl_H9FcZaqpPbgGBzyQgd5JGZzN4sSC is READY; ekinix.vercel.app alias confirmed. Commit 20834649704f333823a17b330fa6beb9bf7dfe4d. Provider public-sample inference and normalization passed; signed-in browser submission remains unverified.
