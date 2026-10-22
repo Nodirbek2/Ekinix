@@ -6,3 +6,8 @@
 - Vertex click bubbling disabled so closing does not append a duplicate point. First vertex enlarged while drawing. Button-based close/reopen remains available; translated instructions updated.
 - Production build/type/lint passed before deployment. No private field data requested or modified.
 - Pending live browser verification at this checkpoint.
+
+## Production verification
+- Commit 42117d7f9ddb792c117c52d89686120f65c2057e deployed READY as dpl_89hnqTbaSPWvPJNy9DTizS5ipaXR on ekinix.vercel.app.
+- Chrome demo: placed three vertices; boundary stayed open. Added fourth, clicked first: boundary closed, count remained four, calculated area displayed, button changed to Reopen boundary. Nothing saved to database.
+- Actual mouse-wheel scroll zoomed in and out. At display zoom 22, rendered tile-container scaled native zoom-17 imagery by 32; no unavailable imagery message appeared. Deep zoom magnifies pixels and does not increase detail.
