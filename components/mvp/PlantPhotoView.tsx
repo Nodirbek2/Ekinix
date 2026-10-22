@@ -16,6 +16,7 @@ type PhotoResult = {
   generatedAt: string;
   source: string;
   model: string;
+  explanation?: string | null;
 };
 async function preparePhoto(file: File): Promise<File> {
   if (file.size > 20_000_000) throw Error("photo_too_large");
@@ -453,9 +454,9 @@ export function PlantPhotoView({
             <p className="photo-privacy">
               {pick(
                 lang,
-                "Tahlil tugmasi rasmni Kindwise crop.health xizmatiga yuboradi. Rasm Ekinix bazasiga saqlanmaydi; GPS metama’lumotlari yuborilmaydi.",
-                "Кнопка анализа отправляет фото в Kindwise crop.health. Фото не сохраняется в базе Ekinix; GPS-метаданные удаляются.",
-                "The analysis button sends the photo to Kindwise crop.health. Ekinix does not store the photo in its database; GPS metadata is removed.",
+                "Tahlil tugmasi rasmni Kindwise crop.health xizmatiga yuboradi. Izoh va ehtimoliy natijalar Groq orqali tushuntiriladi. Rasm Ekinix bazasiga saqlanmaydi; GPS metama’lumotlari yuborilmaydi.",
+                "Кнопка анализа отправляет фото в Kindwise crop.health; заметка и результаты передаются Groq для пояснения. Фото не сохраняется в базе Ekinix; GPS-метаданные удаляются.",
+                "The analysis button sends the photo to Kindwise crop.health; the note and suggestions go to Groq for explanation. Ekinix does not store the photo in its database; GPS metadata is removed.",
               )}
             </p>
             <button
@@ -682,11 +683,14 @@ function PhotoReport({ result, lang }: { result: PhotoResult; lang: Lang }) {
             "This is preliminary visual triage. No visible symptoms does not prove absence of disease. Verify important decisions in the field.",
           )}
         </div>
+        {result.explanation && (
+          <div className="photo-limit">
+            <strong>Groq AI</strong>
+            <p>{result.explanation}</p>
+          </div>
+        )}
         <small className="agro-caption">
-          {result.source === "kindwise"
-            ? "Kindwise crop.health"
-            : "Google Gemini"}{" "}
-          ·{" "}
+          {result.source === "kindwise" ? "Kindwise crop.health" : "Groq"} ·{" "}
           {new Date(result.generatedAt).toLocaleString(lang, {
             timeZone: "Asia/Tashkent",
           })}

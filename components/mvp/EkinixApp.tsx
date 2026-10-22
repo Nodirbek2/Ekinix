@@ -605,9 +605,9 @@ export default function EkinixApp() {
             <p>
               {pick(
                 lang,
-                "Prognoz uchun dala markazi Open-Meteo’ga, kuzatuvlar uchun chegara Copernicus yoki Earth Search’ga yuboriladi. Bazaviy xarita Esri/OpenStreetMap’dan, joy qidiruvi GeoNames/Open-Meteo’dan olinadi. AI tugmasidan foydalanganda kuzatuvlar Google Gemini’ga yuboriladi.",
-                "Центр поля передаётся Open-Meteo, границы — Copernicus или Earth Search. Базовая карта — Esri/OpenStreetMap; поиск мест — GeoNames/Open-Meteo. При использовании ИИ наблюдения отправляются Google Gemini.",
-                "The field center goes to Open-Meteo; boundaries go to Copernicus or Earth Search. Basemaps are from Esri/OpenStreetMap; location search uses GeoNames/Open-Meteo. Using AI sends observations to Google Gemini.",
+                "Prognoz uchun dala markazi Open-Meteo’ga, kuzatuvlar uchun chegara Copernicus yoki Earth Search’ga yuboriladi. Bazaviy xarita Esri/OpenStreetMap’dan, joy qidiruvi GeoNames/Open-Meteo’dan olinadi. AI tugmasidan foydalanganda kuzatuvlar Groq’ga yuboriladi.",
+                "Центр поля передаётся Open-Meteo, границы — Copernicus или Earth Search. Базовая карта — Esri/OpenStreetMap; поиск мест — GeoNames/Open-Meteo. При использовании ИИ наблюдения отправляются Groq.",
+                "The field center goes to Open-Meteo; boundaries go to Copernicus or Earth Search. Basemaps are from Esri/OpenStreetMap; location search uses GeoNames/Open-Meteo. Using AI sends observations to Groq.",
               )}
             </p>
             <p>
