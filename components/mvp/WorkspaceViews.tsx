@@ -35,6 +35,7 @@ import {
   type Lang,
   type Monitoring,
   type Observation,
+  type Satellite as SatelliteData,
   type Watering,
   type WeatherDay,
 } from "@/lib/domain";
@@ -174,9 +175,11 @@ export function EmptyFields({
 export function NDVIChart({
   observations,
   lang,
+  satellite,
 }: {
   observations: Observation[];
   lang: Lang;
+  satellite?: SatelliteData;
 }) {
   if (!observations.length)
     return (
@@ -191,13 +194,47 @@ export function NDVIChart({
           )}
         </p>
         <small>
-          {pick(
-            lang,
-            "Bulutli tasvirlar chiqarib tashlanadi.",
-            "Облачные наблюдения исключаются.",
-            "Cloud-contaminated observations are excluded.",
-          )}
+          {!satellite
+            ? pick(
+                lang,
+                "Kuzatuvlar hali yuklanmagan. Yangilash tugmasini bosing.",
+                "Наблюдения ещё не загружены. Нажмите обновить.",
+                "Observations are not loaded yet. Press refresh.",
+              )
+            : satellite.status === "no_clear_scene"
+              ? pick(
+                  lang,
+                  "Tekshirilgan tasvirlarda dala ichidagi yaroqli piksellar ulushi 50% ga yetmadi. Bulut, soya va yaroqsiz piksellar chiqariladi.",
+                  "В проверенных снимках пригодные пиксели поля не достигли 50%. Облака, тени и недействительные пиксели исключены.",
+                  "Usable field pixels did not reach 50% in the checked scenes. Clouds, shadows and invalid pixels are excluded.",
+                )
+              : satellite.diagnostic === "catalog_no_scenes"
+                ? pick(
+                    lang,
+                    "Qidiruv oralig‘ida bu hudud uchun katalog tasviri topilmadi.",
+                    "В каталоге нет снимков для области в выбранном периоде.",
+                    "No catalog scene was found for this area in the search period.",
+                  )
+                : pick(
+                    lang,
+                    "Tasvirni yuklash yoki hisoblash yakunlanmadi. Bu bulutli tasvir topildi degani emas; qayta urinib ko‘ring.",
+                    "Загрузка или расчёт снимка не завершены. Это не означает облачность; повторите запрос.",
+                    "Image retrieval or processing did not finish. This does not mean the scene is cloudy; try again.",
+                  )}
         </small>
+        {satellite?.search && (
+          <small>
+            {satellite.search.windowDays}{" "}
+            {pick(lang, "kunlik qidiruv", "дней поиска", "day search")} ·{" "}
+            {satellite.search.processed}/{satellite.search.candidates}{" "}
+            {pick(
+              lang,
+              "tasvir tekshirildi",
+              "снимков проверено",
+              "scenes checked",
+            )}
+          </small>
+        )}
       </div>
     );
   return (
@@ -1181,12 +1218,35 @@ export function SatelliteView(p: ViewProps) {
                 CSV
               </button>
             </div>
-            <NDVIChart observations={obs} lang={p.lang} />
+            <NDVIChart
+              observations={obs}
+              lang={p.lang}
+              satellite={m?.satellite}
+            />
+            <button
+              className="text-button"
+              disabled={p.demo}
+              onClick={() => p.onLoad(field.id)}
+            >
+              {pick(
+                p.lang,
+                "Shu dala NDVIsini yangilash",
+                "Обновить NDVI этого поля",
+                "Refresh this field NDVI",
+              )}
+            </button>
             <div className="source-line">
               Sentinel-2 ·{" "}
               {m?.satellite.source === "earth-search"
-                ? "Earth Search / Element 84"
-                : "Copernicus"}{" "}
+                ? "Earth Search / Element 84 · Sentinel‑2 C1"
+                : m?.satellite.source === "copernicus"
+                  ? "Copernicus"
+                  : pick(
+                      p.lang,
+                      "Manba hali olinmagan",
+                      "Источник ещё не получен",
+                      "Source not loaded",
+                    )}{" "}
               ·{" "}
               {pick(
                 p.lang,

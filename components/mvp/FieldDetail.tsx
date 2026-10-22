@@ -35,6 +35,7 @@ export function FieldDetail({
   onEdit,
   onRecord,
   onPlan,
+  onRefresh,
 }: {
   field: Field;
   monitoring?: Monitoring;
@@ -45,6 +46,7 @@ export function FieldDetail({
   onEdit: () => void;
   onRecord: () => void;
   onPlan: () => void;
+  onRefresh: () => void;
 }) {
   const [tab, setTab] = useState<"observations" | "weather" | "activity">(
       "observations",
@@ -178,12 +180,31 @@ export function FieldDetail({
               </h2>
               <Pill>{obs.length}</Pill>
             </div>
-            <NDVIChart observations={obs} lang={lang} />
+            <NDVIChart
+              observations={obs}
+              lang={lang}
+              satellite={monitoring?.satellite}
+            />
+            <button className="text-button" onClick={onRefresh} disabled={demo}>
+              {pick(
+                lang,
+                "NDVIni qayta tekshirish",
+                "Повторно проверить NDVI",
+                "Check NDVI again",
+              )}
+            </button>
             <div className="source-line">
               Sentinel-2 ·{" "}
               {monitoring?.satellite.source === "earth-search"
-                ? "Earth Search / Element 84"
-                : "Copernicus"}
+                ? "Earth Search / Element 84 · Sentinel‑2 C1"
+                : monitoring?.satellite.source === "copernicus"
+                  ? "Copernicus"
+                  : pick(
+                      lang,
+                      "Manba hali olinmagan",
+                      "Источник ещё не получен",
+                      "Source not loaded",
+                    )}
             </div>
           </section>
           <section className="panel ai-panel">

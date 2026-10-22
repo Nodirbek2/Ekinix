@@ -80,6 +80,15 @@ export interface Observation {
 export interface Satellite {
   source?: "copernicus" | "earth-search";
   diagnostic?: string;
+  collection?: string;
+  search?: {
+    windowDays: number;
+    candidates: number;
+    processed: number;
+    qualityRejected: number;
+    failed: number;
+    interrupted: boolean;
+  };
   status: "available" | "not_configured" | "unavailable" | "no_clear_scene";
   observations: Observation[];
   fetchedAt: string;

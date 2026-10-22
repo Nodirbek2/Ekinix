@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import "server-only";
-import { publicSatelliteFor } from "./public-satellite";
+import { publicSatelliteFor, reusableSatellite } from "./public-satellite";
 import type {
   Field,
   Weather,
@@ -189,7 +189,7 @@ export async function satelliteFor(field: Field): Promise<Satellite> {
   if (primary.status === "available" || primary.status === "no_clear_scene")
     return { ...primary, source: "copernicus" };
   const fallback = await publicSatelliteFor(field);
-  return { ...fallback, diagnostic: primary.diagnostic };
+  return { ...fallback, diagnostic: fallback.diagnostic ?? primary.diagnostic };
 }
 export async function getMonitoring(field: Field): Promise<Monitoring> {
   const admin = adminClient();
@@ -206,9 +206,15 @@ export async function getMonitoring(field: Field): Promise<Monitoring> {
   const age = matching
     ? Date.now() - Date.parse(matching.fetched_at)
     : Infinity;
-  if (matching && age < 1800000) return matching.payload as Monitoring;
+  if (
+    matching?.payload?.satellitePipelineVersion === 4 &&
+    age <
+      (matching.payload?.satellite?.status === "available" ? 1800000 : 120000)
+  )
+    return matching.payload as Monitoring;
   const old = matching?.payload as Monitoring | undefined;
   const satellitePromise =
+    reusableSatellite(old?.satellite) &&
     old?.satellite.status === "available" &&
     Date.now() - Date.parse(old.satellite.fetchedAt) < 6 * 3600000
       ? Promise.resolve(old.satellite)
@@ -223,7 +229,7 @@ export async function getMonitoring(field: Field): Promise<Monitoring> {
     fetchedAt: new Date().toISOString(),
   };
   // Keep previous real observations (with their original dates) if the provider is unavailable.
-  if (old?.satellite.observations.length) {
+  if (reusableSatellite(old?.satellite) && old?.satellite.observations.length) {
     const history = new Map(old.satellite.observations.map((o) => [o.date, o]));
     satellite.observations.forEach((o) => history.set(o.date, o));
     result.satellite = {
@@ -233,13 +239,22 @@ export async function getMonitoring(field: Field): Promise<Monitoring> {
         .slice(-100),
     };
   }
-  const { error } = await admin
-    .from("field_snapshots")
-    .upsert({
-      field_id: field.id,
-      payload: { ...result, boundaryFingerprint: fingerprint },
-      fetched_at: result.fetchedAt,
-    });
+  // Preserve legacy output for audit, but do not merge it into Collection 1 results.
+  const retiredSatellite =
+    matching?.payload?.retiredSatellite ??
+    (old?.satellite.observations.length && !reusableSatellite(old.satellite)
+      ? old.satellite
+      : undefined);
+  const { error } = await admin.from("field_snapshots").upsert({
+    field_id: field.id,
+    payload: {
+      ...result,
+      boundaryFingerprint: fingerprint,
+      satellitePipelineVersion: 4,
+      ...(retiredSatellite ? { retiredSatellite } : {}),
+    },
+    fetched_at: result.fetchedAt,
+  });
   if (error) console.error("[Ekinix] Snapshot persistence failed", error.code);
   return result;
 }

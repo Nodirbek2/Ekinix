@@ -481,6 +481,9 @@ export default function EkinixApp() {
                   onBack={() => navigate("fields")}
                   onEdit={() => setFieldForm(chosen)}
                   onRecord={() => setRecord(chosen)}
+                  onRefresh={() => {
+                    void farm.loadField(chosen.id);
+                  }}
                   onPlan={() => {
                     setPlanField(chosen.id);
                     navigate("planning");
