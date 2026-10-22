@@ -4006,3 +4006,237 @@ td {
     flex-wrap: wrap;
   }
 }
+
+/* Crop photo scouting */
+.photo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.photo-input {
+  overflow: hidden;
+}
+.photo-input form {
+  padding: 24px;
+}
+.photo-drop {
+  position: relative;
+  border: 1px dashed #bccdd6;
+  border-radius: 7px;
+  min-height: 280px;
+  background: #f7fafb;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photo-drop > img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 400px;
+  object-fit: contain;
+}
+.photo-placeholder {
+  text-align: center;
+  padding: 35px 24px;
+  color: #6d8c99;
+}
+.photo-placeholder > svg {
+  color: #7f9d98;
+  margin-bottom: 15px;
+}
+.photo-placeholder h3 {
+  font-size: 17px;
+  line-height: 1.5;
+  color: #38586b;
+}
+.photo-placeholder p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.photo-remove {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #d6dfe3;
+  border-radius: 6px;
+  background: white;
+  color: #8b5651;
+}
+.photo-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 17px 0 24px;
+}
+.photo-buttons .button {
+  flex: 1;
+  justify-content: center;
+}
+.photo-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.photo-form > label {
+  display: grid;
+  gap: 8px;
+  color: #5a7281;
+  font-size: 12px;
+  min-width: 0;
+}
+.photo-form select,
+.photo-form textarea {
+  width: 100%;
+  min-width: 0;
+}
+.photo-notes {
+  grid-column: 1/-1;
+}
+.photo-form textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+.photo-privacy {
+  font-size: 11px;
+  line-height: 1.85;
+  color: #758793;
+  margin: 20px 0 16px;
+}
+.photo-service {
+  margin-top: 18px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.photo-input form > .button {
+  width: 100%;
+  justify-content: center;
+}
+.photo-guide {
+  padding: 30px;
+}
+.photo-guide > svg {
+  color: #72958c;
+  margin-bottom: 24px;
+}
+.photo-guide h2 {
+  font-size: 21px;
+  line-height: 1.5;
+  margin-bottom: 25px;
+}
+.photo-tip {
+  display: flex;
+  gap: 17px;
+  margin: 24px 0;
+}
+.photo-tip > span {
+  font-size: 12px;
+  color: #93a5af;
+  margin-top: 3px;
+}
+.photo-tip h3 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.photo-tip p {
+  font-size: 13px;
+  color: #6f838f;
+  line-height: 1.8;
+  margin: 0;
+}
+.photo-limit {
+  padding: 18px;
+  background: #f4f7f8;
+  border-left: 3px solid #99afa8;
+  color: #647d89;
+  font-size: 12px;
+  line-height: 1.9;
+  margin-top: 25px;
+}
+.photo-report-body {
+  padding: 24px;
+}
+.photo-summary {
+  font-size: 15px;
+  line-height: 1.9;
+  color: #3d5d6f;
+  margin: 0 0 25px;
+}
+.photo-report h3 {
+  font-size: 14px;
+  margin: 25px 0 12px;
+}
+.photo-report ul {
+  padding-left: 20px;
+  color: #586f7e;
+  font-size: 13px;
+  line-height: 1.85;
+}
+.photo-report li + li {
+  margin-top: 8px;
+}
+.photo-cause {
+  padding: 17px;
+  border: 1px solid #e3e9ed;
+  border-radius: 5px;
+  margin: 12px 0;
+}
+.photo-cause h4 {
+  font-size: 14px;
+  margin: 0 0 9px;
+}
+.photo-cause p,
+.photo-cause small {
+  font-size: 12px;
+  line-height: 1.85;
+  color: #637c89;
+}
+.photo-cause small {
+  display: block;
+  color: #39705e;
+}
+.photo-report .agro-caption {
+  display: block;
+  margin-top: 20px;
+}
+.photo-drop .busy {
+  padding: 25px;
+}
+@media (max-width: 1000px) {
+  .photo-layout {
+    grid-template-columns: 1fr;
+  }
+  .photo-guide {
+    padding: 25px;
+  }
+  .photo-drop {
+    min-height: 230px;
+  }
+}
+@media (max-width: 540px) {
+  .photo-input form,
+  .photo-report-body {
+    padding: 18px;
+  }
+  .photo-form {
+    grid-template-columns: 1fr;
+  }
+  .photo-notes {
+    grid-column: auto;
+  }
+  .photo-placeholder {
+    padding: 25px 15px;
+  }
+  .photo-guide h2 {
+    font-size: 19px;
+  }
+  .photo-buttons .button {
+    font-size: 12px;
+  }
+}

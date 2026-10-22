@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import {
   BookOpen,
+  Camera,
   ChevronRight,
   CloudSun,
   Droplets,
@@ -35,6 +36,7 @@ import {
   type ViewProps,
 } from "./WorkspaceViews";
 import { GuideView, IrrigationPlanView } from "./AgronomyViews";
+import { PlantPhotoView } from "./PlantPhotoView";
 import { SettingsView } from "./SettingsView";
 import { FieldDetail } from "./FieldDetail";
 import { useFarmData } from "./useFarmData";
@@ -43,6 +45,7 @@ const nav = [
   { id: "fields", icon: Layers },
   { id: "satellite", icon: Satellite },
   { id: "weather", icon: CloudSun },
+  { id: "photo", icon: Camera },
   { id: "planning", icon: Droplets },
   { id: "irrigation", icon: BookOpen },
   { id: "reports", icon: FileBarChart2 },
@@ -67,6 +70,7 @@ export default function EkinixApp() {
     [auth, setAuth] = useState<"login" | "register" | "recovery" | null>(null),
     [tab, setTab] = useState<Section>("overview"),
     [selected, setSelected] = useState<string | null>(null),
+    [photoField, setPhotoField] = useState<string | null>(null),
     [planField, setPlanField] = useState<string | null>(null),
     [fieldForm, setFieldForm] = useState<Field | "new" | null>(null),
     [demo, setDemo] = useState(false),
@@ -481,6 +485,10 @@ export default function EkinixApp() {
                   onBack={() => navigate("fields")}
                   onEdit={() => setFieldForm(chosen)}
                   onRecord={() => setRecord(chosen)}
+                  onPhoto={() => {
+                    setPhotoField(chosen.id);
+                    navigate("photo");
+                  }}
                   onRefresh={() => {
                     void farm.loadField(chosen.id);
                   }}
@@ -500,6 +508,14 @@ export default function EkinixApp() {
                 <SatelliteView {...view} />
               ) : tab === "weather" ? (
                 <WeatherView {...view} />
+              ) : tab === "photo" ? (
+                <PlantPhotoView
+                  key={`${shownProfile.id}:${photoField ?? "new"}:${lang}`}
+                  fields={active}
+                  lang={lang}
+                  demo={demo}
+                  initialFieldId={photoField}
+                />
               ) : tab === "planning" ? (
                 <IrrigationPlanView
                   key={planField ?? "default"}

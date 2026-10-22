@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import {
   ArrowLeft,
   CalendarDays,
+  Camera,
   CloudRain,
   Droplets,
   Layers,
@@ -36,6 +37,7 @@ export function FieldDetail({
   onRecord,
   onPlan,
   onRefresh,
+  onPhoto,
 }: {
   field: Field;
   monitoring?: Monitoring;
@@ -47,6 +49,7 @@ export function FieldDetail({
   onRecord: () => void;
   onPlan: () => void;
   onRefresh: () => void;
+  onPhoto: () => void;
 }) {
   const [tab, setTab] = useState<"observations" | "weather" | "activity">(
       "observations",
@@ -84,6 +87,10 @@ export function FieldDetail({
         <button className="button secondary" onClick={onEdit}>
           {t(lang, "edit")}
         </button>
+        <button className="button secondary" onClick={onPhoto}>
+          <Camera size={15} />
+          {pick(lang, "Rasmni tahlil qilish", "Анализ фото", "Analyze a photo")}
+        </button>
         <button className="button secondary" onClick={onPlan}>
           <Droplets size={15} />
           {pick(lang, "Sug‘orish rejasi", "План полива", "Irrigation planner")}
@@ -109,6 +116,7 @@ export function FieldDetail({
             ],
             [
               CalendarDays,
+              Camera,
               pick(lang, "Ekish sanasi", "Дата посадки", "Planting date"),
               field.planting_date ?? "—",
             ],

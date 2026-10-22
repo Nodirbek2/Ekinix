@@ -66,3 +66,6 @@ Agronomy extension released: 864b8a1 / dpl_DrTZU3RMExS2Qp2f6zJNtBXDB7qt READY on
 
 ## NDVI empty-results repair — 2026-10-22
 New user report: zero NDVI with misleading cloud explanation. Added Collection 1 public COG source, 90-day/48-candidate bounded search, accurate processing/quality diagnostics, cache version 4, preserved unverified legacy snapshot output outside current history, and targeted refresh/empty UI fixes. 25 regression tests pass; public unrelated USA sample returned 2 actual observations in 14.1s. See NDVI_FIX.md. Exact private-field outbound test requires user consent after auto-review rejection; do not bypass. No private coordinates or copied account records in GitHub artifacts.
+
+## Crop photo analysis extension — 2026-10-22
+New user asks for a dedicated crop/harvest health photo-analysis screen. Implemented camera/file upload, optional field/standalone crop, notes, privacy-preserving JPEG preparation, authenticated bounded multipart Gemini endpoint with shared AI quota, and tri-language structured visual assessment UI. Preview works without a provider key; no fake diagnoses. 29 tests and lint/types/build gates pass. See PHOTO_ANALYSIS.md for data path, configuration and live QA. No DB migrations. GEMINI_API_KEY remains required for real image inference; verify current production availability after release.

@@ -13,6 +13,7 @@ export type Section =
   | "fields"
   | "satellite"
   | "weather"
+  | "photo"
   | "planning"
   | "irrigation"
   | "reports"
@@ -27,6 +28,7 @@ export const sectionName = (l: Lang, s: Section) =>
         fields: ["Dalalar", "Поля", "Fields"],
         satellite: ["Sun’iy yo‘ldosh", "Спутник", "Satellite"],
         weather: ["Ob-havo", "Погода", "Weather"],
+        photo: ["Rasm orqali tahlil", "Анализ по фото", "Photo analysis"],
         planning: ["Sug‘orish rejasi", "План полива", "Irrigation planner"],
         irrigation: [
           "Sug‘orish jurnali",
