@@ -210,6 +210,32 @@ export const adviceText = (l: Lang, c: AdviceCode) =>
   );
 export function errorText(l: Lang, code: string) {
   const errors: Record<string, [string, string, string]> = {
+    monitoring_unavailable: [
+      "Dala kuzatuvlarini yuklab bo‘lmadi. Keyinroq “Kuzatuvlarni yangilash”ni bosing. Dala ma’lumotlari saqlangan.",
+      "Не удалось загрузить наблюдения. Позже нажмите «Обновить наблюдения». Данные полей сохранены.",
+      "Field observations could not load. Try Refresh observations later. Your field records are saved.",
+    ],
+    database_error: [
+      "Saqlangan ma’lumotlarni hozir o‘qib bo‘lmadi. Ulanishni tekshirib, qayta urinib ko‘ring.",
+      "Не удалось получить сохранённые данные. Проверьте соединение и повторите.",
+      "Saved records could not be loaded. Check your connection and retry.",
+    ],
+    network_error: [
+      "Serverga ulanib bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.",
+      "Нет соединения с сервером. Проверьте интернет и повторите.",
+      "Could not connect to the server. Check your internet and retry.",
+    ],
+    request_timeout: [
+      "So‘rov javobi kechikdi. Keyinroq kuzatuvlarni yangilang.",
+      "Время ожидания ответа истекло. Обновите наблюдения позже.",
+      "The request timed out. Refresh observations later.",
+    ],
+    service_unavailable: [
+      "Xizmat hozir javob bermayapti. Keyinroq qayta urinib ko‘ring.",
+      "Сервис сейчас не отвечает. Повторите позже.",
+      "The service is not responding. Please retry later.",
+    ],
+
     boundary_open: [
       "Avval “Chegarani yopish” tugmasini bosing.",
       "Сначала нажмите «Закрыть границу».",

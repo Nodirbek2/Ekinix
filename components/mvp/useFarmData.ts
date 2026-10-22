@@ -1,4 +1,5 @@
 "use client";
+import { monitoringError } from "@/lib/api-errors";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, requireClient } from "@/lib/supabase";
 import type { Field, Monitoring, Watering } from "@/lib/domain";
@@ -7,7 +8,8 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
   const [data, setData] = useState<Record<string, Monitoring>>({}),
     [water, setWater] = useState<Watering[]>([]),
     [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
+    [error, setError] = useState(""),
+    [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const owner = useRef(account),
     pending = useRef(new Set<string>()),
     revision = useRef(0);
@@ -25,11 +27,17 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
       const expected = account;
       try {
         const m = await api<Monitoring>(`/api/monitoring?fieldId=${id}`);
-        if (owner.current === expected && revision.current === generation)
+        if (owner.current === expected && revision.current === generation) {
           setData((old) => ({ ...old, [id]: m }));
-      } catch {
+          setFieldErrors((old) => {
+            const next = { ...old };
+            delete next[id];
+            return next;
+          });
+        }
+      } catch (e) {
         if (owner.current === expected && revision.current === generation)
-          setError("request_failed");
+          setFieldErrors((old) => ({ ...old, [id]: monitoringError(e) }));
       } finally {
         pending.current.delete(requestKey);
       }
@@ -62,6 +70,7 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
     queueMicrotask(async () => {
       if (!live || demo) return;
       setData({});
+      setFieldErrors({});
       setBusy(true);
       setError("");
       await Promise.all([
@@ -103,7 +112,7 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
     data: demo ? demoMonitoring : data,
     water: demo ? demoWaterings : water,
     busy: demo ? false : busy,
-    error: demo ? "" : error,
+    error: demo ? "" : error || Object.values(fieldErrors)[0] || "",
     loadField,
     loadWater,
   };
