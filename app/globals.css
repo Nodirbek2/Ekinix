@@ -4416,3 +4416,26 @@ input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-
 .compact-landing .public-header,.compact-landing .public-footer{width:100%;max-width:none;margin:0}
 .compact-landing .public-footer{color:#637359}
 .welcome-preview{transform:none}
+/* Public welcome colour correction: clearer contrast, no yellow-green wash. */
+.compact-landing{background:#e5ece8;color:#193d34}
+.compact-landing .public-header{background:#f3f7f4;border-color:#cbd9d1}
+.welcome-badge{background:#d4e7dc;border-color:#b7d3c2;color:#285943}
+.welcome-copy h1{color:#153e33}
+.welcome-copy h1 span{color:#267865}
+.welcome-copy>p{color:#4d675c}
+.welcome-features span{color:#2e5947}
+.welcome-features svg{color:#35836a}
+.welcome-actions .button.primary{background:#1b5944;border-color:#1b5944;color:#fff}
+.welcome-actions .button.primary:hover{background:#124b38}
+.welcome-actions .button.secondary{background:#f7faf8;border-color:#9db8aa;color:#214e3d}
+.welcome-actions .button.secondary:hover{background:#d4e7dc}
+.welcome-note{color:#577063}
+.welcome-preview{background:#f3f7f4;border-color:#b8cfc0;box-shadow:0 18px 42px #1b4b3620}
+.welcome-preview-head{background:#163f32;color:#f0f8f3}
+.welcome-preview-head>small{color:#d1eadb;border-color:#84af98}
+.welcome-preview-foot{color:#4d6858;background:#f0f6f1}
+.welcome-steps{background:#d8e4dc;border:1px solid #c3d3c8;border-radius:12px;padding:20px 22px;gap:24px}
+.welcome-steps>div{color:#305a44;font-weight:500}
+.welcome-steps b,.welcome-steps svg{color:#5f856e}
+.compact-landing .public-footer{background:#dce6df;border-color:#c4d4c9;color:#496653}
+@media(max-width:700px){.welcome-steps{padding:15px 12px;gap:10px}.welcome-note{font-size:12px}.welcome-features span{font-size:12px}}

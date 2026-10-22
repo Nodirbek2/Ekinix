@@ -1,0 +1,2 @@
+# Welcome contrast correction — 2026-10-22
+Read the user's attachment successfully from workspace. It shows the retired long landing page (capability cards and repeated closing section), not the current compact layout. Current compact page retained. Adjusted only its palette: cooler grey-green canvas, deep forest heading, teal emphasis, higher-contrast copy, clear green primary action and structured step strip. Removed yellow-green cast from welcome surfaces. Existing workspace palette/data/behavior unchanged. Deployment and visual verification pending.
