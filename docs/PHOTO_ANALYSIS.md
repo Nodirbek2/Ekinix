@@ -24,3 +24,10 @@ GEMINI_API_KEY in Vercel production is required. Optional model override: GEMINI
 29 regression tests pass (4 new image-signature/output-contract cases plus25 existing tests). TypeScript passes and production build/lint gate passes. Live upload/availability and deployment evidence appended after release. Actual model analysis cannot be claimed until a configured API key and image-inference round trip succeed. Phone camera behavior requires physical-phone testing.
 
 The earlier exact-field NDVI outbound approval block remains separate. Do not send private field coordinates for testing without its required consent. Photo analysis does not request or forward field coordinates.
+
+## Production verification — 2026-10-22
+- Production commit: b1be2a0de99ba079a1d60317db7af033d4604a42.
+- Vercel deployment dpl_E1fWDZTTnYBCGccEgS19uFVB1ZXj: READY.
+- Live demo navigation, photo selection, client-side preview and removal verified in Chrome. Public demo screenshot used only as a local preview fixture; no photo sent to Gemini.
+- Live GET configuration: available=false. Live unauthenticated POST: 401 session_expired.
+- Blocker: GEMINI_API_KEY absent in production; real model inference remains unverified. Configure the key securely in Vercel Production and redeploy before claiming AI analysis active. Phone camera capture remains unverified on physical hardware.
