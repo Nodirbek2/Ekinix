@@ -15,6 +15,7 @@ import {
   ALL_UZBEKISTAN_REGIONS,
   UZBEKISTAN_REGIONS_GEO,
 } from "@/lib/geoConstants";
+import { cropProfile } from "@/lib/crop-catalog";
 import { stageLabel, t } from "@/lib/copy";
 import { requireClient } from "@/lib/supabase";
 import { Modal, Busy, ErrorNotice } from "./ui";
@@ -37,6 +38,12 @@ export function FieldForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const [selectedCrop, setSelectedCrop] = useState(
+    field?.crop_type ?? "cotton",
+  );
+  const [selectedStage, setSelectedStage] = useState(
+    field?.stage_override ?? "",
+  );
   const [closed, setClosed] = useState(Boolean(field));
   const [points, setPoints] = useState<Point[]>(field?.coordinates_json ?? []),
     [region, setRegion] = useState(field?.region ?? "Toshkent viloyati"),
@@ -141,7 +148,14 @@ export function FieldForm({
           </label>
           <label>
             {t(lang, "crop")}
-            <select name="crop" defaultValue={field?.crop_type ?? "cotton"}>
+            <select
+              name="crop"
+              value={selectedCrop}
+              onChange={(e) => {
+                setSelectedCrop(e.target.value);
+                setSelectedStage("");
+              }}
+            >
               {field && !crops.some((c) => c.id === field.crop_type) && (
                 <option value={field.crop_type}>{field.crop_type}</option>
               )}
@@ -162,16 +176,31 @@ export function FieldForm({
           </label>
           <label>
             {t(lang, "stage")}
-            <select name="stage" defaultValue={field?.stage_override ?? ""}>
+            <select
+              name="stage"
+              value={selectedStage}
+              onChange={(e) => setSelectedStage(e.target.value as Stage | "")}
+            >
               <option value="">{t(lang, "autoStage")}</option>
               {(
                 ["initial", "development", "mid", "late", "harvest"] as Stage[]
               ).map((s) => (
                 <option key={s} value={s}>
-                  {stageLabel(lang, s)}
+                  {s !== "harvest"
+                    ? (cropProfile(selectedCrop)?.phases[s][lang] ??
+                      stageLabel(lang, s))
+                    : stageLabel(lang, s)}
                 </option>
               ))}
             </select>
+            <small className="muted">
+              {pick(
+                lang,
+                "Dalada ko‘rilgan fazani tanlang. Sana taxmini — tasdiq emas; kuzgi va ko‘p yillik ekinlarda fazani qo‘lda belgilang.",
+                "Выберите наблюдаемую фазу. Оценка по дате не является подтверждением; для озимых и многолетних укажите фазу вручную.",
+                "Select the observed phase. Calendar estimates are not confirmation; set winter and perennial phases manually.",
+              )}
+            </small>
           </label>
           <label>
             {t(lang, "method")}

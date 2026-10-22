@@ -34,6 +34,7 @@ export function FieldDetail({
   onBack,
   onEdit,
   onRecord,
+  onPlan,
 }: {
   field: Field;
   monitoring?: Monitoring;
@@ -43,6 +44,7 @@ export function FieldDetail({
   onBack: () => void;
   onEdit: () => void;
   onRecord: () => void;
+  onPlan: () => void;
 }) {
   const [tab, setTab] = useState<"observations" | "weather" | "activity">(
       "observations",
@@ -79,6 +81,10 @@ export function FieldDetail({
       >
         <button className="button secondary" onClick={onEdit}>
           {t(lang, "edit")}
+        </button>
+        <button className="button secondary" onClick={onPlan}>
+          <Droplets size={15} />
+          {pick(lang, "Sug‘orish rejasi", "План полива", "Irrigation planner")}
         </button>
         <button className="button primary" disabled={demo} onClick={onRecord}>
           <Droplets size={15} />

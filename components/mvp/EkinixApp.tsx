@@ -32,9 +32,9 @@ import {
   WeatherView,
   JournalView,
   ReportsView,
-  GuideView,
   type ViewProps,
 } from "./WorkspaceViews";
+import { GuideView, IrrigationPlanView } from "./AgronomyViews";
 import { SettingsView } from "./SettingsView";
 import { FieldDetail } from "./FieldDetail";
 import { useFarmData } from "./useFarmData";
@@ -43,7 +43,8 @@ const nav = [
   { id: "fields", icon: Layers },
   { id: "satellite", icon: Satellite },
   { id: "weather", icon: CloudSun },
-  { id: "irrigation", icon: Droplets },
+  { id: "planning", icon: Droplets },
+  { id: "irrigation", icon: BookOpen },
   { id: "reports", icon: FileBarChart2 },
   { id: "guide", icon: BookOpen },
 ] as const;
@@ -66,6 +67,7 @@ export default function EkinixApp() {
     [auth, setAuth] = useState<"login" | "register" | "recovery" | null>(null),
     [tab, setTab] = useState<Section>("overview"),
     [selected, setSelected] = useState<string | null>(null),
+    [planField, setPlanField] = useState<string | null>(null),
     [fieldForm, setFieldForm] = useState<Field | "new" | null>(null),
     [demo, setDemo] = useState(false),
     [privacy, setPrivacy] = useState(false);
@@ -479,6 +481,10 @@ export default function EkinixApp() {
                   onBack={() => navigate("fields")}
                   onEdit={() => setFieldForm(chosen)}
                   onRecord={() => setRecord(chosen)}
+                  onPlan={() => {
+                    setPlanField(chosen.id);
+                    navigate("planning");
+                  }}
                 />
               ) : tab === "overview" ? (
                 <FarmOverview {...view} />
@@ -491,6 +497,12 @@ export default function EkinixApp() {
                 <SatelliteView {...view} />
               ) : tab === "weather" ? (
                 <WeatherView {...view} />
+              ) : tab === "planning" ? (
+                <IrrigationPlanView
+                  key={planField ?? "default"}
+                  {...view}
+                  initialFieldId={planField}
+                />
               ) : tab === "irrigation" ? (
                 <JournalView {...view} />
               ) : tab === "reports" ? (

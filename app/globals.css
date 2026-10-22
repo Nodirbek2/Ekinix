@@ -3614,3 +3614,395 @@ td {
     grid-template-columns: repeat(7, 90px);
   }
 }
+
+/* Agronomy library and sensor-free water planning */
+.agro-library {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.crop-library-nav {
+  padding: 16px;
+  position: sticky;
+  top: 100px;
+}
+.crop-library-nav > label {
+  font-size: 12px;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+}
+.crop-library-nav input {
+  width: 100%;
+  min-width: 0;
+}
+.crop-library-nav nav {
+  margin-top: 15px;
+  max-height: 62vh;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+}
+.crop-library-nav nav button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  padding: 12px 9px;
+  border: 0;
+  background: transparent;
+  color: #536979;
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.crop-library-nav nav button.active {
+  background: #eaf2f5;
+  color: #23495b;
+  font-weight: 650;
+}
+.crop-library-nav nav button svg {
+  flex-shrink: 0;
+}
+.agro-guide {
+  margin-top: 24px;
+  overflow: hidden;
+}
+.agro-library .agro-guide {
+  margin-top: 0;
+}
+.phase-cards {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.phase-cards article {
+  padding: 20px;
+  border: 1px solid #e1e7eb;
+  border-radius: 6px;
+  min-width: 0;
+}
+.phase-cards article.selected {
+  border-color: #6c9b8c;
+  background: #f1f8f4;
+  box-shadow: inset 3px 0 #6c9b8c;
+}
+.phase-cards article > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.phase-number {
+  font-size: 12px;
+  color: #8196a3;
+  font-variant-numeric: tabular-nums;
+}
+.phase-cards h3 {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 16px 0 9px;
+}
+.phase-cards p,
+.agro-local p {
+  font-size: 13px;
+  line-height: 1.75;
+  color: #586f7d;
+  margin: 0;
+}
+.phase-cards small {
+  display: block;
+  margin-top: 16px;
+  font-size: 12px;
+  color: #2a6454;
+  font-weight: 650;
+}
+.agro-local {
+  margin: 0 24px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  background: #f4f7f8;
+  border-radius: 5px;
+}
+.agro-local svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+  color: #6d9184;
+}
+.agro-caption {
+  font-size: 12px;
+  line-height: 1.75;
+  color: #637b89;
+  margin: 16px 0;
+}
+.agro-guide > .agro-caption {
+  margin: 18px 24px;
+}
+.agro-sources {
+  padding: 20px 24px;
+  border-top: 1px solid #e4e9ec;
+  font-size: 12px;
+  color: #536e7b;
+}
+.agro-sources summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.agro-sources p {
+  line-height: 1.8;
+}
+.agro-sources a {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  color: #315e77;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.agro-related {
+  margin-top: 24px;
+  padding: 24px;
+}
+.agro-related h2 {
+  font-size: 16px;
+}
+.agro-related > p {
+  font-size: 13px;
+  color: #697e8a;
+}
+.planner-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.55fr);
+  gap: 24px;
+  margin-top: 20px;
+  align-items: start;
+}
+.planner-inputs {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+.planner-inputs label:not(.planner-check) {
+  display: grid;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 550;
+  color: #536c7b;
+}
+.planner-inputs .agro-caption {
+  margin: 0;
+}
+.planner-inputs select,
+.planner-inputs input[type="number"] {
+  width: 100%;
+  min-width: 0;
+}
+.planner-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #4f6978;
+  cursor: pointer;
+}
+.planner-check input {
+  width: 17px;
+  height: 17px;
+  min-height: 17px;
+  flex-shrink: 0;
+  margin: 2px 0 0;
+  accent-color: #347969;
+}
+.planner-result {
+  overflow: hidden;
+}
+.planner-status {
+  padding: 22px 26px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #3b5a6e;
+  background: #f7fafb;
+  border-bottom: 1px solid #e8edf0;
+}
+.water-metrics {
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.water-metrics > div:last-child {
+  grid-column: 1/-1;
+  padding-top: 20px;
+  border-top: 1px solid #e4eaed;
+}
+.water-metrics small {
+  display: block;
+  font-size: 12px;
+  color: #6b808e;
+  line-height: 1.7;
+}
+.water-metrics strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 28px;
+  letter-spacing: -1px;
+  color: #2a495b;
+  overflow-wrap: anywhere;
+}
+.water-metrics strong span {
+  font-size: 15px;
+  letter-spacing: 0;
+  color: #718692;
+}
+.planner-equation {
+  margin: 0 24px;
+  background: #f2f6f8;
+  padding: 16px;
+  font-size: 12px;
+  line-height: 2;
+  color: #44677c;
+  border-radius: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.planner-boundary {
+  font-size: 12px;
+  line-height: 1.85;
+  color: #6a7c86;
+  margin: 18px 24px;
+}
+.planner-result > .button {
+  margin: 0 24px 24px;
+}
+.planner-next {
+  border-top: 1px solid #e2e9ed;
+  padding: 24px;
+}
+.planner-next h3 {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+.planner-next p {
+  font-size: 13px;
+  color: #58707e;
+  line-height: 1.8;
+  margin: 0 0 14px;
+}
+.planner-alerts {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0;
+}
+.planner-alerts .notice {
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 16px;
+}
+.planner-alerts + .panel {
+  margin-top: 20px;
+}
+.agro-empty {
+  padding: 40px;
+}
+.agro-empty h2 {
+  font-size: 20px;
+}
+.agro-empty p {
+  font-size: 14px;
+  color: #687f8d;
+  margin: 18px 0;
+}
+.sidebar nav {
+  min-height: 0;
+  overflow-y: auto;
+}
+.sidebar nav button {
+  flex-shrink: 0;
+}
+@media (max-width: 1100px) {
+  .planner-layout {
+    grid-template-columns: 1fr 1.2fr;
+    gap: 16px;
+  }
+  .agro-library {
+    grid-template-columns: 190px minmax(0, 1fr);
+    gap: 16px;
+  }
+  .phase-cards {
+    padding: 18px;
+    gap: 12px;
+  }
+  .phase-cards article {
+    padding: 16px;
+  }
+  .water-metrics strong {
+    font-size: 24px;
+  }
+}
+@media (max-width: 850px) {
+  .planner-layout {
+    grid-template-columns: 1fr;
+  }
+  .planner-inputs {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+  .planner-inputs > .planner-check,
+  .planner-inputs > .agro-caption,
+  .planner-inputs > .text-button {
+    grid-column: 1/-1;
+  }
+  .agro-library {
+    grid-template-columns: 1fr;
+  }
+  .crop-library-nav {
+    position: static;
+  }
+  .crop-library-nav nav {
+    display: flex;
+    max-height: none;
+    overflow-x: auto;
+    gap: 6px;
+  }
+  .crop-library-nav nav button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .phase-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 540px) {
+  .phase-cards {
+    grid-template-columns: 1fr;
+  }
+  .planner-inputs {
+    grid-template-columns: 1fr;
+    padding: 20px;
+  }
+  .water-metrics {
+    padding: 20px;
+    gap: 16px;
+  }
+  .water-metrics strong {
+    font-size: 23px;
+  }
+  .agro-local {
+    margin: 0 18px;
+  }
+  .agro-guide > .agro-caption {
+    margin: 16px 18px;
+  }
+  .agro-sources {
+    padding: 18px;
+  }
+  .planner-result .panel-heading {
+    align-items: flex-start;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+}
