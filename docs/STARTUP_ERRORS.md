@@ -15,3 +15,5 @@ Changes:
 - 34 tests passed including non-JSON gateway/status handling; production build/types/lint passed.
 
 Limit: exact underlying request failure on the user's authenticated account is not reproduced or established. No private monitoring API triggered because the earlier coordinate-transmission approval block remains unresolved. Do not claim satellite/network/database root cause fixed. Public demo cannot reproduce authenticated provider requests. Current connector team inventory returned no teams, so production runtime-log access was not available in this pass.
+
+Production: commit f8f43a78692be76557df27dad7949dea90744242 deployed READY as dpl_EYEV5zSyMXgNSLLe9Kup4BWqLDNg; primary ekinix.vercel.app alias confirmed. Underlying authenticated failure remains unverified.
