@@ -31,3 +31,11 @@ The earlier exact-field NDVI outbound approval block remains separate. Do not se
 - Live demo navigation, photo selection, client-side preview and removal verified in Chrome. Public demo screenshot used only as a local preview fixture; no photo sent to Gemini.
 - Live GET configuration: available=false. Live unauthenticated POST: 401 session_expired.
 - Blocker: GEMINI_API_KEY absent in production; real model inference remains unverified. Configure the key securely in Vercel Production and redeploy before claiming AI analysis active. Phone camera capture remains unverified on physical hardware.
+
+## Kindwise integration checkpoint — 2026-10-22
+- Server-only KINDWISE_CROP_HEALTH_API_KEY saved as a Production secret through Vercel; never committed or exposed to browser.
+- Added crop.health adapter using official POST /api/v1/identification, Api-Key header and inline base64 image. No location, field ID or notes sent to Kindwise.
+- Provider suggestions are displayed as possibilities, not confirmed diagnoses. Treatment text is excluded. Provider names remain in original language; surrounding explanation is localized.
+- Public official sample-image test returned HTTP 401. Key authentication is blocked; do not claim live inference success. Uploaded attachment was unavailable, and was not used.
+- Integration staged on fix/ekinix-mvp, pending a working crop.health key before production code promotion. Existing production code unchanged; new secret alone does not activate existing deployments.
+- 31 tests passed; production build passed.

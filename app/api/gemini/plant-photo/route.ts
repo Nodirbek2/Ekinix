@@ -1,3 +1,4 @@
+import { kindwiseAnalysis } from "@/lib/kindwise-photo";
 import { NextResponse } from "next/server";
 import {
   ApiError,
@@ -15,7 +16,12 @@ import {
 export const maxDuration = 60;
 export async function GET() {
   return NextResponse.json(
-    { available: Boolean(process.env.GEMINI_API_KEY), maxPhotoBytes },
+    {
+      available: Boolean(
+        process.env.KINDWISE_CROP_HEALTH_API_KEY || process.env.GEMINI_API_KEY,
+      ),
+      maxPhotoBytes,
+    },
     { headers: { "Cache-Control": "no-store" } },
   );
 }
@@ -89,11 +95,41 @@ export async function POST(req: Request) {
     }
     const notes = String(form.get("notes") ?? "").trim();
     if (notes.length > 1200) throw new ApiError(400, "invalid_request");
-    const key = process.env.GEMINI_API_KEY;
+    const kindwiseKey = process.env.KINDWISE_CROP_HEALTH_API_KEY;
+    const key = kindwiseKey || process.env.GEMINI_API_KEY;
     if (!key) throw new ApiError(503, "ai_not_configured");
     const quota = await client.rpc("consume_api_budget", { p_kind: "ai" });
     if (quota.error) throw new ApiError(503, "database_error");
     if (!quota.data) throw new ApiError(429, "rate_limited");
+    if (kindwiseKey) {
+      const response = await fetchJson(
+        "https://crop.kindwise.com/api/v1/identification",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Api-Key": kindwiseKey,
+          },
+          body: JSON.stringify({
+            images: [Buffer.from(bytes).toString("base64")],
+          }),
+        },
+        40000,
+      ).catch(() => {
+        throw new ApiError(502, "ai_unavailable");
+      });
+      const analysis = kindwiseAnalysis(response, lang);
+      if (!analysis) throw new ApiError(502, "ai_unavailable");
+      return NextResponse.json(
+        {
+          analysis,
+          generatedAt: new Date().toISOString(),
+          source: "kindwise",
+          model: "crop.health",
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
     const model =
       process.env.GEMINI_VISION_MODEL ||
       process.env.GEMINI_MODEL ||

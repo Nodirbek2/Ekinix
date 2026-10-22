@@ -453,9 +453,9 @@ export function PlantPhotoView({
             <p className="photo-privacy">
               {pick(
                 lang,
-                "Tahlil tugmasi rasm va izohni Google Gemini xizmatiga yuboradi. Rasm Ekinix bazasiga saqlanmaydi; GPS metama’lumotlari yuborilmaydi.",
-                "Кнопка анализа отправляет фото и заметку в Google Gemini. Фото не сохраняется в базе Ekinix; GPS-метаданные удаляются.",
-                "The analysis button sends the photo and note to Google Gemini. Ekinix does not store the photo in its database; GPS metadata is removed.",
+                "Tahlil tugmasi rasmni Kindwise crop.health xizmatiga yuboradi. Rasm Ekinix bazasiga saqlanmaydi; GPS metama’lumotlari yuborilmaydi.",
+                "Кнопка анализа отправляет фото в Kindwise crop.health. Фото не сохраняется в базе Ekinix; GPS-метаданные удаляются.",
+                "The analysis button sends the photo to Kindwise crop.health. Ekinix does not store the photo in its database; GPS metadata is removed.",
               )}
             </p>
             <button
@@ -683,7 +683,10 @@ function PhotoReport({ result, lang }: { result: PhotoResult; lang: Lang }) {
           )}
         </div>
         <small className="agro-caption">
-          Google Gemini ·{" "}
+          {result.source === "kindwise"
+            ? "Kindwise crop.health"
+            : "Google Gemini"}{" "}
+          ·{" "}
           {new Date(result.generatedAt).toLocaleString(lang, {
             timeZone: "Asia/Tashkent",
           })}
