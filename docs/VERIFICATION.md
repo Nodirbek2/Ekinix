@@ -33,3 +33,6 @@
 4. Enable Supabase leaked-password protection if the account plan supports it: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection .
 
 Copernicus credentials can be replaced later; public Sentinel fallback is working. Preview share/log connector access remains limited by Vercel team permissions; this did not prevent production deployment and API/browser verification. Mobile CSS is implemented, but a physical-phone visual check is not claimed.
+
+## Redesign verification — 2026-10-22
+Integrated production 99097de / dpl_8R2TTvfqmdukMWdXUNkUf53z5NWW READY. All eight screens inspected through live demo navigation; profile/preferences/security settings inspected. Field search filters 3→1 field; Wheat guide changes content; UZ/EN/RU language switching verified. Qibray tumani search returns actual Qibray result. Manual editor tested with 10 vertices: open at 3 and 10, explicit closure at button, reopen works and 11th point disabled. CSV download event succeeded but resulting file could not be inspected in shared files. Nine regression tests passed for integrated code; latest UI/data-race polish passes lint, TypeScript and production build (206 kB first load). No new DB migrations. Final visual/deployment evidence follows.

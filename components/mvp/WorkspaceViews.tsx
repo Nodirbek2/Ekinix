@@ -38,6 +38,7 @@ import {
   type Monitoring,
   type Observation,
   type Watering,
+  type WeatherDay,
 } from "@/lib/domain";
 import { stageLabel, t } from "@/lib/copy";
 import {
@@ -67,6 +68,18 @@ export type ViewProps = {
   onLoad: (id: string) => void;
   onNavigate: (s: Section) => void;
 };
+function rainTotal(
+  days: WeatherDay[] | undefined,
+  minimumDays = 1,
+): number | null {
+  if (
+    !days ||
+    days.length < minimumDays ||
+    days.some((d) => d.rainMm === null || !Number.isFinite(d.rainMm))
+  )
+    return null;
+  return days.reduce((total, d) => total + d.rainMm!, 0);
+}
 export function PageHeading({
   eyebrow,
   title,
@@ -318,12 +331,19 @@ export function FarmOverview(p: ViewProps) {
             ),
             p.busy
               ? pick(lang, "Yuklanmoqda", "Загрузка", "Loading")
-              : pick(
-                  lang,
-                  "Haqiqiy sun’iy yo‘ldosh ma’lumoti",
-                  "Реальные спутниковые данные",
-                  "Actual satellite observations",
-                ),
+              : p.demo
+                ? pick(
+                    lang,
+                    "Namunaviy kuzatuvlar",
+                    "Демонстрационные наблюдения",
+                    "Example observations",
+                  )
+                : pick(
+                    lang,
+                    "Haqiqiy sun’iy yo‘ldosh ma’lumoti",
+                    "Реальные спутниковые данные",
+                    "Actual satellite observations",
+                  ),
           ],
           [
             TriangleAlert,
@@ -824,10 +844,7 @@ export function WeatherPanel({
             )}
           </small>
           <strong>
-            <Value
-              value={w.days.reduce((s, d) => s + (d.rainMm ?? 0), 0)}
-              unit="mm"
-            />
+            <Value value={rainTotal(w.days)} unit="mm" />
           </strong>
         </div>
         <div>
@@ -1137,12 +1154,19 @@ export function SatelliteView(p: ViewProps) {
                 </h2>
                 <p>
                   {obs.length}{" "}
-                  {pick(
-                    p.lang,
-                    "haqiqiy kuzatuv",
-                    "реальных наблюдений",
-                    "actual observations",
-                  )}
+                  {p.demo
+                    ? pick(
+                        p.lang,
+                        "namunaviy kuzatuv",
+                        "примерных наблюдений",
+                        "example observations",
+                      )
+                    : pick(
+                        p.lang,
+                        "haqiqiy kuzatuv",
+                        "реальных наблюдений",
+                        "actual observations",
+                      )}
                 </p>
               </div>
               <button
@@ -1347,10 +1371,9 @@ export function JournalView(p: ViewProps) {
               </span>
               <span>
                 <CloudRain size={15} />
-                {p.data[f.id]?.weather.days
-                  .slice(0, 2)
-                  .reduce((s, d) => s + (d.rainMm ?? 0), 0)
-                  .toFixed(1) ?? "—"}{" "}
+                {rainTotal(p.data[f.id]?.weather.days.slice(0, 2), 2)?.toFixed(
+                  1,
+                ) ?? "—"}{" "}
                 mm <small>/ 48h</small>
               </span>
               <button className="text-button" onClick={() => p.onOpen(f.id)}>

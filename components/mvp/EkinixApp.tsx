@@ -280,6 +280,7 @@ export default function EkinixApp() {
           onLanguage={setLang}
           onAuth={openAuth}
           onDemo={() => {
+            window.scrollTo({ top: 0 });
             setDemo(true);
             setTab("overview");
             setSelected(null);

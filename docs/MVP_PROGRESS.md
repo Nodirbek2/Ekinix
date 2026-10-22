@@ -55,3 +55,6 @@ Remaining user/account/hardware inputs are explicitly recorded in docs/VERIFICAT
 User rejected the previous design, requested distinct restored sections, proper settings, no moisture hardware dependency, and map drawing with up to10 points plus explicit closure and location search. See docs/REDESIGN_PROGRESS.md for current code and next steps. A one-time continuation task was created for 2026-10-22 05:00 Asia/Tashkent. The redesign is not yet deployed; do not confuse new source files with a finished UI.
 
 Redesign implementation now integrated and locally passes types/lint/build + 9 tests. Source files include owner-scoped shared data, eight actual section components, settings panels, new map-first landing, manual-close 10-point drawing and place search. Awaiting production browser QA; see REDESIGN_PROGRESS.
+
+## Current authoritative status — 2026-10-22 redesign
+The user's later correction supersedes earlier sensor-focused UI decisions: hardware is optional/out of current scope. Eight distinct sections and redesigned settings are integrated and live; see REDESIGN_PROGRESS.md for completed map, navigation and design checks. No further backend or schema changes required for this redesign. Readability/data-race polish passed lint/types/build and is released with this checkpoint. AI key and real mailbox delivery remain external launch dependencies.

@@ -3344,3 +3344,273 @@ tbody tr:last-child td {
     animation: none;
   }
 }
+
+/* Keep operational data legible at normal browser zoom. */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+}
+.sidebar nav button,
+.sidebar-bottom > button {
+  font-size: 13px;
+  color: #5e6f80;
+}
+.farm-selector strong {
+  font-size: 12px;
+}
+.farm-selector small {
+  font-size: 10px;
+  color: #71808e;
+}
+.sidebar-label,
+.sidebar-caption {
+  font-size: 9px;
+  color: #7d8997;
+}
+.breadcrumb {
+  font-size: 11px;
+  color: #6f7d8b;
+}
+.breadcrumb strong {
+  color: #465b6c;
+}
+.page-heading p,
+.panel-heading p {
+  font-size: 12px;
+  color: #6f7e8c;
+}
+.panel-heading h2 {
+  font-size: 16px;
+}
+.eyebrow {
+  font-size: 10px;
+  color: #6d7e8d;
+}
+.stat-top {
+  font-size: 12px;
+  color: #6c7c8c;
+}
+.stat > small {
+  font-size: 11px;
+  color: #71818d;
+}
+.attention-item small {
+  font-size: 10px;
+  color: #71808c;
+}
+.attention-item strong {
+  font-size: 13px;
+  color: #42596b;
+}
+.attention-item p,
+.quiet-state p {
+  font-size: 12px;
+  color: #71818e;
+}
+.quiet-state strong {
+  font-size: 13px;
+}
+.panel-bottom-link,
+.panel-heading .text-button {
+  font-size: 11px;
+  color: #5f7b91;
+}
+.map-legend button {
+  font-size: 10px;
+  color: #526c70;
+}
+.map-legend button span {
+  color: #73828a;
+}
+.field-map-label {
+  font-size: 10px;
+}
+.map-disclaimer {
+  font-size: 9px;
+  color: #63757a;
+}
+.season-field strong {
+  font-size: 13px;
+}
+.season-field small {
+  font-size: 11px;
+  color: #6d7f88;
+}
+.status-pill {
+  font-size: 11px;
+  color: #657484;
+}
+.status-pill.green {
+  color: #427159;
+}
+th {
+  font-size: 10px;
+  color: #6c7d8d;
+}
+td {
+  font-size: 12px;
+  color: #5c7283;
+}
+.field-name-button strong {
+  font-size: 13px;
+}
+.field-name-button small {
+  font-size: 11px;
+  color: #738492;
+}
+.segmented button,
+.search-box input,
+.inline-filter select {
+  font-size: 12px;
+}
+.field-picker select,
+.forecast-day > span:first-child {
+  font-size: 12px;
+  color: #617a8c;
+}
+.weather-current span,
+.weather-summary > div > small {
+  font-size: 12px;
+  color: #6c8090;
+}
+.forecast-day > small,
+.rain-value {
+  font-size: 12px;
+}
+.forecast-day > small {
+  color: #6c8090;
+}
+.source-line,
+.data-footnote {
+  font-size: 11px;
+  color: #738594;
+}
+.three-notes p,
+.analysis-note p,
+.ai-panel p {
+  font-size: 12px;
+  color: #6d7f8c;
+}
+.three-notes h3,
+.report-card h2 {
+  font-size: 14px;
+}
+.report-card p {
+  font-size: 12px;
+  color: #6e8292;
+}
+.guide-crops button,
+.guide-field {
+  font-size: 12px;
+}
+.guide-steps p {
+  font-size: 12px;
+  color: #708493;
+}
+.guide-steps h3 {
+  font-size: 14px;
+}
+.settings-nav button {
+  font-size: 12px;
+  color: #667d8e;
+}
+.settings-section-heading p,
+.profile-identity small {
+  font-size: 12px;
+  color: #738797;
+}
+.settings-form > label {
+  font-size: 12px;
+  color: #5f778c;
+}
+.settings-form small {
+  font-size: 11px;
+  color: #748898;
+}
+.preference-row strong {
+  font-size: 13px;
+}
+.preference-row small,
+.settings-security-note p {
+  font-size: 12px;
+  color: #708697;
+}
+.journal-intro span {
+  font-size: 11px;
+  color: #6c8294;
+}
+.journal-intro p {
+  font-size: 12px;
+  color: #6f8597;
+}
+.planning-rows strong {
+  font-size: 12px;
+}
+.planning-rows small {
+  font-size: 11px;
+  color: #708899;
+}
+.landing-hero > div > p {
+  font-size: 15px;
+  color: #6e8493;
+}
+.landing-capabilities p {
+  font-size: 13px;
+  color: #738896;
+}
+.landing-capabilities h2 {
+  font-size: 16px;
+}
+.landing-close p {
+  font-size: 13px;
+  color: #718694;
+}
+@media (max-width: 760px) {
+  .sidebar nav button,
+  .sidebar-bottom > button {
+    font-size: 13px;
+  }
+  .settings-nav button {
+    font-size: 11px;
+  }
+  .app-content {
+    padding-top: 23px;
+  }
+  .stat-top {
+    font-size: 11px;
+  }
+  .stat > small {
+    font-size: 10px;
+  }
+  .map-legend button {
+    font-size: 9px;
+  }
+  .map-disclaimer {
+    font-size: 7px;
+  }
+  .page-heading h1 {
+    font-size: 25px;
+  }
+  .landing-hero > div > p {
+    font-size: 14px;
+  }
+  .attention-item p {
+    font-size: 11px;
+  }
+  .journal-intro {
+    grid-template-columns: 1fr 1fr;
+  }
+  .journal-intro p {
+    font-size: 11px;
+  }
+  .planning-rows .text-button {
+    font-size: 11px;
+  }
+  .settings-form {
+    gap: 20px;
+  }
+  .forecast-list {
+    grid-template-columns: repeat(7, 90px);
+  }
+}

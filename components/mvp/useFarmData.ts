@@ -9,23 +9,29 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const owner = useRef(account),
-    pending = useRef(new Set<string>());
+    pending = useRef(new Set<string>()),
+    revision = useRef(0);
   useEffect(() => {
+    revision.current += 1;
     owner.current = account;
     pending.current.clear();
-  }, [account]);
+  }, [account, fields]);
   const loadField = useCallback(
     async (id: string) => {
-      if (demo || pending.current.has(id)) return;
-      pending.current.add(id);
+      const generation = revision.current;
+      const requestKey = `${generation}:${id}`;
+      if (demo || pending.current.has(requestKey)) return;
+      pending.current.add(requestKey);
       const expected = account;
       try {
         const m = await api<Monitoring>(`/api/monitoring?fieldId=${id}`);
-        if (owner.current === expected) setData((old) => ({ ...old, [id]: m }));
+        if (owner.current === expected && revision.current === generation)
+          setData((old) => ({ ...old, [id]: m }));
       } catch {
-        if (owner.current === expected) setError("request_failed");
+        if (owner.current === expected && revision.current === generation)
+          setError("request_failed");
       } finally {
-        pending.current.delete(id);
+        pending.current.delete(requestKey);
       }
     },
     [account, demo],
@@ -37,6 +43,7 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
       return;
     }
     const expected = account;
+    const generation = revision.current;
     const { data, error } = await requireClient()
       .from("watering_log")
       .select("*")
@@ -47,7 +54,8 @@ export function useFarmData(fields: Field[], demo: boolean, account: string) {
       .order("watered_at", { ascending: false })
       .limit(500);
     if (error) throw error;
-    if (owner.current === expected) setWater(data ?? []);
+    if (owner.current === expected && revision.current === generation)
+      setWater(data ?? []);
   }, [fields, demo, account]);
   useEffect(() => {
     let live = true;

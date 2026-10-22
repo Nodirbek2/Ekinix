@@ -1,37 +1,34 @@
-# Ekinix redesign — active checkpoint
+# Ekinix redesign — release checkpoint 2026-10-22
 
-## User corrections (authoritative)
-User rejected the previous minimalist design and duplicate Overview/Fields screens. Continue without requiring a soil-moisture hardware tool. Restore a meaningful platform with distinct workflows and professionally redesigned settings.
-Additional map requirement: up to 10 boundary points, NEVER auto-close at three; explicit Close boundary button; city/district location search.
-User requested continuation in this same conversation at 05:00 Asia/Tashkent on 2026-10-22. A one-time automation was successfully created; read this checkpoint first on resume.
+## Authorized scope
+User rejected the old duplicate Overview/Fields screens. Deliver distinct workflows, redesigned settings and a professional map/data-focused interface. Do not touch Qalamtype. Soil-moisture hardware is not required and is not exposed as the central workflow. Keep real backend, Sentinel and weather data; never invent production observations.
 
-## Current production
-Main a4664059532c412b61560910db56bcdc4cdfc4d8; implementation 24ba8c3c5e6b38df9d80039d532dc0a56688d290 deployed. Backend real Sentinel, weather, auth and watering journal verified. Keep that backend. Do not touch Qalamtype. Gemini key absent, physical hardware out of scope now.
+## Completed implementation
+- Eight integrated sections: Farm overview, Fields, Satellite, Weather, Irrigation journal, Reports, Crop guide, Settings. Overview is a portfolio dashboard; Fields is a searchable register with map/list and archive/restore actions.
+- New landing, navigation, responsive workspace, field detail and four settings panels (profile, preferences, security, data). Settings retains real profile persistence, language selection, password-reset request and exports.
+- Satellite shows dated observations, usable coverage and NDVI history; map is explicitly a basemap, not a fabricated NDVI overlay. Weather shows forecast/rain/ET0; missing rain is not converted to zero.
+- Irrigation journal records actual events without requiring a sensor. Reports export loaded owner records. Crop guide is general observational guidance, not automated agronomic diagnosis.
+- Demo fixtures are explicitly labeled examples and are separate from account records.
+- Drawing allows 3–10 points; no automatic closure. Close boundary explicitly closes it, Reopen/Undo/Clear support corrections. Save requires closure. Manual coordinates follow the same cap. Existing legacy polygons remain editable without truncation.
+- City/district search uses explicit submission to Open-Meteo/GeoNames, Uzbekistan filter, and strips common administrative suffixes.
+- Monitoring/watering state is owner-scoped; initial satellite loading capped at six fields, selected others load on demand. Revision guard rejects old responses after field changes.
+- Readability polish increases small labels/body text and muted contrast; sticky header keeps controls accessible.
 
-## New local implementation (not yet released)
-- lib/workspace.ts: nav labels for 8 distinct sections, explicitly labeled portfolio demo fixtures, CSV helpers and derived attention signals.
-- components/mvp/PortfolioMap.tsx: interactive multi-field basemap, geographic boundaries, safe text tooltips, field selection.
-- components/mvp/WorkspaceViews.tsx: FarmOverview, FieldsView (search/archive/list/map), SatelliteView (history/quality), WeatherView (7d/rain/ET0), JournalView, ReportsView (real CSV), GuideView. Needs type/lint review, layout stylesheet, integration. Fix malformed three-notes markup in WeatherView (Thermometer is outside article).
-- components/mvp/SettingsView.tsx: separate profile, preferences, security, and data panels with working profile update, language, reset-email action, logout, export. Demo read-only.
-- FieldMap + FieldForm: explicit closed state, max10 drawing points, polyline while drawing, Close/Reopen boundary, disabled save until closed, manual coordinates same rules, user-submitted place search via Open-Meteo/GeoNames UZ filter. Search strips city/district suffix. Preserve old polygons on edit. Validate in browser.
-- lib/copy.ts: boundary_open error.
+## Release and evidence
+Integrated implementation 99097de844501291b76a0994a37a63606121fc29 is deployed READY at https://ekinix.vercel.app/ (dpl_8R2TTvfqmdukMWdXUNkUf53z5NWW).
+Latest readability/data-race polish: lint, TypeScript and production build pass; publishing this checkpoint with that patch. Final deployment identity/visual verification is recorded in VERIFICATION.md after release.
 
-## Still to do
-1. Fix any current types/lint errors (types-results.log), especially WorkspaceViews tuple types/optional field lookup.
-2. Rebuild EkinixApp shell: integrate new views, new tasteful stylesheet replacing old green/lime landing/template; distinct overview vs field table. Keep existing auth/session race protection and persistence. Fetch owner-scoped watering logs and monitoring into session-scoped state; cap auto-monitor requests (e.g. 6) and allow selected field loading. No account-unscoped caches. Demo must navigate all sections, including Settings preview.
-3. Replace old FieldWorkspace UI with hardware-free field detail, or stop importing it. Remove exposed sensor connect/cards/nav and modeled soil moisture centerpiece; keep underlying sensor records/API intact for later.
-4. New landing matching product with actual map/workspace preview, no repetitive fake field illustrations.
-5. CSS responsive sidebar/mobile menu/tables/forms/settings/maps; accessible labels and focus; sensible visual hierarchy. Test 8 sections separately, search and map drawing explicit-close flow; settings real owner persist if possible. Use CUA for browser.
-6. Lint/types/test/build, save feature branch checkpoint; publish only after integrated checks. GitHub tools write commits (local git push lacks credentials). Exact Vercel project ID without teamId works; preview share/log access has scope errors. Main update expected_sha lease.
-7. Update this checkpoint and VERIFICATION with actual evidence. Don't claim placeholders are completed.
+Live browser checks against the integrated production release:
+- All eight sections render distinct content; settings profile/preferences/security render.
+- UZ → EN → RU language changes render translated navigation and guidance.
+- Field search Bo‘zsuv returns one field / 8.6 ha. Crop guide Wheat changes text and linked field.
+- Qibray tumani search returns Qibray, Tashkent Region and pans map.
+- Actual editor accepts ten manual vertices. At three and ten points the SVG boundary remains open (no closing z); Close boundary produces a closed polygon / 5.52 ha. Reopen works; an eleventh Add point is disabled.
+- CSV export produced a browser download event and path. The download file was unavailable through the shared filesystem, so its bytes were not inspected and no file attachment is claimed.
+- Nine existing domain/raster tests passed for the integrated release. No DB schema changes in redesign.
 
-## Targets
-Repo Nodirbek2/Ekinix, branch fix/ekinix-mvp, local /workspace/scratch/6c1b8e244e3f/ekinix.
-Vercel prj_82wNd10Jh724BRz27RCMBFWAK4k5; domain https://ekinix.vercel.app.
-Supabase xncvbfumfmyzucrkrgly. No schema changes needed for this redesign.
+## Remaining external limits
+GEMINI_API_KEY is absent: optional AI explanation honestly reports unavailable. Real reset/confirmation email delivery still needs mailbox verification. Copernicus credentials are invalid; verified real public Sentinel fallback remains active. Physical-phone layout and hardware calibration are not claimed as tested; hardware is outside current scope.
 
-## Integrated checkpoint
-EkinixApp now integrates all 8 distinct sections, new Landing, SettingsView, FieldDetail (no hardware UI), useFarmData (owner-scoped, max6 auto-monitor fields), and new responsive stylesheet. FieldPicker loads additional selected fields on demand. Shared refresh control added. Current types and ESLint passed before refresh-control patch; 9 existing tests pass. Production build verification in progress. Next: review build log, checkpoint/push branch, deploy main after gates; browser check every section, explicit-close drawing to10 points and place search, screenshots; update final docs.
-
-## Ready for browser QA
-All 8 screens are integrated, not just new unreferenced files. Responsive stylesheet and new landing replace previous lime illustration layout. TypeScript and ESLint pass; production build passes (206 kB first-load JS); nine existing domain/satellite regression tests pass. Source was formatted for maintainability. Main still at a466... until release commit below. Next immediate action: push/lease-update main with integrated implementation, wait READY, use live demo to verify each distinct section and settings, drawing10 points/explicit closure, city search, CSV export, capture actual design screenshots. Existing preview share access is limited; production release is authorized and reversible.
+## Resume safely
+Read this file, MVP_PROGRESS.md, VERIFICATION.md and remote main/fix branch heads first. Do not repeat completed work or recreate test accounts unnecessarily. GitHub connector writes are needed because local push lacks credentials. Both main and fix/ekinix-mvp should point to the latest reviewed checkpoint. Exact Vercel project ID prj_82wNd10Jh724BRz27RCMBFWAK4k5 works without teamId. Supabase xncvbfumfmyzucrkrgly. No secrets in logs or commits.
