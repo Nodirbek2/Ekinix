@@ -58,64 +58,95 @@ export function Landing({
   onPrivacy: () => void;
 }) {
   return (
-    <div className="landing">
+    <div className="landing compact-landing">
       <header className="public-header">
         <Brand />
         <nav>
           <LanguagePicker lang={lang} onChange={onLanguage} />
-          <button className="text-button" onClick={() => onAuth("login")}>
+          <button className="button secondary" onClick={() => onAuth("login")}>
             {pick(lang, "Kirish", "Войти", "Sign in")}
-          </button>
-          <button className="button primary" onClick={() => onAuth("register")}>
-            {pick(lang, "Boshlash", "Начать", "Get started")}
             <ArrowUpRight size={15} />
           </button>
         </nav>
       </header>
-      <main className="landing-main">
-        <section className="landing-hero">
-          <div>
-            <div className="eyebrow">
-              EKINIX /{" "}
+      <main className="welcome-main">
+        <section className="welcome-hero">
+          <div className="welcome-copy">
+            <span className="welcome-badge">
+              <Sprout size={14} />
               {pick(
                 lang,
-                "RAQAMLI DALA BOSHQARUVI",
-                "ЦИФРОВОЕ УПРАВЛЕНИЕ ПОЛЯМИ",
-                "DIGITAL FIELD OPERATIONS",
+                "O‘zbekiston fermerlari uchun",
+                "Для фермеров Узбекистана",
+                "For Uzbekistan’s farmers",
               )}
-            </div>
+            </span>
             <h1>
-              {pick(lang, "Dalalaringizni", "Ваши поля.", "Your fields.")}
+              {pick(
+                lang,
+                "Dalani kuzating.",
+                "Следите за полем.",
+                "Know your field.",
+              )}
               <br />
               <span>
                 {pick(
                   lang,
-                  "to‘liq ko‘ring.",
-                  "Полная картина.",
-                  "The complete picture.",
+                  "Sug‘orishni rejalang.",
+                  "Планируйте полив.",
+                  "Plan your irrigation.",
                 )}
               </span>
             </h1>
             <p>
               {pick(
                 lang,
-                "Sun’iy yo‘ldosh kuzatuvlari, ob-havo va dala ishlari uchun yagona ish maydoni. Har bir dalaning tarixini ko‘ring va mavsumni ma’lumot asosida boshqaring.",
-                "Единая рабочая область для спутниковых наблюдений, погоды и полевых работ. История каждого поля и управление сезоном на основе данных.",
-                "A single workspace for satellite observations, weather, and field activity. See the history of every field and manage the season with evidence.",
+                "Ob-havo, sun’iy yo‘ldosh kuzatuvlari va ekin tahlili — dalangiz uchun bitta qulay platformada.",
+                "Погода, спутниковые наблюдения и анализ растений — в одной удобной платформе.",
+                "Weather, satellite observations and crop analysis, together in one field workspace.",
               )}
             </p>
-            <div className="hero-actions">
+            <div className="welcome-features">
+              <span>
+                <Satellite size={17} />
+                {pick(
+                  lang,
+                  "NDVI kuzatuvi",
+                  "Мониторинг NDVI",
+                  "NDVI monitoring",
+                )}
+              </span>
+              <span>
+                <CloudSun size={17} />
+                {pick(
+                  lang,
+                  "Sug‘orish rejasi",
+                  "План полива",
+                  "Irrigation planning",
+                )}
+              </span>
+              <span>
+                <Sprout size={17} />
+                {pick(
+                  lang,
+                  "Rasm orqali AI tahlili",
+                  "ИИ-анализ фото",
+                  "AI photo analysis",
+                )}
+              </span>
+            </div>
+            <div className="welcome-actions">
               <button
                 className="button primary"
                 onClick={() => onAuth("register")}
               >
                 {pick(
                   lang,
-                  "Fermamni qo‘shish",
-                  "Добавить хозяйство",
-                  "Add my farm",
+                  "Hisob yaratish",
+                  "Создать аккаунт",
+                  "Create account",
                 )}
-                <ArrowRight size={16} />
+                <ArrowRight size={17} />
               </button>
               <button className="button secondary" onClick={onDemo}>
                 {pick(
@@ -126,155 +157,68 @@ export function Landing({
                 )}
               </button>
             </div>
-            <div className="hero-facts">
-              <span>Sentinel-2</span>
-              <i />
-              <span>Open-Meteo</span>
-              <i />
-              <span>
-                {pick(
-                  lang,
-                  "O‘zbekiston uchun",
-                  "Для Узбекистана",
-                  "Built for Uzbekistan",
-                )}
-              </span>
-            </div>
+            <small className="welcome-note">
+              {pick(
+                lang,
+                "Avval namuna fermasida sinab ko‘rishingiz mumkin.",
+                "Сначала можно посмотреть пример хозяйства.",
+                "Explore a sample farm before signing up.",
+              )}
+            </small>
           </div>
-          <div className="landing-product">
-            <div className="product-window-bar">
+          <div className="welcome-preview">
+            <div className="welcome-preview-head">
               <span>
-                <i />
-                <i />
-                <i />
-              </span>
-              <strong>
-                ekinix /{" "}
+                <Layers size={16} />
                 {pick(
                   lang,
-                  "Ferma markazi",
-                  "Центр хозяйства",
-                  "Farm overview",
+                  "Dalalaringiz — bir xaritada",
+                  "Ваши поля на одной карте",
+                  "Your fields on one map",
                 )}
-              </strong>
+              </span>
               <small>DEMO</small>
             </div>
             <PortfolioMap fields={demoFields} lang={lang} />
-            <div className="product-window-stats">
-              <div>
-                <small>{pick(lang, "DALALAR", "ПОЛЯ", "FIELDS")}</small>
-                <strong>03</strong>
-              </div>
-              <div>
-                <small>{pick(lang, "MAYDON", "ПЛОЩАДЬ", "AREA")}</small>
-                <strong>
-                  24.2 <em>ha</em>
-                </strong>
-              </div>
-              <div>
-                <small>{pick(lang, "MA’LUMOTLAR", "ДАННЫЕ", "DATA")}</small>
-                <strong>{pick(lang, "Namuna", "Пример", "Example")}</strong>
-              </div>
+            <div className="welcome-preview-foot">
+              <span>
+                <i />
+                {pick(
+                  lang,
+                  "Namuna fermasi",
+                  "Пример хозяйства",
+                  "Sample farm",
+                )}
+              </span>
+              <span>Sentinel-2 · Open-Meteo</span>
             </div>
           </div>
         </section>
-        <section className="landing-capabilities">
+        <div className="welcome-steps">
           {[
-            {
-              icon: Layers,
-              n: "01",
-              title: pick(
-                lang,
-                "Dalalar reyestri",
-                "Реестр полей",
-                "Field register",
-              ),
-              text: pick(
-                lang,
-                "Chegarani chizing, ekin va mavsumni belgilang. Xarita va ro‘yxat orasida ishlang.",
-                "Нарисуйте границы, укажите культуру и сезон. Работайте с картой и списком.",
-                "Draw boundaries, set the crop and season. Work between the map and field list.",
-              ),
-            },
-            {
-              icon: Satellite,
-              n: "02",
-              title: pick(
-                lang,
-                "Vegetatsiya monitoringi",
-                "Мониторинг растительности",
-                "Vegetation monitoring",
-              ),
-              text: pick(
-                lang,
-                "NDVI tarixini surat sanasi va yaroqlilik darajasi bilan ko‘ring.",
-                "Смотрите историю NDVI с датой и качеством наблюдения.",
-                "Read NDVI history with acquisition dates and observation quality.",
-              ),
-            },
-            {
-              icon: CloudSun,
-              n: "03",
-              title: pick(
-                lang,
-                "Dala ishlarini rejalash",
-                "Планирование работ",
-                "Field planning",
-              ),
-              text: pick(
-                lang,
-                "7 kunlik prognoz, sug‘orish jurnali va yuklab olinadigan hisobotlar.",
-                "Прогноз на 7 дней, журнал полива и выгрузка отчётов.",
-                "Seven-day forecasts, irrigation records, and downloadable reports.",
-              ),
-            },
-          ].map((r) => (
-            <article key={r.n}>
-              <span>{r.n}</span>
-              <r.icon size={24} />
-              <h2>{r.title}</h2>
-              <p>{r.text}</p>
-            </article>
+            pick(lang, "Dalani belgilang", "Отметьте поле", "Draw your field"),
+            pick(
+              lang,
+              "Ekin va fazani kiriting",
+              "Укажите культуру и фазу",
+              "Set crop and phase",
+            ),
+            pick(
+              lang,
+              "Kuzatuv va rejani ko‘ring",
+              "Изучайте данные и план",
+              "See observations and plan",
+            ),
+          ].map((step, i) => (
+            <div key={i}>
+              <b>0{i + 1}</b>
+              <span>{step}</span>
+              {i < 2 && <ArrowRight size={15} />}
+            </div>
           ))}
-        </section>
-        <section className="landing-close">
-          <span className="eyebrow">
-            {pick(
-              lang,
-              "O‘LCHOVDAN QARORGA",
-              "ОТ НАБЛЮДЕНИЯ К РЕШЕНИЮ",
-              "FROM OBSERVATION TO ACTION",
-            )}
-          </span>
-          <h2>
-            {pick(
-              lang,
-              "Har bir dala — o‘z tarixi bilan.",
-              "У каждого поля своя история.",
-              "Every field has a story.",
-            )}
-          </h2>
-          <p>
-            {pick(
-              lang,
-              "Yo‘q ma’lumotni to‘ldirmaymiz. Manba, sana va taxminlar ochiq ko‘rsatiladi.",
-              "Не подменяем отсутствующие данные. Источники, даты и оценки обозначены явно.",
-              "We do not fill gaps with invented values. Sources, dates, and estimates are shown clearly.",
-            )}
-          </p>
-          <button className="button secondary" onClick={onDemo}>
-            {pick(
-              lang,
-              "Ish maydonini ochish",
-              "Открыть рабочую область",
-              "Open the workspace",
-            )}
-            <ArrowRight size={15} />
-          </button>
-        </section>
+        </div>
       </main>
       <footer className="public-footer">
-        <Brand />
         <span>© 2026 Ekinix</span>
         <button className="text-button" onClick={onPrivacy}>
           {pick(lang, "Maxfiylik", "Конфиденциальность", "Privacy")}
