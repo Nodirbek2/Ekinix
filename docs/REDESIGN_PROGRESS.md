@@ -16,7 +16,7 @@ User rejected the old duplicate Overview/Fields screens. Deliver distinct workfl
 
 ## Release and evidence
 Integrated implementation 99097de844501291b76a0994a37a63606121fc29 is deployed READY at https://ekinix.vercel.app/ (dpl_8R2TTvfqmdukMWdXUNkUf53z5NWW).
-Latest readability/data-race polish: lint, TypeScript and production build pass; publishing this checkpoint with that patch. Final deployment identity/visual verification is recorded in VERIFICATION.md after release.
+Readability/data-race polish fb8450c9a04b26756a043a6580566e3f28d70c29 is deployed READY at the production domain (dpl_HbLJy2LRaqBQAguGn8CSXnhTTzXM). Lint, TypeScript, nine tests and production build pass. Live reload confirms the new demo labels and readable panels. Overview and settings screenshots are in docs/redesign-overview.jpg and docs/redesign-settings.jpg. No Ekinix application console errors observed; captured errors came from a browser extension.
 
 Live browser checks against the integrated production release:
 - All eight sections render distinct content; settings profile/preferences/security render.
@@ -31,4 +31,4 @@ Live browser checks against the integrated production release:
 GEMINI_API_KEY is absent: optional AI explanation honestly reports unavailable. Real reset/confirmation email delivery still needs mailbox verification. Copernicus credentials are invalid; verified real public Sentinel fallback remains active. Physical-phone layout and hardware calibration are not claimed as tested; hardware is outside current scope.
 
 ## Resume safely
-Read this file, MVP_PROGRESS.md, VERIFICATION.md and remote main/fix branch heads first. Do not repeat completed work or recreate test accounts unnecessarily. GitHub connector writes are needed because local push lacks credentials. Both main and fix/ekinix-mvp should point to the latest reviewed checkpoint. Exact Vercel project ID prj_82wNd10Jh724BRz27RCMBFWAK4k5 works without teamId. Supabase xncvbfumfmyzucrkrgly. No secrets in logs or commits.
+Read this file, MVP_PROGRESS.md, VERIFICATION.md and remote main/fix branch heads first. Do not repeat completed work or recreate test accounts unnecessarily. GitHub connector writes are needed because local push lacks credentials. Main points to the verified production code; fix/ekinix-mvp additionally holds the final documentation/screenshots checkpoint. Exact Vercel project ID prj_82wNd10Jh724BRz27RCMBFWAK4k5 works without teamId. Supabase xncvbfumfmyzucrkrgly. No secrets in logs or commits.
