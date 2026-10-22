@@ -10,3 +10,7 @@
 - Direct public-data Groq test from this workspace returned HTTP 403, error code 1010. This does not establish that the key is invalid; live model inference is unverified. Do not claim full end-to-end validation.
 - 32 existing tests passed. Production build/type/lint checked before promotion.
 - Existing private field satellite approval restriction remains in force; no private monitoring or field-summary call was triggered for verification.
+
+## Deployment checkpoint
+- Commit 649a81a5e01e3297b1c32fb0f24a067d66a34cef deployed READY as dpl_H4QK1frxRsNhXygMULjTYrhVK2xb; ekinix.vercel.app alias confirmed.
+- Model inference and signed-in browser submission remain unverified because the workspace Groq request was rejected (403/1010).
