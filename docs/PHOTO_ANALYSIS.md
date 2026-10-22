@@ -39,3 +39,9 @@ The earlier exact-field NDVI outbound approval block remains separate. Do not se
 - Public official sample-image test returned HTTP 401. Key authentication is blocked; do not claim live inference success. Uploaded attachment was unavailable, and was not used.
 - Integration staged on fix/ekinix-mvp, pending a working crop.health key before production code promotion. Existing production code unchanged; new secret alone does not activate existing deployments.
 - 31 tests passed; production build passed.
+
+## Working crop.health key — 2026-10-22
+- Replaced the production secret with the user-provided crop.health-specific key.
+- Official public example image returned COMPLETED with actual crop and disease suggestions. No private field data or user photo was transmitted.
+- Non-plant detections suppress all disease suggestions. 32 tests passed.
+- Promoting integration to main; authenticated full application inference and physical camera capture remain unverified.

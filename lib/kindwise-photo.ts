@@ -8,6 +8,7 @@ export function kindwiseAnalysis(
   const result = (
     value as {
       result?: {
+        is_plant?: { binary?: boolean };
         disease?: { suggestions?: unknown[] };
         crop?: { suggestions?: unknown[] };
       };
@@ -20,6 +21,11 @@ export function kindwiseAnalysis(
   )
     return null;
   const text = (uz: string, ru: string, en: string) => ({ uz, ru, en })[lang];
+  if (result.is_plant?.binary === false) return {
+    imageQuality: "not_crop", urgency: "routine",
+    summary: text("Xizmat suratda o‘simlikni aniqlamadi. Boshqa aniqroq surat oling.", "Сервис не обнаружил растение. Сделайте более чёткое фото.", "The service did not detect a plant. Take a clearer photo."),
+    observations: [], possibleCauses: [], nextSteps: [], additionalPhotos: [],
+  };
   const names = (list: unknown[]) =>
     list
       .flatMap((item) => {

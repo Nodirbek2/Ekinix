@@ -12,3 +12,8 @@ test('Kindwise rejects missing contracts and invalid probabilities',()=>{
  const a=kindwiseAnalysis({result:{crop:{suggestions:[]},disease:{suggestions:[{name:'bad',probability:2}]}}},'uz');
  assert.equal(a.possibleCauses.length,0);
 });
+
+test('Non-plant results cannot expose disease suggestions',()=>{
+ const a=kindwiseAnalysis({result:{is_plant:{binary:false},crop:{suggestions:[]},disease:{suggestions:[{name:'late blight',probability:.9}]}}},'uz');
+ assert.equal(a.imageQuality,'not_crop'); assert.equal(a.possibleCauses.length,0);
+});
