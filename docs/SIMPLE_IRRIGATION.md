@@ -17,3 +17,7 @@
 ## Material limits
 Spatially resolved irrigation priorities are NOT implemented: current satellite pipeline returns field averages, not validated per-zone water deficits. No exact current irrigation dose can be established without a validated soil-water baseline and local conditions. No fake polygon subdivision or claimed precision. Current phase may differ from historical phase. Last-watering day/today are excluded; model weather is not an on-farm rain gauge. Missing history/forecast remains visibly incomplete.
 Groq real inference previously rejected from workspace with HTTP 403/1010; signed-in chat response and real journal write not exercised in this pass. No automated private monitoring call due earlier coordinate-transmission approval restriction. Physical-phone verification pending.
+
+## Production verification checkpoint
+Final code commit 14106ef8729a1b88e1be7b370515036f91aeebe2 deployed READY as dpl_87VAgz5fHhTEh7vLpXvfe9FpT7i6. Selected-field watering scope was checked and corrected before final completion.
+Browser demo planner and field detail render the simple card and chat; advanced settings expand/collapse. Demo prevents chat submission and watering writes. Missing last irrigation and hourly context do not produce invented dates. Snapshot saved for visual review. Authenticated actual history, Groq response and journal write remain unverified.
