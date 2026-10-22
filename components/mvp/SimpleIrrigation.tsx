@@ -89,7 +89,7 @@ export function SimpleIrrigation({
   const plan = buildIrrigationPlan(
     field,
     weather,
-    water,
+    water.filter((entry) => entry.field_id === field.id),
     { phase: field.stage_override, confirmed: !!field.stage_override },
     demo && weather ? new Date(weather.fetchedAt) : new Date(clock),
   );
